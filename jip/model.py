@@ -2,6 +2,13 @@
 """The jip models cover the basic Script class, the executable
 Block model and teh custom Exceptions.
 """
+import sys
+
+from subprocess import PIPE
+
+from jip.block_functions import TemplateBlock, PipelineBlock
+from jip.utils import render_table, flat_list
+
 
 #currently supported block type
 VALIDATE_BLOCK = "validate"
@@ -15,9 +22,6 @@ SUPPORTED_BLOCKS = [
     PIPELINE_BLOCK
 ]
 
-import sys
-
-from jip.block_functions import TemplateBlock, PipelineBlock
 
 
 class ScriptError(Exception):
@@ -33,7 +37,7 @@ class ScriptError(Exception):
 
     def __str__(self):
         path = "<unknown>" if self._script is None else self._script.path
-        lines = ["""Error in script %s\n""" % (self._script.path)]
+        lines = ["""Error in script %s\n""" % path]
         if self._block is None:
             lines.append(self.message)
             return "\n".join(lines)
@@ -95,6 +99,13 @@ class ScriptError(Exception):
         return script_error
 
 
+class ExecutionError(ScriptError):
+    def __str__(self):
+        block_line = self._block.lineno if self._lineno == 0 else self._lineno
+        path = "<unknown>" if self._script is None else self._script.path
+        lines = ["""Error running script %s""" % path,
+                 "Block at line %d: %s" % (block_line, self.message)]
+        return "\n".join(lines)
 
 
 class ValidationException(ScriptError):
@@ -108,7 +119,7 @@ class ValidationException(ScriptError):
             The error dict where keys are the invalid field names and values
             are the error messages
     """
-    def __init__(self, errors):
+    def __init__(self, errors, block):
         """
         Create a new instance of Validation exception
 
@@ -117,6 +128,8 @@ class ValidationException(ScriptError):
         """
         ScriptError.__init__(self, "Validation Error")
         self.errors = errors
+        self._script = block.script
+        self._block = block
 
     def __unicode__(self):
         return self.__str__()
@@ -125,12 +138,12 @@ class ValidationException(ScriptError):
         return self.__repr__()
 
     def __repr__(self):
-        s = "Validation failed!"
+        s = "Block validation failed for script %s in block %s" % (self._script.path, self._block)
         if self.errors is None:
             return s
-        msgs = ["%s\t: %s" % (field, msg)
-                for field, msg in self.errors.items()]
-        return "\n".join([s] + msgs)
+        table = render_table(["Field", "Message"],
+                             [(k, v) for k, v in self.errors.iteritems()])
+        return "%s\n%s" % (s, table)
 
 
 class Block(object):
@@ -149,6 +162,7 @@ class Block(object):
         self.content = []
         self.block_args = block_args
         self.process = None
+
         if interpreter is None or len(interpreter) == 0:
             self.interpreter = "bash"
 
@@ -156,12 +170,11 @@ class Block(object):
         """Execute this block
         """
         if self.type == PIPELINE_BLOCK:
-            self._run_pipeline_block(args)
-            return
-        if self.interpreter == "python":
-            self._run_python_block(args)
+            return self._run_pipeline_block(args)
+        if self.interpreter == "python" and self.type == VALIDATE_BLOCK:
+            return self._run_python_block(args)
         else:
-            self._run_interpreter_block(args)
+            return self._run_interpreter_block(args)
 
     def render(self, args):
         """Execute this block
@@ -192,22 +205,22 @@ class Block(object):
             script_error = ScriptError.from_block_exception(self, e)
             raise script_error
         if len(block_func._errors) > 0:
-            raise ValidationException(block_func._errors)
+            raise ValidationException(block_func._errors, self)
 
     def _run_pipeline_block(self, args):
-        """Run this block as a python block"""
+        """Run this block as a pipeline block"""
         template_block = TemplateBlock(args)
         script_block = PipelineBlock(self.script, args)
         env = {"jip": template_block}
         for k, v in vars(script_block).items():
             if k[0] != "_":
                 env[k] = v
-
         try:
             exec "\n".join(self.content) in locals(), env
         except Exception, e:
             script_error = ScriptError.from_block_exception(self, e)
             raise script_error
+        return script_block.pipeline
 
     def _run_interpreter_block(self, args):
         """Execute a interpreter block"""
@@ -218,12 +231,35 @@ class Block(object):
         try:
             script_file.write(self._render_interpreter_block(args))
             script_file.flush()
-            self.process = subprocess.Popen([self.interpreter, script_file.name])
-            if self.process.wait() != 0:
-                raise ScriptError.from_block_fail(self,
-                                                  "Execution failed with %d"
-                                                  % self.process.wait())
-            self.process = None
+            self.process = subprocess.Popen(
+                [self.interpreter, script_file.name],
+                stdin=self.script.stdin,
+                stdout=self.script.stdout
+            )
+            if self.script.stdout != PIPE and self.process.wait() != 0:
+                script_file.close()
+                raise ExecutionError.from_block_fail(self,
+                                                     "Execution failed with %d"
+                                                     % self.process.wait())
+            elif self.script.stdout == PIPE:
+                ## start a thread to check the process
+                def process_check(script, script_file):
+                    try:
+                        ret = script.process.wait()
+                        script_file.close()
+                        if ret != 0:
+                            raise ExecutionError.from_block_fail(script,
+                                                                 "Execution failed with %d"
+                                                                 % ret)
+                    except:
+                        ## we ignore exceptions in the threads for now
+                        pass
+
+                from threading import Thread
+                process_thread = Thread(target=process_check, args=(self, script_file))
+                process_thread.start()
+            self.process = None if self.script.stdout != PIPE else self.process
+            return self.process
         except OSError, err:
             # catch the errno 2 No such file or directory, which indicates the
             # interpreter is not available
@@ -232,8 +268,6 @@ class Block(object):
                                                   "Interpreter %s not found!"
                                                   % self.interpreter)
             raise err
-        finally:
-            script_file.close()
 
     def _render_python_block(self, args):
         """Run this block as a python block"""
@@ -249,7 +283,6 @@ class Block(object):
         env = dict(args)
         env["jip"] = block_func
         return template.render(env)
-
 
     def __str__(self):
         return "Block[type:'%s']" % self.type
@@ -278,11 +311,15 @@ class Script(object):
         self.outputs = {}
         self.options = {}
         self.running_block = None
-
-    @classmethod
-    def from_file(cls, path):
-        from jip.parser import parse_script
-        return parse_script(path, cls)
+        self.pipeline = None
+        self.supports_stream_out = False
+        self.supports_stream_in = False
+        self.default_input = None
+        self.default_output = None
+        self.stdout = None
+        self.stdin = None
+        if self.args is None:
+            self.args = {}
 
     def parse_args(self, script_args):
         """Parse the command line parameters"""
@@ -291,10 +328,34 @@ class Script(object):
 
     def __run_blocks(self, key):
         """Internal method that executes all blocks of the given type"""
-        for v_block in self.blocks.get(key, []):
+        result = None
+        for i, v_block in enumerate(self.blocks.get(key, [])):
             self.running_block = v_block
-            v_block.run(self.args)
+            result = v_block.run(self.args)
         self.running_block = None
+        return result
+
+    def _load_pipeline(self):
+        """Check if the script contains pipeline blocks. If thats
+        the case, run the pipeline blocks to initialize the pipeline and return
+        true, else return false.
+        The pipeline scripts are stored in self.pipeline and this is
+        also checked at the beginning and the function return True immediately
+        if the pipeline is already initialized.
+        """
+        if self.pipeline is not None:
+            return True
+        if len(self.blocks.get(PIPELINE_BLOCK, [])) == 0:
+            return False
+        self.pipeline = self.__run_blocks(PIPELINE_BLOCK)
+        return True
+
+    def _get_output_files(self, only_files=False):
+        """Generates a list of filenames that are marked as output files of this process"""
+        files = [v if isinstance(v, (list, tuple)) else [v] for v in self.outputs.itervalues()]
+        # flatten
+        files = [y for x in files for y in x if not only_files or isinstance(y, basestring)]
+        return files
 
     def validate(self):
         """Call all validation blocks of a script
@@ -302,15 +363,19 @@ class Script(object):
         # make sure we do not mix pipeline and command blocks
         if(len(self.blocks.get(COMMAND_BLOCK, [])) > 0
            and len(self.blocks.get(PIPELINE_BLOCK, [])) > 0):
-           raise ScriptError.from_script_fail(self, "Mixing command and pipeline "
-                                                    "blocks is currently not supported!")
+            raise ScriptError.from_script_fail(self, "Mixing command and pipeline "
+                                                     "blocks is currently not supported!")
         self.__run_blocks(VALIDATE_BLOCK)
+        if self._load_pipeline():
+            self.pipeline.validate()
 
     def run(self):
         """Call all command blocks of a script
         """
-        self.__run_blocks(PIPELINE_BLOCK)
-        self.__run_blocks(COMMAND_BLOCK)
+        if self._load_pipeline():
+            return self.pipeline.run()
+        else:
+            return self.__run_blocks(COMMAND_BLOCK)
 
     def terminate(self):
         """
@@ -322,7 +387,7 @@ class Script(object):
     def cleanup(self):
         """Remove any temporary files and if force is true, remove all generated output"""
         import shutil
-        from os.path import exists, isdir, islink
+        from os.path import exists, isdir
         from os import unlink
         for f in (f for f in self._get_output_files(only_files=True) if exists(f)):
             try:
@@ -330,14 +395,6 @@ class Script(object):
                 shutil.rmtree(f) if isdir(f) else unlink(f)
             except:
                 sys.stderr.write("Cleanup:error removing file:%s\n" % f)
-
-
-    def _get_output_files(self, only_files=False):
-        """Generates a list of filenames that are marked as output files of this process"""
-        files = [v if isinstance(v, (list, tuple)) else [v] for v in self.outputs.itervalues()]
-        # flatten
-        files = [y for x in files for y in x if not only_files or isinstance(y, basestring)]
-        return files
 
     def is_done(self):
         """Returns true if all detectable script output exists
@@ -365,4 +422,124 @@ class Script(object):
             lines.append(block.render(self.args))
         return "\n".join(lines)
 
+    def __repr__(self):
+        return self.name
 
+    @classmethod
+    def from_file(cls, path):
+        from jip.parser import parse_script
+        return parse_script(path, cls)
+
+
+class Pipeline(object):
+    """Represents a pipeline graph as a set of ScriptNodes and edges"""
+    def __init__(self):
+        self.nodes = []
+
+    def add(self, script):
+        """Add a script to the pipeline and return the ScriptNode that
+        wraps the script
+        """
+        node = ScriptNode(script, len(self.nodes), self)
+        self.nodes.append(node)
+        return node
+
+    def validate(self):
+        for script in (s.script for s in self.nodes):
+            script.validate()
+
+    def run(self):
+        # order the pipeline graph
+        running = set([])
+        for node in self.nodes:
+            if node.script in running:
+                continue
+            script = node.script
+            dispatcher_targets = None
+            dispatcher_pipes = None
+
+            if len(node._pipe_to) > 0:
+                # make sure the current parent
+                # pipes to stdout.
+                # in case file output is set,
+                # reset the output
+                script.stdout = PIPE
+                default_out = script.args[script.default_output]
+                if default_out != sys.stdout or len(node._pipe_to) > 1:
+                    dispatcher_targets = []
+                    dispatcher_pipes = []
+
+                    # add a file target and reset this scripts default out to stdout
+                    if default_out != sys.stdout:
+                        # reset output
+                        script.args[script.default_output] = sys.stdout
+                        # needs a dispatcher
+                        dispatcher_targets.append(open(default_out, 'wb'))
+
+                    for _ in node._pipe_to:
+                        import os
+                        read, write = os.pipe()
+                        dispatcher_targets.append(os.fdopen(write, 'w'))
+                        dispatcher_pipes.append(os.fdopen(read, 'r'))
+
+            process = script.run()
+            if dispatcher_targets is not None:
+                dispatcher_targets = [process.stdout] + dispatcher_targets
+                from jip.dispatcher import dispatch
+                dispatch(*dispatcher_targets)
+
+            running.add(script)
+            for i, child in enumerate(node._pipe_to):
+                if dispatcher_pipes is None:
+                    child.script.stdin = process.stdout
+                else:
+                    child.script.stdin = dispatcher_pipes[i]
+                child.script.run()
+                running.add(child.script)
+
+
+    def _sort_nodes(self):
+        count = {}
+        for node in self.nodes:
+            count[node] = 0
+
+        for node in self.nodes:
+            for successor in node.children:
+                count[successor] += 1
+        ready = [node for node in self.nodes if count[node] == 0]
+        result = []
+        while ready:
+            node = ready.pop(-1)
+            result.append(node)
+            for successor in node.children:
+                count[successor] -= 1
+                if count[successor] == 0:
+                    ready.append(successor)
+        self.nodes = result
+
+
+class ScriptNode(object):
+    """Pipeline node that wraps around a script"""
+
+    def __init__(self, script, id, pipeline):
+        self.script = script
+        self.parents = []
+        self.children = []
+        self._pipe_to = []
+        self.id = id
+        self.pipeline = pipeline
+
+    def __or__(self, other):
+        """Create a dependency between this script and the other script
+        and, if supported by both ends, allow streaming data from this
+        script to the other
+        """
+        #todo: check for cycles
+        self.children.append(other)
+        if self.script.supports_stream_out and other.script.supports_stream_in:
+            self._pipe_to.append(other)
+        other.parents.append(self)
+        self.pipeline._sort_nodes()
+
+    def __repr__(self):
+        return "[%d]{%s}" % (self.id, self.script.__repr__())

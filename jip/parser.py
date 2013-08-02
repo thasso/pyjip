@@ -146,6 +146,17 @@ def option_value(opt):
         return [__resolve_value(v) for v in opt.value]
     return __resolve_value(opt.value)
 
+def is_stream_option(opt):
+    """Return true if the option supports streams"""
+    if opt.argcount <= 0:
+        return False
+    value = opt.value
+    if isinstance(value, (list, tuple)):
+        if len(value) > 1 or len(value) == 0:
+            return False
+        value = value[0]
+    return __default_value_translations.get(value, None) is not None
+
 def __resolve_value(value):
     """Helper function to translate default 'stdin' etc values
     to their actual counter parts"""
@@ -197,7 +208,7 @@ def parse_script_args(script, script_args):
                 target[name] = value
 
 
-def parse_script(path=None, script_class=Script, lines=None, name=None):
+def parse_script(path=None, script_class=Script, lines=None, name=None, args=None):
     """Open given script and pars it"""
     if path is not None and not os.path.exists(path):
         raise ScriptError("Script file not found : %s" % path)
@@ -218,13 +229,25 @@ def parse_script(path=None, script_class=Script, lines=None, name=None):
         block_list.append(block)
         script.blocks[block.type] = block_list
     parse_script_options(script)
+    # set script arguments
+    if args is not None:
+        script.args.update(args)
     return script
 
 
 def parse_script_options(script):
     doc_string = script.help()
+    if script.args is None:
+        script.args = {}
     for target, section in [(script.inputs, "inputs:"),
                             (script.outputs, "outputs:"),
                             (script.options, "options:")]:
         for o in opt.parse_defaults(doc_string, section):
             target[option_name(o.name)] = option_value(o)
+            script.args[option_name(o.name)] = option_value(o)
+            if target == script.inputs and script.default_input is None:
+                script.default_input = option_name(o.name)
+                script.supports_stream_in = is_stream_option(o)
+            elif target == script.outputs and script.default_output is None:
+                script.default_output = option_name(o.name)
+                script.supports_stream_out = is_stream_option(o)

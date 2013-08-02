@@ -8,6 +8,7 @@ __version__ = "1.0"
 configuration = {
     "db": "sqlite:///%s/.jip/jobs.db" % (getenv("HOME", "")),
     "home": "%s/.jip" % (getenv("HOME", "")),
+    "jip_path": "", # search path for scripts
     "cluster": {
         "engine":None,
         "profiles":{

@@ -3,7 +3,7 @@
 
 static PyObject* dispatch_streams(PyObject *self, PyObject *args){
   /* Parse argument tuple and open FILE* for input and
-   * output. This should raise an exception if something failes
+   * output. This should raise an exception if something fails
    */  
   PyObject* item;
   FILE* current;
@@ -41,15 +41,23 @@ static PyObject* dispatch_streams(PyObject *self, PyObject *args){
   }
   if(!error){
     dispatch(source_f, target_f, (len-1));
-  }else{
-    // close streams
-    if(source_f != NULL){
-      fclose(source_f);
-    }
-    for (i = 0; i < assigned; i++) {
-      fclose(target_f[i]);
+  }
+  // close python files
+  for (i = 0; i < len; i++) {
+    item = PySequence_Fast_GET_ITEM(seq, i);
+    if(!PyString_Check(item)){
+      PyObject_CallMethodObjArgs(item, PyString_FromString("close"));
     }
   }
+
+  // close streams
+  if(source_f != NULL){
+    fclose(source_f);
+  }
+  for (i = 0; i < assigned; i++) {
+    fclose(target_f[i]);
+  }
+
   // free targets
   free(target_f);
   Py_DECREF(seq);

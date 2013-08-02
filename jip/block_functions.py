@@ -5,6 +5,8 @@ from os.path import exists
 import sys
 from functools import partial
 
+from jip.utils import find_script
+
 
 def _dict_to_namedtupe(d):
     """Convert the given dictionary to a namedtuple"""
@@ -112,21 +114,20 @@ class PipelineBlock(object):
 
     def __init__(self, script, args):
         """Initialize the TemplateBlock with optional arguments"""
+        from jip.model import Pipeline
         self.script = script
+        self.pipeline = Pipeline()
+        # export functions to dict to get them into the script context
         self.__dict__["args"] = _dict_to_namedtupe(args)
         self.__dict__["run"] = self.run
-
-    def find_script(self, name):
-        """Search for the script. The search order is as follows:
-        1. we check the scripts parent folder for a file named <name> or <name>.jip
-        """
-        #
-        pass
 
     def run(self, name, **kwargs):
         """Find named script and add it"""
         # find script with name
-        run_script = self.find_script(name)
-        print "FOUND", run_script
+        path = find_script(name)
+        from jip.parser import parse_script
+        script = parse_script(path, args=kwargs)
+        return self.pipeline.add(script)
+
 
 
