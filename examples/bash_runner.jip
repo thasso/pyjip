@@ -1,0 +1,27 @@
+#!/usr/bin/env jip
+# Run a bash command 
+#
+# Usage:
+#   bash_runner.jip [-i <input>] [-o <output>] <cmd>...
+#   bash_runner.jip [--help]
+#
+# Options:
+#   --help        Show this help message
+#   <cmd>...      The command to run
+#
+# Inputs:
+#   -i, --input <input>...    The input file to read
+#                             [default: stdin]
+# Outputs:
+#   -o, --output <output>     The output file to write
+#                             [default: stdout]
+
+
+#%begin validate python
+jip.check_file("input")
+#%end validate
+
+#input='{{ jip.if("input") }}'
+{{ jip.if("cmd") }} {{ jip.if("output", prefix=">") }}
+
+
