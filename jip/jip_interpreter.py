@@ -11,6 +11,7 @@ Options:
     <file>       the jip script
     -f, --force  force script execution
 
+
 Other Options:
     -h --help             Show this help message
 """
@@ -21,16 +22,18 @@ from jip.docopt import docopt
 from jip.model import Script, ScriptError
 
 
-
 JIP_DOC = """
 The jip command line parameters
 
-usage: jip [-f] [-k]
+usage: jip [-f] [-k] [--show]
 
 Options:
   -f, --force  force command execution
   -k, --keep   do not perform a cleanup step after job failure or cancellation
+  --show       show the rendered script rather than running it
+
 """
+
 
 def split_to_jip_args(args):
     """Check the <args> and search for '--'. If found,
@@ -54,7 +57,6 @@ def main():
     script_file = args["<file>"]
     script_args = args["<args>"]
     jip_args = docopt(JIP_DOC, args["<jip_args>"])
-
     # parse the script
     script = Script.from_file(script_file)
     # always catch help message
@@ -76,7 +78,9 @@ def main():
 
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
-
+    if jip_args["--show"]:
+        print script.render_command()
+        return
     ## validate the script
     try:
         script.validate()

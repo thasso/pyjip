@@ -140,7 +140,7 @@ def option_name(opt):
 
 def option_value(opt):
     """Return options default value"""
-    if opt.argcount <= 0:
+    if hasattr(opt, "argcount") and opt.argcount <= 0:
         return False
     if isinstance(opt.value, (list, tuple)):
         return [__resolve_value(v) for v in opt.value]
@@ -176,6 +176,7 @@ def parse_script_args(script, script_args):
 
     pattern = opt.parse_pattern(opt.formal_usage(usage_sections[0]),
                                 options)
+
     argv = opt.parse_argv(opt.Tokens(script_args), list(options), False)
     pattern_options = set(pattern.flat(opt.Option))
     for options_shortcut in pattern.flat(opt.OptionsShortcut):
@@ -197,15 +198,18 @@ def parse_script_args(script, script_args):
 
     for a in (pattern.flat() + collected):
         name = option_name(a.name)
-        if not name in options:
-            continue
-            # set value in arg
+#        if not name in options:
+#            continue
+        # set value in arg
         value = option_value(a)
         script.args[name] = value
         # set value in inputs,outputs,options
         for target in [script.inputs, script.outputs, script.options]:
             if name in target:
                 target[name] = value
+                break
+        else:
+            script.options[name] = value
 
 
 def parse_script(path=None, script_class=Script, lines=None, name=None, args=None):
@@ -241,7 +245,8 @@ def parse_script_options(script):
         script.args = {}
     for target, section in [(script.inputs, "inputs:"),
                             (script.outputs, "outputs:"),
-                            (script.options, "options:")]:
+                            (script.options, "options:"),
+                            (script.options, "usage:")]:
         for o in opt.parse_defaults(doc_string, section):
             target[option_name(o.name)] = option_value(o)
             script.args[option_name(o.name)] = option_value(o)

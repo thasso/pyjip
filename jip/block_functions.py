@@ -81,7 +81,7 @@ class TemplateBlock(object):
             if len(value) == 1:
                 value = value[0]
             else:
-                value = join.join(v for v in value if isinstance(basestring, v))
+                value = join.join(v for v in value if isinstance(v, basestring))
         if isinstance(value, file):
             return ""
         return "%s%s%s" % (prefix, value, suffix)
