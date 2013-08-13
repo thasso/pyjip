@@ -134,7 +134,7 @@ def submit_script(script, jip_args, script_args):
         # laod default profile
         profile_name = jip.configuration['cluster'].get('default_profile',
                                                         None)
-        profile = load_job_profile(profile_name=jip_args.get("profile",
+        profile = load_job_profile(profile_name=jip_args.get("--profile",
                                                              profile_name),
                                    time=jip_args["--time"],
                                    queue=jip_args["--queue"],
@@ -144,8 +144,10 @@ def submit_script(script, jip_args, script_args):
                                    max_mem=jip_args["--max-mem"],
                                    name=jip_args["--name"]
                                    )
-        job = submit(profile, cluster_engine, script=script, jip_args=jip_args)
-        print "Job %d with remote id %s submitted" % (job.id, job.job_id)
+        jobs = submit(profile, cluster_engine, script=script,
+                      jip_args=jip_args)
+        for job in jobs:
+            print "Job %d with remote id %s submitted" % (job.id, job.job_id)
     except Exception, e:
         sys.stderr.write(str(e))
         sys.stderr.write("\n")
@@ -153,12 +155,15 @@ def submit_script(script, jip_args, script_args):
 
 
 def submit(profile=None, cluster_name=None, script=None,
-           jip_args=None, job=None):
+           jip_args=None, jobs=None):
     import jip
     import jip.db
     import jip.cluster
-    if cluster_name is None and job is not None:
-        cluster_name = job.cluster
+    if jobs is not None and not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
+
+    if cluster_name is None and jobs is not None:
+        cluster_name = jobs[0].cluster
     # create the cluster and init the db
     cluster = jip.cluster.from_name(cluster_name)
     jip.db.init()
@@ -166,31 +171,48 @@ def submit(profile=None, cluster_name=None, script=None,
     # create a job from the script
     session = jip.db.create_session()
     create_job = False
-    if job is None and script is not None:
+    if jobs is None and script is not None:
         create_job = True
-        job = jip.db.Job.from_script(script, profile=profile,
-                                     cluster=cluster_name)
-        if jip_args is not None:
-            job.jip_configuration = jip_args
+        jobs = jip.db.Job.from_script(script, profile=profile,
+                                      cluster=cluster_name,
+                                      jip_cfg=jip_args)
         # save the job in the database
-        session.add(job)
-        session.commit()
-    elif job is not None and profile is not None:
-        job.update_profile(profile)
+        for job in jobs:
+            session.add(job)
+            session.commit()
+    elif jobs is not None and profile is not None:
+        for job in jobs:
+            job.update_profile(profile)
 
-    # reset jopb state
-    job.state = jip.db.STATE_QUEUED
-    job.start_date = None
-    job.finish_date = None
-    # now that the job is saved, submit it
-    cluster.submit(job)
+    submitted = []
+    for job in jobs:
+        # reset jopb state
+        job.state = jip.db.STATE_QUEUED
+        job.start_date = None
+        job.finish_date = None
+        # now that the job is saved, submit it
+        try:
+            if len(job.pipe_from) == 0:
+                cluster.submit(job)
+            else:
+                # set the remote id
+                job.job_id = job.pipe_from[0].job_id
+            submitted.append(job)
+        except:
+            session.delete(job)
+            # cancel and delete the other jobs
+            for j in submitted:
+                j.cancel()
+                session.delete(j)
+            session.commit()
+            raise
 
-    # and update it so modifications done
-    # during submission are persisted
-    if create_job:
-        session.add(job)
+        # and update it so modifications done
+        # during submission are persisted
+        if create_job:
+            session.add(job)
     session.commit()
-    return job
+    return jobs
 
 
 def load_job_profile(profile_name=None, time=None, queue=None, priority=None,

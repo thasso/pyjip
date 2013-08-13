@@ -40,7 +40,7 @@ def load_configuration(path):
 def _update_configuration(cfg, target):
     for k, v in cfg.iteritems():
         if isinstance(v, dict):
-            target[k] = _update_configuration(v, target[k])
+            target[k] = _update_configuration(v, target.get(k, {}))
         else:
             target[k] = v
     return target

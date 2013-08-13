@@ -542,4 +542,5 @@ class ScriptNode(object):
         self.pipeline._sort_nodes()
 
     def __repr__(self):
-        return "[%d]{%s}" % (self.id, self.script.__repr__())
+        return "[%d]{%s}[PIPE_TO:%s]" % (self.id, self.script.__repr__(),
+                                         str(",".join([str(x.id) for x in self._pipe_to])))

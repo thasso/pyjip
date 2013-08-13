@@ -48,7 +48,11 @@ job_dependencies = Table("job_dependencies", Base.metadata,
                                 ForeignKey("jobs.id"), primary_key=True),
                          Column("target", Integer,
                                 ForeignKey("jobs.id"), primary_key=True))
-
+job_pipes = Table("job_pipes", Base.metadata,
+                  Column("source", Integer,
+                         ForeignKey("jobs.id"), primary_key=True),
+                  Column("target", Integer,
+                         ForeignKey("jobs.id"), primary_key=True))
 
 class Job(Base):
     """The JIP Job class that represents a jobs that is stored in the
@@ -118,6 +122,10 @@ class Job(Base):
     # even though the users current environment setting
     # has changed
     env = Column(PickleType)
+    # default input
+    default_input = Column(PickleType)
+    # default output
+    default_output = Column(PickleType)
     # the main job command template
     command = Column(Text)
     # the configuration that is used to populate the command template
@@ -133,6 +141,11 @@ class Job(Base):
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
                                 backref='parents')
+    pipe_to = relationship("Job",
+                           secondary=job_pipes,
+                           primaryjoin=id == job_pipes.c.source,
+                           secondaryjoin=id == job_pipes.c.target,
+                           backref='pipe_from')
 
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
@@ -179,6 +192,9 @@ class Job(Base):
         """Convert this job back into a script"""
         from jip.parser import parse_script
         script = parse_script(path=None, lines=self.command.split("\n"))
+        script.args = self.configuration
+        script.default_output = self.default_output
+        script.default_input = self.default_input
         return script
 
     def update_profile(self, profile):
@@ -192,24 +208,66 @@ class Job(Base):
         self.name = profile.get("name", None)
 
     @classmethod
-    def from_script(cls, script, profile=None, cluster=None):
+    def from_script(cls, script, profile=None, cluster=None, jip_cfg=None):
         """Create a job instance (unsaved) from given script"""
         from os import getcwd, getenv
-        job = Job()
-        job.path = script.path
-        job.working_directory = getcwd()
-        job.env = {
-            "PATH": getenv("PATH", ""),
-            "PYTHONPATH": getenv("PYTHONPATH", ""),
-            "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
-        }
-        job.cluster = cluster
-        job.configuration = dict(script.args)
-        job.command = script.render_command()
+        import sys
 
-        if profile is not None:
-            job.update_profile(profile)
-        return job
+        def single_script2job(script):
+            """No pipeline check, transcforms a script directly"""
+            job = Job()
+            job.path = script.path
+            job.working_directory = getcwd()
+            job.env = {
+                "PATH": getenv("PATH", ""),
+                "PYTHONPATH": getenv("PYTHONPATH", ""),
+                "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
+            }
+            job.cluster = cluster
+            job.default_input = script.default_input
+            job.default_output = script.default_output
+
+            job.configuration = dict(script.args)
+            job.command = script.render_command()
+            if jip_cfg is not None:
+                job.jip_configuration = jip_cfg
+
+            if profile is not None:
+                job.update_profile(profile)
+            return job
+
+        if script._load_pipeline():
+            # catch the pipeline case
+            pipeline = script.pipeline
+            pipeline._sort_nodes()
+            jobs = {}
+            nodes = {}
+            for node in pipeline.nodes:
+                if node.id in nodes:
+                    continue
+                nodes[node.id] = node
+                preserve_out = None
+                if len(node._pipe_to) > 0:
+                    def_out = node.script.args.get(node.script.default_output, None)
+                    if def_out is not None and def_out != sys.stdout:
+                        preserve_out = def_out
+                        node.script.args[node.script.default_output] = sys.stdout
+
+                job = single_script2job(node.script)
+                if preserve_out is not None:
+                    job.configuration[node.script.default_output] = preserve_out
+                for dep in node.parents:
+                    job.dependencies.append(jobs[dep.id])
+                jobs[node.id] = job
+
+                if len(node.parents) > 0:
+                    for p in node.parents:
+                        parent = nodes[p.id]
+                        if node in parent._pipe_to:
+                            pj = jobs[parent.id]
+                            pj.pipe_to.append(job)
+            return [j for k, j in jobs.iteritems()]
+        return [single_script2job(script)]
 
 
 def init(path=None):
