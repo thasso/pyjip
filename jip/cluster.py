@@ -1,13 +1,23 @@
 #!/usr/bin/env python
-import subprocess
-import os
+from subprocess import Popen, PIPE
 import sys
-import time
+import os
+
+
+class SubmissionError(Exception):
+    pass
+
+
+def from_name(name):
+    """Load a cluster engine from given name"""
+    (modulename, classname) = name.rsplit('.', 1)
+    mod = __import__(modulename, globals(), locals(), [classname])
+    return getattr(mod, classname)()
 
 
 class Cluster(object):
-    def __init__(self, db):
-        """Initialize a cluster with a job sotre instance"""
+    def __init__(self):
+        """Initialize a cluster"""
         pass
 
     def list(self):
@@ -15,34 +25,90 @@ class Cluster(object):
         """
         pass
 
-    def submit(self):
+    def submit(self, job):
         pass
 
+    def cancel(self, job):
+        """Cancel the given job"""
+        pass
+
+    def update(self, job):
+        """Called during job execution to update a job and
+        set properties that are cluster specific, i.e. the hosts
+        list"""
+        pass
+
+    def resolve_log(job, path):
+        """Resolve cluster specific file pattern to get the
+        actual path. For example, slurm used %j on the command
+        line as a place-holder for the job id. This method
+        resolves those cluster specifc place-holders
+        """
+        return path
 
 
-# class Slurm(Cluster):
-#     """Slurm extension of the Cluster implementationcPickle.load(""
-#
-#     The slurm implementation sends jobs to the cluster using
-#     the `sbatch` command line tool. The job parameter are paseed
-#     to `sbatch` as they are. Note that:
-#
-#     * max_mem is passed as --mem-per-cpu
-#
-#     """
-#
-#     def __init__(self, sbatch="sbatch", squeue="squeue", list_args=None):
-#         """Initialize the slurm cluster.
-#
-#         Paramter
-#         --------
-#         sbatch -- path to the sbatch command. Defaults to 'sbatch'
-#         squeue -- path to the squeue command. Defaults to 'squeue'
-#         """
-#         self.sbatch = sbatch
-#         self.squeue = squeue
-#         self.list_args = list_args
-#
+class Slurm(Cluster):
+    """Slurm extension of the Cluster implementationcPickle.load(""
+
+    The slurm implementation sends jobs to the cluster using
+    the `sbatch` command line tool. The job parameter are paseed
+    to `sbatch` as they are. Note that:
+
+    * max_mem is passed as --mem-per-cpu
+    """
+    def submit(self, job):
+        """Submit the given job to the slurm cluster"""
+        job_cmd = job.get_cluster_command()
+        cmd = ["sbatch", "--wrap", job_cmd]
+        if job.threads > 0:
+            cmd.extend(["-c", str(job.threads)])
+        if job.max_time > 0:
+            cmd.extend(["-t", str(job.max_time)])
+        if job.account is not None:
+            cmd.extend(["-A", str(job.account)])
+        if job.priority is not None:
+            cmd.extend(["--qos", str(job.priority)])
+        if job.queue is not None:
+            cmd.extend(["-p", str(job.queue)])
+        if job.working_directory is not None:
+            cmd.extend(["-D", job.working_directory])
+        if job.max_memory > 0:
+            cmd.extend(["--mem-per-cpu", str(job.max_memory)])
+        if job.extra is not None:
+            cmd.extend(job.extra)
+
+        # get/set job log files
+        cwd = job.working_directory if job.working_directory is not None \
+            else os.getcwd()
+        if job.stderr is None:
+            job.stderr = os.path.join(cwd, "slurm-%j.err")
+        if job.stdout is None:
+            job.stdout = os.path.join(cwd, "slurm-%j.out")
+
+        cmd.extend(["-o", job.stdout])
+        cmd.extend(["-e", job.stderr])
+        out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+        try:
+            job.job_id = out.split("\n")[0].strip().split(" ")[-1]
+            int(job.job_id)
+        except:
+            raise SubmissionError("%s\n"
+                                  "Executed command:\n%s\n" % (err,
+                                                              " ".join(cmd)))
+
+    def update(self, job):
+        job.hosts = os.getenv("SLURM_NODELIST", "")
+
+    def resolve_log(self, job, path):
+        return path.replace("%j", str(job.job_id))
+
+    def cancel(self, job):
+        if job is None or job.job_id is None:
+            return
+        cmd = ['scancel', str(job.job_id)]
+        out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
+
 #     def list(self):
 #         jobs = {}
 #         params = [self.squeue, "-h", "-o", "%i,%t"]

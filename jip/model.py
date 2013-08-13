@@ -23,7 +23,6 @@ SUPPORTED_BLOCKS = [
 ]
 
 
-
 class ScriptError(Exception):
     """Default error raised by the script parser"""
 

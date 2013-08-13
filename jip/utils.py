@@ -5,23 +5,39 @@ from os import walk, getcwd, getenv
 from os.path import exists, abspath, join, dirname
 
 
-
 # simple name to script file cache
 script_cache = {}
+
+NORMAL = ''
+BLUE = '\033[94m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+ENDC = '\033[0m'
+
+
+def colorize(string, color):
+    if color == NORMAL:
+        return string
+    return "%s%s%s" % (color, string, ENDC)
 
 
 def find_script(name, script=None):
     """Search for the script. The search order is as follows:
-    The script name is always checked using the name in a regular expression and
-    checking for an optional .jip extension.
+    The script name is always checked using the name in a regular expression
+    and checking for an optional .jip extension.
 
     We search in the following order:
-        1. we check the scripts parent folder for a file named <name> or <name>.jip if a calling script is specified
+        1. we check the scripts parent folder for a file
+           named <name> or <name>.jip if a calling script is specified
         2. we check cwd
-        3. we check jip configuration for jip_path and search the specified folders
-        4. we check the JIP_PATH environment variable and search the specified folders
+        3. we check jip configuration for jip_path and search the
+           specified folders
+        4. we check the JIP_PATH environment variable and search
+           the specified folders
 
-    If the script is found, it is put in a cache and queries always go to the cache first
+    If the script is found, it is put in a cache and queries always go to
+    the cache first
     """
     # first check the cache
     path = script_cache.get(name, None)
@@ -46,7 +62,8 @@ def find_script(name, script=None):
     if path is not None:
         return add_to_cache(name, path)
 
-    #3 and 4. load configuration and check search path plus JIP_PATH environment
+    #3 and 4. load configuration and check search path
+    # plus JIP_PATH environment
     import jip
     jip_path = "%s:%s" % (jip.configuration.get("jip_path", ""),
                           getenv("JIP_PATH", ""))
@@ -66,7 +83,8 @@ def add_to_cache(name, path):
 
 
 def list_dir(base):
-    """Iterator function to iterate a directory recursively and yield all files"""
+    """Iterator function to iterate a directory
+    recursively and yield all files"""
     for root, dirnames, filenames in walk(base):
         for filename in filenames:
             yield abspath(join(root, filename))
@@ -82,19 +100,64 @@ def _search_folder(folder, pattern):
     return None
 
 
-def create_table(header, rows):
-    from texttable import Texttable
-    t = Texttable()
+def table_to_string(value, empty=""):
+    """Translates the given value to a string
+    that can be rendered in a table"""
+    from datetime import datetime, timedelta
+    if value is None:
+        return empty
+    if isinstance(value, datetime):
+        return value.strftime('%H:%M %d/%m/%y')
+    if isinstance(value, timedelta):
+        ## round timedelta to seconds
+        value = timedelta(days=value.days,
+                          seconds=value.seconds)
+    return str(value)
+
+
+def create_table(header, rows, empty="", to_string=table_to_string):
+    from jip.texttable import Texttable
+    t = Texttable(0)
     t.set_deco(Texttable.HEADER)
-    t.set_cols_dtype(["l", "l"])
-    t.header(header)
-    map(t.add_row, rows)
+    if header is not None:
+        t.header(header)
+    map(t.add_row, [[to_string(x, empty=empty) for x in r]
+                    for r in rows])
     return t
 
 
-def render_table(header, rows):
+def render_table(header, rows, empty=""):
     """Create a simple ascii table"""
-    return create_table(header, rows).draw()
+    return create_table(header, rows, empty=empty).draw()
+
+
+def confirm(msg, default=True):
+    """Print the msg and ask the user to confirm. Return True
+    if the user confirmed with Y
+    """
+    import sys
+    valid = {"yes": True, "y": True, "ye": True,
+             "no": False, "n": False}
+
+    if default is None:
+        prompt = "[y/n]"
+    elif default:
+        prompt = "[Y/n]"
+    else:
+        prompt = "[y/N]"
+
+    question = "%s %s:" % (msg, prompt)
+    sys.stdout.write(question)
+    while True:
+        choice = raw_input()
+        if default is not None and choice == '':
+            return default
+        elif choice in valid:
+            return valid[choice]
+        else:
+            sys.stdout.write("\nPlease respond with 'yes' or 'no' "
+                             "(or 'y' or 'n').\n\n")
+            sys.stdout.write(question)
 
 
 def flat_list(o):
@@ -102,5 +165,47 @@ def flat_list(o):
     if not isinstance(o, (list, tuple)):
         o = [o]
     r = []
-    map(lambda x: r.extend(x) if isinstance(x, (list, tuple)) else r.append(x), o)
+    map(lambda x: r.extend(x)
+        if isinstance(x, (list, tuple))
+        else r.append(x), o)
     return r
+
+
+def parse_time(time):
+    """Parse time string and returns time in minutes
+    The sime string can be either a number, which is the time in
+    minutes, or of the form <int>d<int>h<int>m<int>s where any
+    part can be left out, but the order matters.
+    """
+    try:
+        # just hours
+        return int(time)
+    except:
+        pass
+    import re
+    from datetime import timedelta
+    regex = re.compile(r'((?P<days>\d+?)d)?((?P<hours>\d+?)h)'
+                       '?((?P<minutes>\d+?)m)?((?P<seconds>\d+)s)?')
+    parts = regex.match(time)
+    if not parts:
+        raise ValueError("Unable to parse time format %s" % time)
+    parts = parts.groupdict()
+    time_params = {}
+    for (name, param) in parts.iteritems():
+        if param:
+            time_params[name] = int(param)
+    delta = timedelta(**time_params)
+
+    seconds = delta.seconds
+    hours = seconds / 3600
+    minutes = (seconds % 3600) / 60
+    if (seconds % 60) > 0:
+        minutes += 1
+    r = (delta.days * 1440) + (60 * hours) + minutes
+    return r
+
+
+def get_time(days=0, hours=0, minutes=0, seconds=0):
+    """Convert to time delta"""
+    from datetime import timedelta
+    return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)

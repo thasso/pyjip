@@ -21,17 +21,27 @@ from signal import signal, SIGTERM, SIGINT
 from jip.docopt import docopt
 from jip.model import Script, ScriptError
 
-
 JIP_DOC = """
 The jip command line parameters
 
-usage: jip [-f] [-k] [--show]
+usage: jip [-f] [-k] [--show] [submit [-P <profile>] [-t <time>] [-q <queue>]
+                                      [-p <prio>] [-A <account>] [-C <cpus>]
+                                      [-m <mem>] [-n <name>]]
 
 Options:
-  -f, --force  force command execution
-  -k, --keep   do not perform a cleanup step after job failure or cancellation
-  --show       show the rendered script rather than running it
-
+  -f, --force              force command execution
+  -k, --keep               do not perform a cleanup step after job failure or
+                           cancellation
+  --show                   show the rendered script rather than running it
+  submit                   Submit the script
+  -P, --profile <profile>  Select a job profile for resubmission
+  -t, --time <time>        Max wallclock time for the job
+  -q, --queue <queue>      Job queue
+  -p, --priority <prio>    Job priority
+  -A, --account <account>  The account to use for submission
+  -C, --cpus <cpus>        Number of CPU's assigned to the job
+  -m, --max-mem <mem>      Max memory assigned to the job
+  -n, --name <name>        Job name
 """
 
 
@@ -42,13 +52,12 @@ def split_to_jip_args(args):
         try:
             i = args["<args>"].index("--")
             args["<args>"], args["<jip_args>"] = args["<args>"][:i], \
-                                                 args["<args>"][i + 1:]
+                args["<args>"][i + 1:]
         except ValueError:
             pass
 
 
 def main():
-
     initial = docopt(__doc__, options_first=True)
     args = dict(initial)
     # split args and jip_args
@@ -63,7 +72,13 @@ def main():
     if "-h" in script_args or "--help" in script_args:
         print script.help()
         sys.exit(0)
+    if jip_args["submit"]:
+        submit_script(script, jip_args, script_args)
+    else:
+        run_script(script, jip_args, script_args)
 
+
+def run_script(script, jip_args, script_args):
     # parse argument
     script.parse_args(script_args)
     # collect exceptions here
@@ -96,6 +111,113 @@ def main():
         sys.stderr.write(str(e))
         sys.stderr.write("\n")
         sys.exit(1)
+
+
+def submit_script(script, jip_args, script_args):
+    import jip
+    # parse argument
+    script.parse_args(script_args)
+    ## validate the script
+    try:
+        script.validate()
+        if script.is_done() and not jip_args["--force"]:
+            sys.stderr.write("Script results exist! Skipping "
+                             "(use <script> -- --force to force execution\n")
+            sys.exit(0)
+        #script.run()
+        # initialize the job database and the cluster
+        cluster_engine = jip.configuration['cluster']['engine']
+        if cluster_engine is None:
+            raise ScriptError.from_script_fail(script,
+                                               "No cluster engine specified")
+        # get the profile
+        # laod default profile
+        profile_name = jip.configuration['cluster'].get('default_profile',
+                                                        None)
+        profile = load_job_profile(profile_name=jip_args.get("profile",
+                                                             profile_name),
+                                   time=jip_args["--time"],
+                                   queue=jip_args["--queue"],
+                                   priority=jip_args["--priority"],
+                                   account=jip_args["--account"],
+                                   cpus=jip_args["--cpus"],
+                                   max_mem=jip_args["--max-mem"],
+                                   name=jip_args["--name"]
+                                   )
+        job = submit(profile, cluster_engine, script=script, jip_args=jip_args)
+        print "Job %d with remote id %s submitted" % (job.id, job.job_id)
+    except Exception, e:
+        sys.stderr.write(str(e))
+        sys.stderr.write("\n")
+        sys.exit(1)
+
+
+def submit(profile=None, cluster_name=None, script=None,
+           jip_args=None, job=None):
+    import jip
+    import jip.db
+    import jip.cluster
+    if cluster_name is None and job is not None:
+        cluster_name = job.cluster
+    # create the cluster and init the db
+    cluster = jip.cluster.from_name(cluster_name)
+    jip.db.init()
+
+    # create a job from the script
+    session = jip.db.create_session()
+    create_job = False
+    if job is None and script is not None:
+        create_job = True
+        job = jip.db.Job.from_script(script, profile=profile,
+                                     cluster=cluster_name)
+        if jip_args is not None:
+            job.jip_configuration = jip_args
+        # save the job in the database
+        session.add(job)
+        session.commit()
+    elif job is not None and profile is not None:
+        job.update_profile(profile)
+
+    # reset jopb state
+    job.state = jip.db.STATE_QUEUED
+    job.start_date = None
+    job.finish_date = None
+    # now that the job is saved, submit it
+    cluster.submit(job)
+
+    # and update it so modifications done
+    # during submission are persisted
+    if create_job:
+        session.add(job)
+    session.commit()
+    return job
+
+
+def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
+                     account=None, cpus=None, max_mem=None, name=None):
+    import jip
+    profile = {}
+    if profile_name is not None:
+        profile = jip.configuration['cluster']['profiles'].get(profile_name,
+                                                               None)
+        if profile is None:
+            raise ValueError("Profile %s not found!" % profile_name)
+    ## update profile
+    if time is not None:
+        profile["max_time"] = time
+    if queue is not None:
+        profile["queue"] = queue
+    if priority is not None:
+        profile['priority'] = priority
+    if account is not None:
+        profile['account'] = account
+    if cpus is not None:
+        profile['threads'] = cpus
+    if max_mem is not None:
+        profile['max_mem'] = max_mem
+    if name is not None:
+        profile['name'] = name
+    return profile
 
 
 if __name__ == "__main__":

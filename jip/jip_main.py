@@ -49,3 +49,5 @@ def main():
             docopt(__doc__, version='1.0', options_first=True, argv=['--help'],
                    help=True)
             sys.exit(0)
+    except KeyboardInterrupt:
+        sys.exit(1)
