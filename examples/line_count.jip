@@ -27,7 +27,6 @@ jip["valid"] = "Yes"
 r=$(wc {{ jip.if_not("a", "-l") }} {{ jip.if("input") }} {{ jip.if("output", prefix=">") }})
 echo "R:"$r 1>&2
 echo "YEAH " $r
-exit 1 
 #%end command
 
 
