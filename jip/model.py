@@ -450,6 +450,7 @@ class Pipeline(object):
     def run(self):
         # order the pipeline graph
         running = set([])
+        self._sort_nodes()
         for node in self.nodes:
             if node.script in running:
                 continue

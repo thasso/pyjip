@@ -20,9 +20,7 @@
 
 #%begin validate python
 jip.check_file("input")
-jip["valid"] = "Yes"
 #%end validate
-
 
 #%begin pipeline
 run("line_count", input=args.input, output="test_run.out") | run("line_count")

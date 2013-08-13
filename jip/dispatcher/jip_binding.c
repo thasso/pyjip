@@ -9,6 +9,8 @@ static PyObject* dispatch_streams(PyObject *self, PyObject *args){
   FILE* current;
   int i, assigned = 0;
   PyObject* seq = PySequence_Fast(args, "Expexted the argument list");
+  Py_INCREF(seq);
+
   uint64_t len = PySequence_Size(args);
   if(len < 2){
     PyErr_SetString(PyExc_ValueError, "Expected at least two arguments!");
@@ -20,9 +22,12 @@ static PyObject* dispatch_streams(PyObject *self, PyObject *args){
   bool error = false;
   for (i = 0; i < len; i++) {
     item = PySequence_Fast_GET_ITEM(seq, i);    
+    Py_INCREF(item);
+    
     if(PyString_Check(item)){
       current = fopen(PyString_AsString(item), i==0 ? "r": "w");
       if(current == NULL){
+        fprintf(stderr, "ERROR WHILE OPENING FILE!\n");
         // unable to open file
         PyErr_SetFromErrno(PyExc_OSError);
         error = true;
@@ -37,17 +42,20 @@ static PyObject* dispatch_streams(PyObject *self, PyObject *args){
       target_f[i-1] = current;
       assigned++;
     }
-    /* DON'T DECREF item here */
   }
+
   if(!error){
     dispatch(source_f, target_f, (len-1));
   }
+
   // close python files
   for (i = 0; i < len; i++) {
     item = PySequence_Fast_GET_ITEM(seq, i);
-    if(!PyString_Check(item)){
-      PyObject_CallMethodObjArgs(item, PyString_FromString("close"));
-    }
+    //if(!PyString_Check(item) && PyFile_Check(item)){
+      //fprintf(stderr, ">>>DP CLOSE FILE %s\n", PyString_AsString(PyObject_Repr(item)));
+      //PyObject_CallMethodObjArgs(item, PyString_FromString("close"));
+    //}
+    Py_DECREF(item);
   }
 
   // close streams
