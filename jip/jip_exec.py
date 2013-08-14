@@ -23,10 +23,8 @@ def main():
     try:
         run_job(args["<id>"])
     except Exception, e:
-        set_state(STATE_FAILED, args["<id>"])
         sys.stderr.write(str(e))
         sys.stderr.write("\n")
-        raise
         sys.exit(1)
 
 

@@ -23,6 +23,17 @@ jip.check_file("input")
 #%end validate
 
 #%begin pipeline
-run("line_count", input=args.input, output="test_run.out") | (run("line_count") | run("line_count"))
+#run("line_count", input=args.input, output="test_run.out") | run("line_count") 
+#run("line_count", input=args.input, output="test_run.out") | (run("line_count") | run("line_count"))
+
+#run("bash_runner", cmd="echo 'Sleep for a while'; sleep 5; echo 'Done'") | (run("bash_runner", cmd="echo 'I am one'") + run("bash_runner", cmd="echo 'I am the other one'"))
+
+a = run("bash_runner", cmd="echo 'FIRST JOB'")
+b = run("bash_runner", cmd="echo 'SECOND JOB. INPUT:'; cat -; echo 'SECOND DONE'")
+c = run("bash_runner", cmd="echo 'THIRD JOB. INPUT:'; cat -; echo 'THIRD DONE'")
+d = run("bash_runner", cmd="echo 'FOURTH JOB. INPUT:'; cat -; echo 'FOURTH DONE'")
+e = run("bash_runner", cmd="echo 'INDEPENDANT FIRST JOB'")
+
+a | ( b + c) | d
 #%end pipeline
 

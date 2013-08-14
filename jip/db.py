@@ -55,6 +55,7 @@ job_pipes = Table("job_pipes", Base.metadata,
                   Column("target", Integer,
                          ForeignKey("jobs.id"), primary_key=True))
 
+
 class Job(Base):
     """The JIP Job class that represents a jobs that is stored in the
     database.
@@ -159,7 +160,6 @@ class Job(Base):
     def init_on_load(self):
         self.script = None
 
-
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
         cluster to run this job
@@ -210,6 +210,7 @@ class Job(Base):
             if cmd is None:
                 cmd = ""
             script = parse_script(path=None, lines=cmd.split("\n"))
+            script.path = self.path
             script.args = self.configuration
             script.default_output = self.default_output
             script.default_input = self.default_input
@@ -228,14 +229,17 @@ class Job(Base):
         return self.script
 
     def update_profile(self, profile):
-        self.extra = profile.get("extra", None)
-        self.queue = profile.get("queue", None)
-        self.priority = profile.get("priority", None)
-        self.account = profile.get("account", None)
-        self.threads = profile.get("threads", 1)
-        self.max_memory = profile.get("max_memory", 0)
-        self.max_time = parse_time(profile.get("max_time", 0))
-        self.name = profile.get("name", None)
+        self.extra = profile.get("extra", self.extra)
+        self.queue = profile.get("queue", self.queue)
+        self.priority = profile.get("priority", self.priority)
+        self.account = profile.get("account", self.account)
+        self.threads = profile.get("threads", self.threads)
+        self.max_memory = profile.get("max_memory", self.max_memory)
+        self.max_time = parse_time(profile.get("max_time", self.max_time))
+        self.name = profile.get("name", self.name)
+
+    def is_done(self):
+        return self.to_script().is_done()
 
     @classmethod
     def from_script(cls, script, profile=None, cluster=None, keep=False):
@@ -246,6 +250,7 @@ class Job(Base):
         def single_script2job(script):
             """No pipeline check, transcforms a script directly"""
             job = Job()
+            job.state = STATE_QUEUED
             job.path = script.path
             job.working_directory = getcwd()
             job.env = {
@@ -279,14 +284,16 @@ class Job(Base):
                 nodes[node.id] = node
                 preserve_out = None
                 if len(node._pipe_to) > 0:
-                    def_out = node.script.args.get(node.script.default_output, None)
-                    if def_out is not None and def_out != sys.stdout:
+                    out = node.script.default_output
+                    def_out = node.script.args.get(out,
+                                                   None)
+                    if def_out is not None and not isinstance(def_out, file):
                         preserve_out = def_out
-                        node.script.args[node.script.default_output] = sys.stdout
+                        node.script.args[out] = sys.stdout
 
                 job = single_script2job(node.script)
                 if preserve_out is not None:
-                    job.configuration[node.script.default_output] = preserve_out
+                    job.configuration[out] = preserve_out
                 for dep in node.parents:
                     job.dependencies.append(jobs[dep.id])
                 jobs[node.id] = job
@@ -301,12 +308,18 @@ class Job(Base):
         return [single_script2job(script)]
 
 
-def init(path=None):
+def init(path=None, in_memory=False):
     from sqlalchemy import create_engine as slq_create_engine
     from sqlalchemy.orm import sessionmaker
     from os.path import exists, dirname
     from os import makedirs
     global engine, Session
+
+    if in_memory:
+        engine = slq_create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine, expire_on_commit=False)
+        return
 
     if path is None:
         import jip
@@ -326,7 +339,7 @@ def init(path=None):
     # create tables
     if create_tables:
         Base.metadata.create_all(engine)
-    Session = sessionmaker(autoflush=False)
+    Session = sessionmaker(autoflush=False, expire_on_commit=False)
     Session.configure(bind=engine)
 
 

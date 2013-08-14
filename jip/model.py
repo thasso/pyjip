@@ -7,7 +7,7 @@ import sys
 from subprocess import PIPE
 
 from jip.block_functions import TemplateBlock, PipelineBlock
-from jip.utils import render_table, flat_list
+from jip.utils import render_table, log
 
 
 #currently supported block type
@@ -55,7 +55,8 @@ class ScriptError(Exception):
                     end = min(block_line, len(script_lines))
                 lines += script_lines[start:end]
                 if self._offset is not None:
-                    lines.append(" " * (self._offset + 1 + (len(str(end)))) + "^")
+                    lines.append(" " * (self._offset + 1 +
+                                        (len(str(end)))) + "^")
             lines.append("-" * 80)
         return "\n".join(lines)
 
@@ -137,7 +138,8 @@ class ValidationException(ScriptError):
         return self.__repr__()
 
     def __repr__(self):
-        s = "Block validation failed for script %s in block %s" % (self._script.path, self._block)
+        s = "Block validation failed for " \
+            "script %s in block %s" % (self._script.path, self._block)
         if self.errors is None:
             return s
         table = render_table(["Field", "Message"],
@@ -244,20 +246,17 @@ class Block(object):
                 ## start a thread to check the process
                 def process_check(script, script_file):
                     try:
-                        ret = script.process.wait()
+                        script.process.wait()
                         script_file.close()
-                        if ret != 0:
-                            raise ExecutionError.from_block_fail(script,
-                                                                 "Execution failed with %d"
-                                                                 % ret)
                     except:
                         ## we ignore exceptions in the threads for now
+                        script_file.close()
                         pass
 
                 from threading import Thread
-                process_thread = Thread(target=process_check, args=(self, script_file))
+                process_thread = Thread(target=process_check,
+                                        args=(self, script_file))
                 process_thread.start()
-            self.process = None if self.script.stdout != PIPE else self.process
             return self.process
         except OSError, err:
             # catch the errno 2 No such file or directory, which indicates the
@@ -367,8 +366,10 @@ class Script(object):
         # make sure we do not mix pipeline and command blocks
         if(len(self.blocks.get(COMMAND_BLOCK, [])) > 0
            and len(self.blocks.get(PIPELINE_BLOCK, [])) > 0):
-            raise ScriptError.from_script_fail(self, "Mixing command and pipeline "
-                                                     "blocks is currently not supported!")
+            raise ScriptError.from_script_fail(self,
+                                               "Mixing command and pipeline "
+                                               "blocks is currently not "
+                                               "supported!")
         self.__run_blocks(VALIDATE_BLOCK)
         if self._load_pipeline():
             self.pipeline.validate()
@@ -389,13 +390,15 @@ class Script(object):
             self.running_block.terminate()
 
     def cleanup(self):
-        """Remove any temporary files and if force is true, remove all generated output"""
+        """Remove any temporary files and if force is true,
+        remove all generated output"""
         import shutil
         from os.path import exists, isdir
         from os import unlink
-        for f in (f for f in self._get_output_files(only_files=True) if exists(f)):
+        for f in (f for f in self._get_output_files(only_files=True)
+                  if exists(f)):
             try:
-                sys.stderr.write("Cleanup:remove:%s\n" % f)
+                log("Cleanup:remove:%s" % f)
                 shutil.rmtree(f) if isdir(f) else unlink(f)
             except:
                 sys.stderr.write("Cleanup:error removing file:%s\n" % f)
@@ -452,57 +455,6 @@ class Pipeline(object):
         for script in (s.script for s in self.nodes):
             script.validate()
 
-    def run(self):
-        # order the pipeline graph
-        running = set([])
-        self._sort_nodes()
-        for node in self.nodes:
-            if node.script in running:
-                continue
-            script = node.script
-            dispatcher_targets = None
-            dispatcher_pipes = None
-
-            if len(node._pipe_to) > 0:
-                # make sure the current parent
-                # pipes to stdout.
-                # in case file output is set,
-                # reset the output
-                script.stdout = PIPE
-                default_out = script.args[script.default_output]
-                if default_out != sys.stdout or len(node._pipe_to) > 1:
-                    dispatcher_targets = []
-                    dispatcher_pipes = []
-
-                    # add a file target and reset this scripts default out to stdout
-                    if default_out != sys.stdout:
-                        # reset output
-                        script.args[script.default_output] = sys.stdout
-                        # needs a dispatcher
-                        dispatcher_targets.append(open(default_out, 'wb'))
-
-                    for _ in node._pipe_to:
-                        import os
-                        read, write = os.pipe()
-                        dispatcher_targets.append(os.fdopen(write, 'w'))
-                        dispatcher_pipes.append(os.fdopen(read, 'r'))
-
-            process = script.run()
-            if dispatcher_targets is not None:
-                dispatcher_targets = [process.stdout] + dispatcher_targets
-                from jip.dispatcher import dispatch
-                dispatch(*dispatcher_targets)
-
-            running.add(script)
-            for i, child in enumerate(node._pipe_to):
-                if dispatcher_pipes is None:
-                    child.script.stdin = process.stdout
-                else:
-                    child.script.stdin = dispatcher_pipes[i]
-                child.script.run()
-                running.add(child.script)
-
-
     def _sort_nodes(self):
         count = {}
         for node in self.nodes:
@@ -530,7 +482,9 @@ class ScriptNode(object):
         self.script = script
         self.parents = []
         self.children = []
+        self.siblings = []
         self._pipe_to = []
+        self._pipe_from = []
         self.id = id
         self.pipeline = pipeline
 
@@ -541,11 +495,37 @@ class ScriptNode(object):
         """
         #todo: check for cycles
         self.children.append(other)
+        for sibling in other.siblings:
+            self.children.append(sibling)
+            if self.script.supports_stream_out and sibling.script.supports_stream_in:
+                self._pipe_to.append(sibling)
+                sibling._pipe_from.append(self)
+            sibling.parents.append(self)
+
         if self.script.supports_stream_out and other.script.supports_stream_in:
             self._pipe_to.append(other)
+            other._pipe_from.append(self)
+
+        ## also pipe things from my siblings
+        for sibling in self.siblings:
+            if sibling.script.supports_stream_out and other.script.supports_stream_in:
+                sibling._pipe_to.append(other)
+                other._pipe_from.append(sibling)
+
         other.parents.append(self)
         self.pipeline._sort_nodes()
+        print "__OR__", self, other
+        return other
+
+    def __add__(self, other):
+        """Create a parallel run of two nodes"""
+        self.siblings.append(other)
+        self.pipeline._sort_nodes()
+        return self
 
     def __repr__(self):
-        return "[%d]{%s}[PIPE_TO:%s]" % (self.id, self.script.__repr__(),
-                                         str(",".join([str(x.id) for x in self._pipe_to])))
+        return "[%d][SIBLINGS:%s][PIPE_TO:%s][PIPE_FROM:%s]" % \
+               (self.id, str(self.siblings),
+                str(",".join([str(x.id) for x in self._pipe_to])),
+                str(",".join([str(x.id) for x in self._pipe_from])))
+

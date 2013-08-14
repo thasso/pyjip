@@ -21,7 +21,7 @@ def log(msg, *args):
     import sys
     from datetime import datetime
     sys.stderr.write("[%s] " % datetime.now())
-    sys.stderr.write(msg % args)
+    sys.stderr.write(str(msg) % args)
     sys.stderr.write("\n")
     sys.stderr.flush()
 

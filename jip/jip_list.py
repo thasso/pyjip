@@ -7,7 +7,7 @@ Usage:
              [--show-archived] [-a|-d|-c] [--clean]
              [-j <id>...] [-J <cid>...]
              [-r [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
-                 [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]]
+                 [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [-R]]
              [--hold] [--resume]
     jip-list [--help|-h]
 
@@ -30,6 +30,7 @@ Options:
     -C, --cpus <cpus>        Number of CPU's assigned to the job
     -m, --max-mem <mem>      Max memory assigned to the job
     -n, --name <name>        Job name
+    -R, --reload             Reload and rerender the job command
     --show-archived          Show archived jobs
     -D, --detail             Show detail job view instead of the table
     -o, --output <out>       Show only specified columns. See below for a list
@@ -65,6 +66,7 @@ from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
     NORMAL, get_time, confirm
 from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
     STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
+from jip.executils import submit, load_job_profile, get_pipeline_jobs
 
 import sys
 from datetime import timedelta, datetime
@@ -298,7 +300,6 @@ def main():
                    False):
             import jip
             import jip.db
-            from jip.jip_interpreter import submit
             for j in selected_jobs:
                 if j.state == jip.db.STATE_HOLD:
                     submit(job=j)
@@ -316,9 +317,10 @@ def main():
             count = 0
             import jip
             import jip.db
-            from jip.jip_interpreter import load_job_profile, submit
             for j in selected_jobs:
                 if j.state not in jip.db.STATES_ACTIVE:
+                    ## get parent job(s)
+                    jobs = get_pipeline_jobs(j)
                     profile = load_job_profile(
                         profile_name=args["--profile"],
                         time=args["--time"],
@@ -329,9 +331,11 @@ def main():
                         max_mem=args["--max-mem"],
                         name=args["--name"]
                     )
-                    submit(profile, job=j)
-                    print "Job %d with remote id %s " \
-                          "re-submitted" % (j.id, j.job_id)
+                    for j in submit(jobs, profile, session=session,
+                                    reload=args["--reload"]):
+                        print "Job %d with remote id %s " \
+                              "re-submitted (Reloaded: %s)" % \
+                              (j.id, j.job_id, str(args["--reload"]))
                 else:
                     print >>sys.stderr, "Unable to restart active job %s " \
                                         "with state '%s'" % (j.job_id, j.state)
