@@ -4,7 +4,8 @@ Jobs in the database
 """
 import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, DateTime, \
+    ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -126,12 +127,16 @@ class Job(Base):
     default_input = Column(PickleType)
     # default output
     default_output = Column(PickleType)
+    # configured outputs
+    outputs = Column(PickleType)
+    # configured inputs
+    inputs = Column(PickleType)
+    # keep or delete outputs if the job fails
+    keep_on_fail = Column(Boolean, default=False)
     # the main job command template
     command = Column(Text)
     # the configuration that is used to populate the command template
     configuration = Column(PickleType)
-    # the jip configuration used during submission
-    jip_configuration = Column(PickleType)
     # extra configuration stores an array of additional parameters
     # passed during job submission
     extra = Column(PickleType)
@@ -146,6 +151,14 @@ class Job(Base):
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
                            backref='pipe_from')
+
+    def __init__(self):
+        self.script = None
+
+    @orm.reconstructor
+    def init_on_load(self):
+        self.script = None
+
 
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
@@ -190,12 +203,29 @@ class Job(Base):
 
     def to_script(self):
         """Convert this job back into a script"""
-        from jip.parser import parse_script
-        script = parse_script(path=None, lines=self.command.split("\n"))
-        script.args = self.configuration
-        script.default_output = self.default_output
-        script.default_input = self.default_input
-        return script
+        if self.script is None:
+            import sys
+            from jip.parser import parse_script
+            cmd = self.command
+            if cmd is None:
+                cmd = ""
+            script = parse_script(path=None, lines=cmd.split("\n"))
+            script.args = self.configuration
+            script.default_output = self.default_output
+            script.default_input = self.default_input
+            script.outputs = self.outputs
+            script.inputs = self.inputs
+            ## update deafault input/output streams
+            if script.default_input:
+                di = script.args[script.default_input]
+                if di is not None and isinstance(di, file) and di.closed:
+                    script.args[script.default_input] = sys.stdin
+            if script.default_output:
+                di = script.args[script.default_output]
+                if di is not None and isinstance(di, file) and di.closed:
+                    script.args[script.default_output] = sys.stdout
+            self.script = script
+        return self.script
 
     def update_profile(self, profile):
         self.extra = profile.get("extra", None)
@@ -208,7 +238,7 @@ class Job(Base):
         self.name = profile.get("name", None)
 
     @classmethod
-    def from_script(cls, script, profile=None, cluster=None, jip_cfg=None):
+    def from_script(cls, script, profile=None, cluster=None, keep=False):
         """Create a job instance (unsaved) from given script"""
         from os import getcwd, getenv
         import sys
@@ -226,11 +256,12 @@ class Job(Base):
             job.cluster = cluster
             job.default_input = script.default_input
             job.default_output = script.default_output
+            job.outputs = script.outputs
+            job.inputs = script.inputs
 
             job.configuration = dict(script.args)
             job.command = script.render_command()
-            if jip_cfg is not None:
-                job.jip_configuration = jip_cfg
+            job.keep_on_fail = keep
 
             if profile is not None:
                 job.update_profile(profile)
@@ -300,6 +331,8 @@ def init(path=None):
 
 
 def create_session():
+    if engine is None:
+        init()
     return Session()
 
 
@@ -310,8 +343,3 @@ def find_job_by_id(session, id):
     query = session.query(Job).filter(Job.id == id)
     return query.one()
 
-
-def save(session, job):
-    """Save the given job"""
-    session.add(job)
-    session.commit()

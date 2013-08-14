@@ -350,10 +350,15 @@ class Script(object):
         return True
 
     def _get_output_files(self, only_files=False):
-        """Generates a list of filenames that are marked as output files of this process"""
-        files = [v if isinstance(v, (list, tuple)) else [v] for v in self.outputs.itervalues()]
+        """Generates a list of filenames that are marked as output
+        files of this process"""
+        if self.outputs is None:
+            return []
+        files = [v if isinstance(v, (list, tuple)) else [v]
+                 for v in self.outputs.itervalues()]
         # flatten
-        files = [y for x in files for y in x if not only_files or isinstance(y, basestring)]
+        files = [y for x in files
+                 for y in x if not only_files or isinstance(y, basestring)]
         return files
 
     def validate(self):

@@ -145,7 +145,7 @@ def submit_script(script, jip_args, script_args):
                                    name=jip_args["--name"]
                                    )
         jobs = submit(profile, cluster_engine, script=script,
-                      jip_args=jip_args)
+                      keep=jip_args["--keep"])
         for job in jobs:
             print "Job %d with remote id %s submitted" % (job.id, job.job_id)
     except Exception, e:
@@ -155,7 +155,7 @@ def submit_script(script, jip_args, script_args):
 
 
 def submit(profile=None, cluster_name=None, script=None,
-           jip_args=None, jobs=None):
+           keep=None, jobs=None):
     import jip
     import jip.db
     import jip.cluster
@@ -175,7 +175,7 @@ def submit(profile=None, cluster_name=None, script=None,
         create_job = True
         jobs = jip.db.Job.from_script(script, profile=profile,
                                       cluster=cluster_name,
-                                      jip_cfg=jip_args)
+                                      keep=keep)
         # save the job in the database
         for job in jobs:
             session.add(job)

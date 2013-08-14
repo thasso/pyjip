@@ -16,6 +16,16 @@ RED = '\033[91m'
 ENDC = '\033[0m'
 
 
+def log(msg, *args):
+    """Log a message to stderr and flush"""
+    import sys
+    from datetime import datetime
+    sys.stderr.write("[%s] " % datetime.now())
+    sys.stderr.write(msg % args)
+    sys.stderr.write("\n")
+    sys.stderr.flush()
+
+
 def colorize(string, color):
     if color == NORMAL:
         return string
