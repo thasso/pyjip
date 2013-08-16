@@ -469,6 +469,14 @@ class ScriptNode(object):
         self._pipe_from = []
         self.pipeline = pipeline
 
+    def __getattr__(self, name):
+        print "GET VALUE", name
+        return self.script.args[name]
+
+    def __setattr__(self, name, value):
+        print "SET", name, value
+        self.script.args[name] = value
+
     def __or__(self, other):
         """Create a dependency between this script and the other script
         and, if supported by both ends, allow streaming data from this
@@ -478,7 +486,8 @@ class ScriptNode(object):
         self.children.append(other)
         for sibling in other.siblings:
             self.children.append(sibling)
-            if self.script.supports_stream_out and sibling.script.supports_stream_in:
+            if self.script.supports_stream_out and \
+               sibling.script.supports_stream_in:
                 self._pipe_to.append(sibling)
                 sibling._pipe_from.append(self)
             sibling.parents.append(self)
@@ -492,12 +501,12 @@ class ScriptNode(object):
         for sibling in self.siblings:
             sibling.children.append(other)
             other.parents.append(sibling)
-            if sibling.script.supports_stream_out and other.script.supports_stream_in:
+            if sibling.script.supports_stream_out and \
+               other.script.supports_stream_in:
                 sibling._pipe_to.append(other)
                 other._pipe_from.append(sibling)
 
         self.pipeline._sort_nodes()
-        #print "__OR__", self, other
         return other
 
     def __add__(self, other):
