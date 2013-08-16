@@ -334,11 +334,12 @@ class Script(object):
         files of this process"""
         if self.outputs is None:
             return []
-        files = [v if isinstance(v, (list, tuple)) else [v]
-                 for v in self.outputs.itervalues()]
+        files = [self.args[k] if isinstance(self.args[k], (list, tuple)) else [self.args[k]]
+                 for k in self.outputs.iterkeys()]
         # flatten
-        files = [y for x in files
-                 for y in x if not only_files or isinstance(y, basestring)]
+        files = [y if not isinstance(y, dependency) else y.value for x in files
+                 for y in x if not only_files or isinstance(y, basestring) or
+                 isinstance(y, dependency)]
         return files
 
     def validate(self):
@@ -389,7 +390,6 @@ class Script(object):
         and execution can be skipped
         """
         from os.path import exists
-
         files = self._get_output_files()
         for f in files:
             if not isinstance(f, basestring) or not exists(f):
@@ -456,26 +456,57 @@ class Pipeline(object):
         self.nodes = result
 
 
+class _parameter(object):
+    def __init__(self, source, name, value):
+        self.source = source
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return str(self.value)
+
+
+class dependency(object):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return str(self.value)
+
+
 class ScriptNode(object):
     """Pipeline node that wraps around a script"""
 
     def __init__(self, script, id, pipeline):
-        self.id = id
-        self.script = script
-        self.parents = []
-        self.children = []
-        self.siblings = []
-        self._pipe_to = []
-        self._pipe_from = []
-        self.pipeline = pipeline
+        object.__setattr__(self, 'id', id)
+        object.__setattr__(self, 'script', script)
+        object.__setattr__(self, 'parents', [])
+        object.__setattr__(self, 'children', [])
+        object.__setattr__(self, 'siblings', [])
+        object.__setattr__(self, '_pipe_to', [])
+        object.__setattr__(self, '_pipe_from', [])
+        object.__setattr__(self, 'pipeline', pipeline)
 
     def __getattr__(self, name):
-        print "GET VALUE", name
-        return self.script.args[name]
+        value = self.script.args[name]
+        if isinstance(value, _parameter):
+            return _parameter(self, name, value.value)
+
+        return _parameter(self, name, value)
 
     def __setattr__(self, name, value):
-        print "SET", name, value
-        self.script.args[name] = value
+        if isinstance(value, _parameter):
+            self.script.args[name] = dependency(value.value)
+            self.parents.append(value.source)
+            value.source.children.append(self)
+        else:
+            self.script.args[name] = value
 
     def __or__(self, other):
         """Create a dependency between this script and the other script
@@ -490,11 +521,15 @@ class ScriptNode(object):
                sibling.script.supports_stream_in:
                 self._pipe_to.append(sibling)
                 sibling._pipe_from.append(self)
+            else:
+                self.pipe_default_io(sibling)
             sibling.parents.append(self)
 
         if self.script.supports_stream_out and other.script.supports_stream_in:
             self._pipe_to.append(other)
             other._pipe_from.append(self)
+        else:
+            self.pipe_default_io(other)
         other.parents.append(self)
 
         ## also pipe things from my siblings
@@ -505,9 +540,39 @@ class ScriptNode(object):
                other.script.supports_stream_in:
                 sibling._pipe_to.append(other)
                 other._pipe_from.append(sibling)
+            else:
+                sibling.pipe_default_io(other)
 
         self.pipeline._sort_nodes()
         return other
+
+    def __rshift__(self, other):
+        """Create a non piped dependency"""
+        #todo: check for cycles
+        self.children.append(other)
+        for sibling in other.siblings:
+            self.children.append(sibling)
+            sibling.parents.append(self)
+            self.pipe_default_io(sibling)
+
+        other.parents.append(self)
+        self.pipe_default_io(other)
+
+        ## also pipe things from my siblings
+        for sibling in self.siblings:
+            sibling.children.append(other)
+            other.parents.append(sibling)
+            sibling.pipe_default_io(other)
+        self.pipeline._sort_nodes()
+        return other
+
+    def pipe_default_io(self, other):
+        """Set this nodes default output as the other nodes default input"""
+        dop = self.script.default_output
+        dip = other.script.default_input
+        if dip is not None and dop is not None and \
+                self.script.args[dop] is not None:
+            other.script.args[dip] = self.script.args[dop]
 
     def __add__(self, other):
         """Create a parallel run of two nodes"""
@@ -526,6 +591,3 @@ class ScriptNode(object):
                (self.id, str(self.siblings),
                 str(",".join([str(x.id) for x in self._pipe_to])),
                 str(",".join([str(x.id) for x in self._pipe_from])))
-
-
-

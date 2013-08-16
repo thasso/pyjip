@@ -119,6 +119,10 @@ class Job(Base):
     stdout = Column(String(1024))
     # stderr log file. Same rules as for stdout apply
     stderr = Column(String(1024))
+    # supports streamed input
+    supports_stream_in = Column(Boolean(), default=False)
+    # supports streamed output
+    supports_stream_out = Column(Boolean(), default=False)
     # this holds parts of the job environment
     # to allow clean restarts and moves of a job
     # even though the users current environment setting
@@ -219,17 +223,24 @@ class Job(Base):
         """Convert this job back into a script"""
         if self.script is None:
             import sys
+            from jip.model import dependency
             from jip.parser import parse_script
             cmd = self.command
             if cmd is None:
                 cmd = ""
             script = parse_script(path=None, lines=cmd.split("\n"))
             script.path = self.path
-            script.args = self.configuration
+            for k, v in self.configuration.iteritems():
+                if isinstance(v, dependency):
+                    script.args[k] = v.value
+                else:
+                    script.args[k] = v
             script.default_output = self.default_output
             script.default_input = self.default_input
             script.outputs = self.outputs
             script.inputs = self.inputs
+            script.supports_stream_out = self.supports_stream_out
+            script.supports_stream_in = self.supports_stream_in
             ## update deafault input/output streams
             if script.default_input:
                 di = script.args[script.default_input]
@@ -284,6 +295,9 @@ class Job(Base):
             job.configuration = dict(script.args)
             job.command = script.render_command()
             job.keep_on_fail = keep
+
+            job.supports_stream_in = script.supports_stream_in
+            job.supports_stream_out = script.supports_stream_out
 
             if profile is not None:
                 job.update_profile(profile)

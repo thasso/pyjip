@@ -114,14 +114,16 @@ def run_script(script, keep=False, force=False):
 
 
 def submit_script(script, jip_args, script_args):
+    from jip.db import create_session
     # parse argument
     script.validate()
     if script.is_done() and not jip_args["--force"]:
         sys.stderr.write("Script results exist! Skipping "
                          "(use <script> -- --force to force execution\n")
         sys.exit(0)
+    session = create_session()
     ## create jobs
-    jobs = create_jobs(script, keep=jip_args["--keep"])
+    jobs = create_jobs(script, keep=jip_args["--keep"], session=session)
     # laod default profile
     profile = load_job_profile(profile_name=jip_args.get("--profile",
                                                          None),
@@ -135,17 +137,21 @@ def submit_script(script, jip_args, script_args):
                                load_default=True
                                )
     try:
-        jobs = submit(jobs, profile)
+        submitted, skipped = submit(jobs, profile, force=jip_args["--force"],
+                                    session=session)
+        map(session.delete, skipped)
+        session.commit()
+        session.close()
     except Exception:
         ## delete all job, couldn't submit
-        from jip.db import create_session
-        session = create_session()
         map(session.delete, jobs)
         session.commit()
         session.close()
         raise
-    for job in jobs:
+    for job in submitted:
         print "Job %d with remote id %s submitted" % (job.id, job.job_id)
+    for job in skipped:
+        print "Job %d skipped, output exists" % (job.id)
 
 
 if __name__ == "__main__":

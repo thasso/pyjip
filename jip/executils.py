@@ -162,109 +162,21 @@ def _exec(job):
     ## handle pipes
     _load_job_env(job)
     script = job.to_script()
+    if script.stdin is None and script.supports_stream_in:
+        # check if the scripts default input is
+        def_in = script.default_input
+        infile = script.args.get(def_in, None) if def_in is not None else None
+        if infile is not None and isinstance(infile, basestring):
+            ## set input stream from file
+            log("JOB-%d | setting input stream from file : %s", job.id, infile)
+            script.stdin = open(infile, 'rb')
+
     log("JOB-%d | start :: stdin: %s, stdout: %s", job.id,
-        job.to_script().stdin, job.to_script().stdout)
+        script.stdin, script.stdout)
     return script.run()
 
 
-
-
-
-#def run_job(id, session=None, job_processes=None):
-    #"""Find the job specified by id and execute it. This
-    #updates the state of the job (and all pipe_to children)
-    #as long as the job does not fail.
-    #"""
-    #from jip.db import STATE_DONE, STATE_RUNNING, STATE_FAILED, \
-        #create_session, find_job_by_id
-    #from jip.model import ScriptError
-    ### load the job
-    #session_created = False
-    #if session is None:
-        #session = create_session()
-        #job = find_job_by_id(session, id)
-        #session_created = True
-    #else:
-        #job = id
-
-    #if job_processes is None:
-        #job_processes = {}
-
-    ## update job state
-    ## children will be update in recursive call
-    #set_state(STATE_RUNNING, job, session=session, update_children=False)
-
-    ## setup signal handeling
-    #_setup_signal_handler(job)
-    ## chck if all dependencies are fullfilled so
-    ## a dispatcher can be created
-    #missing_dependency = False
-    #for i, child in enumerate(job.pipe_to):
-        #for pipe_from in child.pipe_from:
-            #if pipe_from.state not in [STATE_DONE, STATE_RUNNING]:
-                #missing_dependency = True
-                #break
-
-    ## execute the script and get the child pipes
-    #try:
-        #process, child_pipes = _exec(job, job_processes,
-                                     #not missing_dependency)
-        #job_processes[job.id] = process
-    #except ScriptError:
-        ### state is set in the parent
-        #if session_created:
-            #set_state(STATE_FAILED, job, session=session,
-                      #update_children=True)
-            #session.commit()
-            #session.close()
-        #raise
-
-    ## run the children
-    #sub_processs = [process]
-    #sub_jobs = [job]
-    #job_children = []
-    #for i, child in enumerate(job.pipe_to):
-        ## check that all pipe_from jobs of the child are finished
-        #if missing_dependency:
-            #break
-
-        ## set child input
-        #child.to_script().stdin = child_pipes[i]
-        ## run the child
-        #try:
-            #p, children = run_job(child, session=session,
-                                  #job_processes=job_processes)
-            #sub_processs.append(p)
-            #sub_jobs.append(child)
-            #sub_jobs.extend(children)
-            #job_children.append(child)
-        #except ScriptError:
-            #set_state(STATE_FAILED, job, session=session,
-                      #update_children=True)
-            #session.commit()
-            #session.close()
-            #raise
-
-    ## close and commit the session
-    ## so database is released during execution
-    #if session_created:
-        #session.commit()
-        #session.close()
-        ## we create the session
-        ## so we wait
-        #for i, p in enumerate(sub_processs):
-            #log("Waiting for processes in %d to finish", sub_jobs[i].id)
-            #if p is not None and p.wait() != 0:
-                ### fail
-                #set_state(STATE_FAILED, job,
-                          #update_children=True)
-                #raise ScriptError.from_script(sub_jobs[i].to_script(),
-                                              #"Execution faild!")
-        #set_state(STATE_DONE, job, update_children=True)
-    #return process, job_children
-
-
-def create_jobs(script, persist=True, keep=False, validate=True):
+def create_jobs(script, persist=True, keep=False, validate=True, session=None):
     """Create a set of jobs from the given script. This checks the
     script for pipelines and returns all jobs for a pipeline or
     a list with a single job for non-pipeline jobs.
@@ -283,15 +195,19 @@ def create_jobs(script, persist=True, keep=False, validate=True):
         script.validate()
     jobs = Job.from_script(script, keep=keep)
     if persist:
-        session = create_session()
-        map(session.add, jobs)
-        session.commit()
-        session.close()
+        _session = session
+        if session is None:
+            _session = create_session()
+
+        map(_session.add, jobs)
+        _session.commit()
+        if session is None:
+            _session.close()
     return jobs
 
 
 def submit(jobs, profile=None, cluster_name=None, session=None,
-           reload=False):
+           reload=False, force=False):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -317,22 +233,29 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
         session = jip.db.create_session()
     # update the jobs
     submitted = []
+    skipped = []
     for job in jobs:
         if reload:
             reload_script(job)
         session.add(job)
-        submitted.append(job)
         if len(job.pipe_from) == 0:
-            log("Submitting job %d", job.id)
-            job.update_profile(profile)
-            job.cluster = cluster_name
-            set_state(jip.db.STATE_QUEUED, job, session=session)
-            cluster.submit(job)
+            log("Checking job %d", job.id)
+            if not force and job.is_done():
+                skipped.append(job)
+                log("Skipped job %d", job.id)
+            else:
+                log("Submitting job %d", job.id)
+                job.update_profile(profile)
+                job.cluster = cluster_name
+                set_state(jip.db.STATE_QUEUED, job, session=session)
+                cluster.submit(job)
+                submitted.append(job)
         else:
             # set the remote id
-            job.job_id = job.pipe_from[0].job_id
+            if job.pipe_from[0] not in skipped:
+                job.job_id = job.pipe_from[0].job_id
     session.commit()
-    return submitted
+    return submitted, skipped
 
 
 def get_pipeline_jobs(job, jobs=None):
@@ -369,9 +292,7 @@ def run_job(id, session=None):
     updates the state of the job (and all pipe_to children)
     as long as the job does not fail.
     """
-    from jip.db import STATE_DONE, STATE_RUNNING, STATE_FAILED, STATE_QUEUED, \
-        create_session, find_job_by_id
-    from jip.model import ScriptError
+    from jip.db import STATE_QUEUED, create_session, find_job_by_id
     ## load the job
     session_created = False
     if session is None:
@@ -390,7 +311,7 @@ def run_job(id, session=None):
 
     # createa the dispatcher graph
     dispatcher_nodes = create_dispatcher_graph(job)
-    log("DP NODES: %s", dispatcher_nodes)
+    log("JOB-%d | Dispatch graph: %s", job.id, dispatcher_nodes)
 
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(session)
@@ -401,7 +322,6 @@ def run_job(id, session=None):
     if session_created:
         session.commit()
         session.close()
-
 
 
 def create_dispatcher_graph(job, nodes=None):
@@ -480,7 +400,7 @@ class DispatcherNode(object):
         self.children = []
         self.processes = []
         if job is not None:
-            self.sources.append(job)
+            self.sources.add(job)
 
     def __repr__(self):
         return "[%s->%s]" % (",".join([str(j.id) for j in self.sources]),
