@@ -18,6 +18,8 @@ configuration = {
     }
 }
 
+__temporary_files = None
+
 
 def initialize_configuration():
     """Reinitialize configuration from current configuration home"""
@@ -44,3 +46,26 @@ def _update_configuration(cfg, target):
         else:
             target[k] = v
     return target
+
+
+def __cleanup_temp_files():
+    if __temporary_files is None:
+        return
+    from os import remove
+    from os.path import exists
+    for f in __temporary_files:
+        if exists(f):
+            remove(f)
+
+
+def create_temp_file():
+    global __temporary_files
+    from tempfile import NamedTemporaryFile
+    f = NamedTemporaryFile(delete=False)
+    f.close()
+    if __temporary_files is None:
+        import atexit
+        atexit.register(__cleanup_temp_files)
+        __temporary_files = []
+    __temporary_files.append(f.name)
+    return open(f.name, 'wb')

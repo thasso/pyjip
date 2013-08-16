@@ -160,6 +160,20 @@ class Job(Base):
     def init_on_load(self):
         self.script = None
 
+    def get_file_output(self):
+        if self.default_output is None:
+            return None
+        out = self.configuration.get(self.default_output, None)
+        if out is None or isinstance(out, file):
+            return None
+        return open(out, 'wb')
+
+    def get_output(self):
+        return self.to_script().stdout
+
+    def get_input(self):
+        return self.to_script().stdin
+
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
         cluster to run this job

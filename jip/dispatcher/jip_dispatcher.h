@@ -14,6 +14,8 @@
  * Read bytes from source file and dispatch the read bytes to
  * al the targets
  */
-void dispatch(FILE** source, FILE** target, const uint64_t num_sources, const uint64_t num_targets);
+int dispatch(FILE** source, FILE** targets_1, FILE**  targets_2, const uint64_t num_elements);
+int dispatch_fanout(FILE** source, FILE** targets_1, FILE**  targets_2, const uint64_t num_elements);
+int dispatch_fanin(FILE** source, FILE** targets_1, FILE**  targets_2, const uint64_t num_elements);
 
 #endif /* JIP_DISPATCHER_H_ */

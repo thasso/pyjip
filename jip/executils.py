@@ -73,7 +73,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     if not isinstance(id_or_job, Job):
         job = find_job_by_id(session, id_or_job)
 
-    log("Set new state %s for %d[%s]" % (new_state, job.id, job.state))
+    log("JOB-%d | set state [%s]=>[%s]" % (job.id, job.state, new_state))
     # we do not overwrite CANCELED or HOLD with FAILED
     if new_state == STATE_FAILED and job.state \
             in [STATE_CANCELED, STATE_HOLD]:
@@ -153,156 +153,115 @@ def _load_job_env(job):
     os.environ["JIP_JOB"] = str(job.job_id) if job.job_id else ""
 
 
-def _exec(job, job_processes, create_dispatcher):
+def _exec(job):
     """Execute a single job. This checks for pipe_to children
     and starts a dispatcher if needed. The method returns
     the process started and a list of child pipes targes
     that can be used as stdin streams for pipe_to targets
     """
     ## handle pipes
-    import os
-    import sys
-    from subprocess import PIPE
-
     _load_job_env(job)
-
     script = job.to_script()
-    # if we have chilren,
-    # pipe stdout
-    if len(job.pipe_to) > 0:
-        script.stdout = PIPE
-
-    process = script.run()
-    log(">>>EXEC JOB %d WITH PIPEP_TO: %s AND PIPE_FROM: %s" % (job.id, job.pipe_to, job.pipe_from))
+    log("JOB-%d | start :: stdin: %s, stdout: %s", job.id,
+        job.to_script().stdin, job.to_script().stdout)
+    return script.run()
 
 
-    # create dispatcher pipes
-    if len(job.pipe_to) > 0 and create_dispatcher:
-        dispatcher_inputs = [process.stdout]
-        # add other sources
-        for child in job.pipe_to:
-            for source in child.pipe_from:
-                if source.id != job.id:
-                    dispatcher_inputs.append(job_processes[source.id].stdout)
-
-        dispatcher_outputs = []
-        dispatcher_direct_outputs = []
-        dispatcher_pipes = []
-        # get default output and
-        # add it to dispatcher streams
-        # in case its not stdout.
-        # In addition, create a pipe for all
-        # children
-        default_out = script.args[script.default_output]
-        if default_out != sys.stdout or len(job.pipe_to) > 1 or len(dispatcher_inputs) > 1:
-            # add a file target and reset this scripts default out to
-            # stdout
-            if not isinstance(default_out, file):
-                log("Dispatch to output file for %d : %s", job.id, default_out)
-                dispatcher_outputs.append(open(default_out, 'wb'))
-            for _ in job.pipe_to:
-                read, write = os.pipe()
-                dispatcher_outputs.append(os.fdopen(write, 'w'))
-                dispatcher_pipes.append(os.fdopen(read, 'r'))
-            # start dispatcher
-            from jip.dispatcher import dispatch
-            dispatch(dispatcher_inputs, dispatcher_outputs)
-            return process, dispatcher_pipes
-    return process, [process.stdout] if process is not None else []
 
 
-def run_job(id, session=None, job_processes=None):
-    """Find the job specified by id and execute it. This
-    updates the state of the job (and all pipe_to children)
-    as long as the job does not fail.
-    """
-    from jip.db import STATE_DONE, STATE_RUNNING, STATE_FAILED, \
-        create_session, find_job_by_id
-    from jip.model import ScriptError
-    ## load the job
-    session_created = False
-    if session is None:
-        session = create_session()
-        job = find_job_by_id(session, id)
-        session_created = True
-    else:
-        job = id
 
-    if job_processes is None:
-        job_processes = {}
+#def run_job(id, session=None, job_processes=None):
+    #"""Find the job specified by id and execute it. This
+    #updates the state of the job (and all pipe_to children)
+    #as long as the job does not fail.
+    #"""
+    #from jip.db import STATE_DONE, STATE_RUNNING, STATE_FAILED, \
+        #create_session, find_job_by_id
+    #from jip.model import ScriptError
+    ### load the job
+    #session_created = False
+    #if session is None:
+        #session = create_session()
+        #job = find_job_by_id(session, id)
+        #session_created = True
+    #else:
+        #job = id
 
-    # update job state
-    # children will be update in recursive call
-    set_state(STATE_RUNNING, job, session=session, update_children=False)
+    #if job_processes is None:
+        #job_processes = {}
 
-    # setup signal handeling
-    _setup_signal_handler(job)
-    # chck if all dependencies are fullfilled so
-    # a dispatcher can be created
-    missing_dependency = False
-    for i, child in enumerate(job.pipe_to):
-        for pipe_from in child.pipe_from:
-            if pipe_from.state not in [STATE_DONE, STATE_RUNNING]:
-                missing_dependency = True
-                break
+    ## update job state
+    ## children will be update in recursive call
+    #set_state(STATE_RUNNING, job, session=session, update_children=False)
 
-    # execute the script and get the child pipes
-    try:
-        process, child_pipes = _exec(job, job_processes,
-                                     not missing_dependency)
-        job_processes[job.id] = process
-    except ScriptError:
-        ## state is set in the parent
-        if session_created:
-            set_state(STATE_FAILED, job, session=session,
-                      update_children=True)
-            session.commit()
-            session.close()
-        raise
+    ## setup signal handeling
+    #_setup_signal_handler(job)
+    ## chck if all dependencies are fullfilled so
+    ## a dispatcher can be created
+    #missing_dependency = False
+    #for i, child in enumerate(job.pipe_to):
+        #for pipe_from in child.pipe_from:
+            #if pipe_from.state not in [STATE_DONE, STATE_RUNNING]:
+                #missing_dependency = True
+                #break
 
-    # run the children
-    sub_processs = [process]
-    sub_jobs = [job]
-    job_children = []
-    for i, child in enumerate(job.pipe_to):
-        # check that all pipe_from jobs of the child are finished
-        if missing_dependency:
-            break
+    ## execute the script and get the child pipes
+    #try:
+        #process, child_pipes = _exec(job, job_processes,
+                                     #not missing_dependency)
+        #job_processes[job.id] = process
+    #except ScriptError:
+        ### state is set in the parent
+        #if session_created:
+            #set_state(STATE_FAILED, job, session=session,
+                      #update_children=True)
+            #session.commit()
+            #session.close()
+        #raise
 
-        # set child input
-        child.to_script().stdin = child_pipes[i]
-        # run the child
-        try:
-            p, children = run_job(child, session=session,
-                                  job_processes=job_processes)
-            sub_processs.append(p)
-            sub_jobs.append(child)
-            sub_jobs.extend(children)
-            job_children.append(child)
-        except ScriptError:
-            set_state(STATE_FAILED, job, session=session,
-                      update_children=True)
-            session.commit()
-            session.close()
-            raise
+    ## run the children
+    #sub_processs = [process]
+    #sub_jobs = [job]
+    #job_children = []
+    #for i, child in enumerate(job.pipe_to):
+        ## check that all pipe_from jobs of the child are finished
+        #if missing_dependency:
+            #break
 
-    # close and commit the session
-    # so database is released during execution
-    if session_created:
-        session.commit()
-        session.close()
-        # we create the session
-        # so we wait
-        for i, p in enumerate(sub_processs):
-            log("Waiting for processes in %d to finish", sub_jobs[i].id)
-            if p is not None and p.wait() != 0:
-                ## fail
-                set_state(STATE_FAILED, job,
-                          update_children=True)
-                raise ScriptError.from_script(sub_jobs[i].to_script(),
-                                              "Execution faild!")
-        set_state(STATE_DONE, job, update_children=True)
-    return process, job_children
+        ## set child input
+        #child.to_script().stdin = child_pipes[i]
+        ## run the child
+        #try:
+            #p, children = run_job(child, session=session,
+                                  #job_processes=job_processes)
+            #sub_processs.append(p)
+            #sub_jobs.append(child)
+            #sub_jobs.extend(children)
+            #job_children.append(child)
+        #except ScriptError:
+            #set_state(STATE_FAILED, job, session=session,
+                      #update_children=True)
+            #session.commit()
+            #session.close()
+            #raise
+
+    ## close and commit the session
+    ## so database is released during execution
+    #if session_created:
+        #session.commit()
+        #session.close()
+        ## we create the session
+        ## so we wait
+        #for i, p in enumerate(sub_processs):
+            #log("Waiting for processes in %d to finish", sub_jobs[i].id)
+            #if p is not None and p.wait() != 0:
+                ### fail
+                #set_state(STATE_FAILED, job,
+                          #update_children=True)
+                #raise ScriptError.from_script(sub_jobs[i].to_script(),
+                                              #"Execution faild!")
+        #set_state(STATE_DONE, job, update_children=True)
+    #return process, job_children
 
 
 def create_jobs(script, persist=True, keep=False, validate=True):
@@ -403,3 +362,290 @@ def reload_script(job):
     script = Script.from_file(job.path)
     script.args = job.configuration
     job.command = script.render_command()
+
+
+def run_job(id, session=None):
+    """Find the job specified by id and execute it. This
+    updates the state of the job (and all pipe_to children)
+    as long as the job does not fail.
+    """
+    from jip.db import STATE_DONE, STATE_RUNNING, STATE_FAILED, STATE_QUEUED, \
+        create_session, find_job_by_id
+    from jip.model import ScriptError
+    ## load the job
+    session_created = False
+    if session is None:
+        session = create_session()
+        job = find_job_by_id(session, id)
+        session_created = True
+    else:
+        job = id
+
+    # check job state
+    if job.state not in [STATE_QUEUED]:
+        return
+
+    # setup signal handeling
+    _setup_signal_handler(job)
+
+    # createa the dispatcher graph
+    dispatcher_nodes = create_dispatcher_graph(job)
+    log("DP NODES: %s", dispatcher_nodes)
+
+    for dispatcher_node in dispatcher_nodes:
+        dispatcher_node.run(session)
+
+    for dispatcher_node in dispatcher_nodes:
+        dispatcher_node.wait(session)
+
+    if session_created:
+        session.commit()
+        session.close()
+
+
+
+def create_dispatcher_graph(job, nodes=None):
+    # collect all jobs that are part
+    # of this graph
+    if len(job.pipe_to) == 0 and nodes is None:
+        return [DispatcherNode(job)]
+
+    _nodes = nodes
+    if nodes is None:
+        _nodes = {}
+
+    # check if there is a node for the jobs
+    node = _nodes.get(job, None)
+    if node is not None:
+        # node exists, skip it
+        return None
+    # search for a new with the same target
+    for n in _nodes.itervalues():
+        if set(job.pipe_to) == n.targets:
+            node = n
+            break
+    else:
+        # create a new node
+        node = DispatcherNode()
+
+    _nodes[job] = node
+    node.sources.add(job)
+
+    # add the target
+    for pipe_to in job.pipe_to:
+        node.targets.add(pipe_to)
+
+    # recursive call
+    for pipe_to in job.pipe_to:
+        create_dispatcher_graph(pipe_to, _nodes)
+
+    if nodes is None:
+        # I am the first iteration
+        # and we create edges between the nodes based on source/target
+        for k, node in _nodes.iteritems():
+            for target in node.targets:
+                for k, other in _nodes.iteritems():
+                    if target in other.sources:
+                        other.depends_on.append(node)
+                        node.children.append(other)
+        return _sort_dispatcher_nodes(set(_nodes.itervalues()))
+    return None
+
+
+def _sort_dispatcher_nodes(nodes):
+    count = {}
+    for node in nodes:
+        count[node] = 0
+
+    for node in nodes:
+        for successor in node.children:
+            count[successor] += 1
+    ready = [node for node in nodes if count[node] == 0]
+    result = []
+    while ready:
+        node = ready.pop(-1)
+        result.append(node)
+        for successor in node.children:
+            count[successor] -= 1
+            if count[successor] == 0:
+                ready.append(successor)
+    return result
+
+
+class DispatcherNode(object):
+    def __init__(self, job=None):
+        self.sources = set([])
+        self.targets = set([])
+        self.depends_on = []
+        self.children = []
+        self.processes = []
+        if job is not None:
+            self.sources.append(job)
+
+    def __repr__(self):
+        return "[%s->%s]" % (",".join([str(j.id) for j in self.sources]),
+                            (",".join([str(j.id) for j in self.targets])))
+
+    def run(self, session):
+        from jip.db import STATE_RUNNING
+        num_sources = len(self.sources)
+        num_targets = len(self.targets)
+        if num_targets == 0:
+            # no targets, just run the source jobs
+            # as they are
+            for job in self.sources:
+                set_state(STATE_RUNNING, job,
+                          session=session, update_children=False)
+                self.processes.append(_exec(job))
+            return
+        if num_sources == num_targets:
+            self.processes.extend(FanDirect(self.sources,
+                                            self.targets).run(session))
+            return
+        if num_sources == 1:
+            self.processes.extend(FanOut(self.sources,
+                                         self.targets).run(session))
+            return
+        if num_targets == 1:
+            self.processes.extend(FanIn(self.sources,
+                                        self.targets).run(session))
+            return
+
+        raise ValueError("Unsupported fan operation "
+                         "for %d sources and %d targets"
+                         % (num_sources, num_targets))
+
+    def wait(self, session):
+        from jip.db import STATE_DONE, STATE_FAILED
+        # check the processes
+        for process, job in zip(self.processes, self.sources):
+            new_state = STATE_DONE if process.wait() == 0 else STATE_FAILED
+            log("JOB-%d | finished with %d", job.id, process.wait())
+            set_state(new_state,
+                      job, session=session, update_children=False)
+
+
+class FanDirect(object):
+    def __init__(self, sources, targets):
+        self.sources = list(sources)
+        self.targets = list(targets)
+
+    def run(self, session):
+        import os
+        from subprocess import PIPE
+        from jip.dispatcher import dispatch
+        from jip.db import STATE_RUNNING
+
+        if len(self.sources) != len(self.targets):
+            raise ValueError("Number of sources != targets!")
+
+        processes = []
+        direct_outs = [job.get_file_output() for job in self.sources]
+        if len(filter(lambda x: x is not None, direct_outs)) == 0:
+            # no extra output file dispatching is needed,
+            # we can just create the pipes directly
+            for source, target in zip(self.sources, self.targets):
+                source.to_script().stdout = PIPE
+                set_state(STATE_RUNNING, source, session=session,
+                          update_children=False)
+                process = _exec(source)
+                target.to_script().stdin = process.stdout
+                processes.append(process)
+            return processes
+
+        inputs = []
+        outputs = []
+        for source, target in zip(self.sources, self.targets):
+            i, o = os.pipe()
+            i = os.fdopen(i, 'r')
+            o = os.fdopen(o, 'w')
+            source.to_script().stdout = PIPE
+            target.to_script().stdin = i
+            outputs.append(o)
+
+        for source, target in zip(self.sources, self.targets):
+            set_state(STATE_RUNNING, source, session=session,
+                      update_children=False)
+            process = _exec(source)
+            inputs.append(process.stdout)
+            processes.append(process)
+
+        # start the dispatcher
+        dispatch(inputs, outputs, direct_outs)
+        return processes
+
+
+class FanOut(FanDirect):
+
+    def run(self, session):
+        import os
+        from subprocess import PIPE
+        from jip.dispatcher import dispatch_fanout
+        from jip.db import STATE_RUNNING
+
+        if len(self.sources) != 1 or len(self.targets) == 0:
+            raise ValueError("Number of sources != 1 or  targets == 0!")
+
+        processes = []
+        direct_outs = [job.get_file_output() for job in self.sources]
+        inputs = []
+        outputs = []
+        source = self.sources[0]
+        source.to_script().stdout = PIPE
+        num_targets = len(self.targets)
+
+        for target in self.targets:
+            i, o = os.pipe()
+            i = os.fdopen(i, 'r')
+            o = os.fdopen(o, 'w')
+            target.to_script().stdin = i
+            outputs.append(o)
+
+        set_state(STATE_RUNNING, source, session=session,
+                  update_children=False)
+        process = _exec(source)
+        inputs.append(process.stdout)
+        processes.append(process)
+
+        empty = [None] * (num_targets - 1)
+        # start the dispatcher
+        dispatch_fanout(inputs + empty, outputs, direct_outs + empty)
+        return processes
+
+
+class FanIn(FanDirect):
+    def run(self, session):
+        import os
+        from subprocess import PIPE
+        from jip.dispatcher import dispatch_fanin
+        from jip.db import STATE_RUNNING
+
+        if len(self.sources) == 0 or len(self.targets) != 1:
+            raise ValueError("Number of sources == 0 or  targets != 1!")
+
+        processes = []
+        direct_outs = [job.get_file_output() for job in self.sources]
+        inputs = []
+        target = self.targets[0]
+        outputs = []
+        i, o = os.pipe()
+        i = os.fdopen(i, 'r')
+        o = os.fdopen(o, 'w')
+        outputs.append(o)
+        target.to_script().stdin = i
+        num_sources = len(self.sources)
+        empty = [None] * (num_sources - 1)
+
+        for source in self.sources:
+            source.to_script().stdout = PIPE
+
+        for source in self.sources:
+            set_state(STATE_RUNNING, source, session=session,
+                      update_children=False)
+            process = _exec(source)
+            inputs.append(process.stdout)
+            processes.append(process)
+
+        # start the dispatcher
+        dispatch_fanin(inputs, outputs + empty, direct_outs)
+        return processes

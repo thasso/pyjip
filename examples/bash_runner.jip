@@ -22,6 +22,6 @@ jip.check_file("input")
 #%end validate
 
 #input='{{ jip.if("input") }}'
-{{ jip.if("cmd") }} {{ jip.if("output", prefix=">") }}
+({{ jip.if("cmd") }}) {{ jip.if("output", prefix=">") }}
 
 

@@ -226,37 +226,18 @@ class Block(object):
     def _run_interpreter_block(self, args):
         """Execute a interpreter block"""
         import subprocess
-        from tempfile import NamedTemporaryFile
+        import jip
+
         # write template to named temp file and run with interpreter
-        script_file = NamedTemporaryFile()
+        script_file = jip.create_temp_file()
         try:
             script_file.write(self._render_interpreter_block(args))
-            script_file.flush()
+            script_file.close()
             self.process = subprocess.Popen(
                 [self.interpreter, script_file.name],
                 stdin=self.script.stdin,
                 stdout=self.script.stdout
             )
-            if self.script.stdout != PIPE and self.process.wait() != 0:
-                script_file.close()
-                raise ExecutionError.from_block_fail(self,
-                                                     "Execution failed with %d"
-                                                     % self.process.wait())
-            elif self.script.stdout == PIPE:
-                ## start a thread to check the process
-                def process_check(script, script_file):
-                    try:
-                        script.process.wait()
-                        script_file.close()
-                    except:
-                        ## we ignore exceptions in the threads for now
-                        script_file.close()
-                        pass
-
-                from threading import Thread
-                process_thread = Thread(target=process_check,
-                                        args=(self, script_file))
-                process_thread.start()
             return self.process
         except OSError, err:
             # catch the errno 2 No such file or directory, which indicates the
@@ -479,13 +460,13 @@ class ScriptNode(object):
     """Pipeline node that wraps around a script"""
 
     def __init__(self, script, id, pipeline):
+        self.id = id
         self.script = script
         self.parents = []
         self.children = []
         self.siblings = []
         self._pipe_to = []
         self._pipe_from = []
-        self.id = id
         self.pipeline = pipeline
 
     def __or__(self, other):
@@ -536,4 +517,6 @@ class ScriptNode(object):
                (self.id, str(self.siblings),
                 str(",".join([str(x.id) for x in self._pipe_to])),
                 str(",".join([str(x.id) for x in self._pipe_from])))
+
+
 

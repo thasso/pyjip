@@ -28,12 +28,46 @@ jip.check_file("input")
 
 #run("bash_runner", cmd="echo 'Sleep for a while'; sleep 5; echo 'Done'") | (run("bash_runner", cmd="echo 'I am one'") + run("bash_runner", cmd="echo 'I am the other one'"))
 
-a = run("bash_runner", cmd='echo "FIRST JOB ${JIP_ID}"', output="a.out")
-b = run("bash_runner", cmd='echo "SECOND JOB $JIP_ID. INPUT:"; cat -; echo "SECOND DONE"', output="b.out")
-c = run("bash_runner", cmd='echo "THIRD JOB $JIP_ID. INPUT:"; cat -; echo "THIRD DONE"', output="c.out")
-d = run("bash_runner", cmd='echo "FOURTH JOB $JIP_ID. INPUT:"; cat -; echo "FOURTH DONE"', output="d.out")
+#a = run("bash_runner", cmd='echo "FIRST JOB ${JIP_ID}"', output="a.out")
+
+
+a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+b.input = a.output
+
+#a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+#b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+#c = run("bash_runner", cmd='echo "3 JOB-$JIP_ID. INPUT:"; cat -; echo "3 DONE"', output="c.out")
+#a | b | c
+
+
+#a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+#b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+#c = run("bash_runner", cmd='echo "3 JOB-$JIP_ID. INPUT:"; cat -; echo "3 DONE"', output="c.out")
+#a | (b + c)
+
+
+#a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+#b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+#c = run("bash_runner", cmd='echo "3 JOB-$JIP_ID. INPUT:"; cat -; echo "3 DONE"', output="c.out")
+#d = run("bash_runner", cmd='echo "4 JOB-$JIP_ID. INPUT:"; cat -; echo "4 DONE"', output="d.out")
+#a | (b + c) | d  ## merge with cat
+
+#c = run("bash_runner", cmd='echo "THIRD JOB $JIP_ID. INPUT:"; cat -; echo "THIRD DONE"', output="c.out")
+#d = run("bash_runner", cmd='echo "FOURTH JOB $JIP_ID. INPUT:"; cat -; echo "FOURTH DONE"', output="d.out")
 #e = run("bash_runner", cmd="echo "INDEPENDANT FIRST JOB"')
 
-a | ( b + c) | d
+#a | ( b + c) | d
+#
+#
+
+
+#a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+#b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+#c = run("bash_runner", cmd='echo "3 JOB-$JIP_ID. INPUT:"; cat -; echo "3 DONE"', output="c.out")
+#d = run("bash_runner", cmd='echo "4 JOB-$JIP_ID. INPUT:"; cat -; echo "4 DONE"', output="d.out")
+#a | (b + c) | d  ## merge with cat
+
+
 #%end pipeline
 
