@@ -153,7 +153,7 @@ def _load_job_env(job):
     os.environ["JIP_JOB"] = str(job.job_id) if job.job_id else ""
 
 
-def _exec(job):
+def _exec(job, job_processes, create_dispatcher):
     """Execute a single job. This checks for pipe_to children
     and starts a dispatcher if needed. The method returns
     the process started and a list of child pipes targes
@@ -173,10 +173,20 @@ def _exec(job):
         script.stdout = PIPE
 
     process = script.run()
+    log(">>>EXEC JOB %d WITH PIPEP_TO: %s AND PIPE_FROM: %s" % (job.id, job.pipe_to, job.pipe_from))
+
 
     # create dispatcher pipes
-    if len(job.pipe_to) > 0:
-        dispatcher_targets = [process.stdout]
+    if len(job.pipe_to) > 0 and create_dispatcher:
+        dispatcher_inputs = [process.stdout]
+        # add other sources
+        for child in job.pipe_to:
+            for source in child.pipe_from:
+                if source.id != job.id:
+                    dispatcher_inputs.append(job_processes[source.id].stdout)
+
+        dispatcher_outputs = []
+        dispatcher_direct_outputs = []
         dispatcher_pipes = []
         # get default output and
         # add it to dispatcher streams
@@ -184,24 +194,24 @@ def _exec(job):
         # In addition, create a pipe for all
         # children
         default_out = script.args[script.default_output]
-        if default_out != sys.stdout or len(job.pipe_to) > 1:
+        if default_out != sys.stdout or len(job.pipe_to) > 1 or len(dispatcher_inputs) > 1:
             # add a file target and reset this scripts default out to
             # stdout
             if not isinstance(default_out, file):
                 log("Dispatch to output file for %d : %s", job.id, default_out)
-                dispatcher_targets.append(open(default_out, 'wb'))
+                dispatcher_outputs.append(open(default_out, 'wb'))
             for _ in job.pipe_to:
                 read, write = os.pipe()
-                dispatcher_targets.append(os.fdopen(write, 'w'))
+                dispatcher_outputs.append(os.fdopen(write, 'w'))
                 dispatcher_pipes.append(os.fdopen(read, 'r'))
             # start dispatcher
             from jip.dispatcher import dispatch
-            dispatch(*dispatcher_targets)
+            dispatch(dispatcher_inputs, dispatcher_outputs)
             return process, dispatcher_pipes
     return process, [process.stdout] if process is not None else []
 
 
-def run_job(id, session=None):
+def run_job(id, session=None, job_processes=None):
     """Find the job specified by id and execute it. This
     updates the state of the job (and all pipe_to children)
     as long as the job does not fail.
@@ -218,15 +228,29 @@ def run_job(id, session=None):
     else:
         job = id
 
+    if job_processes is None:
+        job_processes = {}
+
     # update job state
     # children will be update in recursive call
     set_state(STATE_RUNNING, job, session=session, update_children=False)
 
     # setup signal handeling
     _setup_signal_handler(job)
+    # chck if all dependencies are fullfilled so
+    # a dispatcher can be created
+    missing_dependency = False
+    for i, child in enumerate(job.pipe_to):
+        for pipe_from in child.pipe_from:
+            if pipe_from.state not in [STATE_DONE, STATE_RUNNING]:
+                missing_dependency = True
+                break
+
     # execute the script and get the child pipes
     try:
-        process, child_pipes = _exec(job)
+        process, child_pipes = _exec(job, job_processes,
+                                     not missing_dependency)
+        job_processes[job.id] = process
     except ScriptError:
         ## state is set in the parent
         if session_created:
@@ -241,11 +265,16 @@ def run_job(id, session=None):
     sub_jobs = [job]
     job_children = []
     for i, child in enumerate(job.pipe_to):
+        # check that all pipe_from jobs of the child are finished
+        if missing_dependency:
+            break
+
         # set child input
         child.to_script().stdin = child_pipes[i]
         # run the child
         try:
-            p, children = run_job(child, session=session)
+            p, children = run_job(child, session=session,
+                                  job_processes=job_processes)
             sub_processs.append(p)
             sub_jobs.append(child)
             sub_jobs.extend(children)

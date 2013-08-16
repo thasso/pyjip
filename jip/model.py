@@ -505,21 +505,29 @@ class ScriptNode(object):
         if self.script.supports_stream_out and other.script.supports_stream_in:
             self._pipe_to.append(other)
             other._pipe_from.append(self)
+        other.parents.append(self)
 
         ## also pipe things from my siblings
         for sibling in self.siblings:
+            sibling.children.append(other)
+            other.parents.append(sibling)
             if sibling.script.supports_stream_out and other.script.supports_stream_in:
                 sibling._pipe_to.append(other)
                 other._pipe_from.append(sibling)
 
-        other.parents.append(self)
         self.pipeline._sort_nodes()
-        print "__OR__", self, other
+        #print "__OR__", self, other
         return other
 
     def __add__(self, other):
         """Create a parallel run of two nodes"""
         self.siblings.append(other)
+        for parent in self.parents:
+            parent.children.append(other)
+        for parent in other.parents:
+            parent.children.append(self)
+        self.parents.extend(other.parents)
+        other.parents.extend(self.parents)
         self.pipeline._sort_nodes()
         return self
 

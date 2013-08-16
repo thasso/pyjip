@@ -102,6 +102,7 @@ def run_script(script, keep=False, force=False):
     # create the jobs
     jobs = create_jobs(script, keep=keep)
     session = create_session()
+    print ">>>JOBS IN ORDER", jobs
     # run all main jobs
     for job in jobs:
         if not force and job.is_done():

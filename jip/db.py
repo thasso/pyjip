@@ -241,6 +241,9 @@ class Job(Base):
     def is_done(self):
         return self.to_script().is_done()
 
+    def __repr__(self):
+        return "JOB-%d" % (self.id)
+
     @classmethod
     def from_script(cls, script, profile=None, cluster=None, keep=False):
         """Create a job instance (unsaved) from given script"""
@@ -301,7 +304,7 @@ class Job(Base):
                 if len(node.parents) > 0:
                     for p in node.parents:
                         parent = nodes[p.id]
-                        if node in parent._pipe_to:
+                        if node in parent._pipe_to or parent in node._pipe_from:
                             pj = jobs[parent.id]
                             pj.pipe_to.append(job)
             return [j for k, j in jobs.iteritems()]
