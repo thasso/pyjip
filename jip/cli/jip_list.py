@@ -61,7 +61,7 @@ Columns supported for output:
     Logs       The path to the stdout and stderr log files of the job
 """
 
-from jip.docopt import docopt
+from jip.vendor.docopt import docopt
 from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
     NORMAL, get_time, confirm
 from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
@@ -82,7 +82,7 @@ STATE_COLORS = {
 }
 
 
-def reslove(v, job):
+def resolve(v, job):
     if isinstance(v, basestring):
         return getattr(job, v)
     return v(job)
@@ -109,22 +109,22 @@ def resolve_log_files(job):
     return logs
 
 FULL_HEADER = [
-    ("ID", partial(reslove, "id")),
-    ("C-ID", partial(reslove, "job_id")),
-    ("Name", partial(reslove, "name")),
+    ("ID", partial(resolve, "id")),
+    ("C-ID", partial(resolve, "job_id")),
+    ("Name", partial(resolve, "name")),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
-    ("Queue", partial(reslove, "queue")),
-    ("Priority", partial(reslove, "priority")),
-    ("Threads", partial(reslove, "threads")),
-    ("Hosts", partial(reslove, "hosts")),
-    ("Account", partial(reslove, "account")),
-    ("Memory", partial(reslove, "max_memory")),
+    ("Queue", partial(resolve, "queue")),
+    ("Priority", partial(resolve, "priority")),
+    ("Threads", partial(resolve, "threads")),
+    ("Hosts", partial(resolve, "hosts")),
+    ("Account", partial(resolve, "account")),
+    ("Memory", partial(resolve, "max_memory")),
     ("Timelimit", lambda job: get_time(minutes=job.max_time)),
     ("Runtime", resolve_runtime),
-    ("Created", partial(reslove, "create_date")),
-    ("Started", partial(reslove, "start_date")),
-    ("Finished", partial(reslove, "finish_date")),
-    ("Directory", partial(reslove, "working_directory")),
+    ("Created", partial(resolve, "create_date")),
+    ("Started", partial(resolve, "start_date")),
+    ("Finished", partial(resolve, "finish_date")),
+    ("Directory", partial(resolve, "working_directory")),
     ("Logs", resolve_log_files),
 ]
 

@@ -4,8 +4,6 @@ Block model and teh custom Exceptions.
 """
 import sys
 
-from subprocess import PIPE
-
 from jip.block_functions import TemplateBlock, PipelineBlock
 from jip.utils import render_table, log
 

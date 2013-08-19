@@ -63,7 +63,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     from jip.db import STATE_FAILED, STATE_HOLD, STATE_CANCELED, \
         STATES_WAITING, STATES_FINISHED, STATES_RUNNING, \
         create_session, find_job_by_id, Job
-    ## createa a database session
+    ## create a database session
     session_created = False
     if session is None:
         session = create_session()
@@ -263,7 +263,7 @@ def get_pipeline_jobs(job, jobs=None):
     if len(job.pipe_from) > 0 and jobs is None:
         ## walk up and add this jobs dependencies
         j = job
-        while(len(j.pipe_from) > 0):
+        while len(j.pipe_from) > 0:
             j = j.pipe_from[0]
         return get_pipeline_jobs(j)
 

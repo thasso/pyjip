@@ -16,9 +16,8 @@ Other Options:
     -h --help             Show this help message
 """
 import sys
-from signal import signal, SIGTERM, SIGINT
 
-from jip.docopt import docopt
+from jip.vendor.docopt import docopt
 from jip.model import Script, ScriptError, ValidationException
 from jip.executils import load_job_profile, create_jobs, run_job, submit
 

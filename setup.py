@@ -19,11 +19,11 @@ setup(
     packages=['jip'],
     install_requires=["sqlalchemy==0.8.2",
                       "jinja2==2.7",
-                     ],
+                      ],
     ext_modules=[dispatcher_ext],
     entry_points={
         "console_scripts": [
-            'jip = jip.jip_main:main'
+            'jip = jip.cli.jip_main:main'
         ]
     }
 )

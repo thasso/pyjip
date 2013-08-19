@@ -6,7 +6,7 @@ import os
 import sys
 import re
 
-import jip.docopt as opt
+import jip.vendor.docopt as opt
 from jip.model import Script, Block, ScriptError, \
     VALIDATE_BLOCK, COMMAND_BLOCK, SUPPORTED_BLOCKS
 
@@ -16,7 +16,7 @@ _begin_block_pattern = re.compile(r'^\s*#%begin\s*'
                                   '(?P<type>\w*)\s*'
                                   '(?P<interpreter>\w*)\s*'
                                   '(?P<args>.*)')
-# end block pattern catchs
+# end block pattern catches
 # #%end [<type>]
 _end_block_pattern = re.compile(r'^\s*#%end(\s+(?P<type>\w+))?$')
 
@@ -76,7 +76,8 @@ def parse_block_end(l, current_block):
     match = _end_block_pattern.match(l)
     if match:
         m = match.groupdict()
-        if m['type'] is not None and m['type'] != '' and m['type'] != current_block.type:
+        if m['type'] is not None and \
+                m['type'] != '' and m['type'] != current_block.type:
             raise ScriptError("Block types do not match. Currently open "
                               "block is '%s' and closing block is "
                               "'%s'" % (current_block.type, m['type']))
@@ -112,7 +113,8 @@ def parse_blocks(content, num_header_lines=0):
             current_block.content.append(l)
         else:
             # create anonymous bash block
-            current_block = Block(COMMAND_BLOCK, lineno=lineno + num_header_lines + 1)
+            current_block = Block(COMMAND_BLOCK,
+                                  lineno=lineno + num_header_lines + 1)
             current_block.content.append(l)
             anonymous_block = True
     if current_block is not None:
@@ -212,7 +214,8 @@ def parse_script_args(script, script_args):
             script.options[name] = value
 
 
-def parse_script(path=None, script_class=Script, lines=None, name=None, args=None):
+def parse_script(path=None, script_class=Script, lines=None,
+                 name=None, args=None):
     """Open given script and pars it"""
     if path is not None and not os.path.exists(path):
         raise ScriptError("Script file not found : %s" % path)

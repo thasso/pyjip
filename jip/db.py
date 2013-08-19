@@ -97,7 +97,7 @@ class Job(Base):
     state = Column(String, default=STATE_QUEUED)
     hosts = Column(String(256))
 
-    # paritions, queues, priority and account
+    # partitions, queues, priority and account
     queue = Column(String(256))
     priority = Column(String(256))
     account = Column(String(256))
@@ -241,7 +241,7 @@ class Job(Base):
             script.inputs = self.inputs
             script.supports_stream_out = self.supports_stream_out
             script.supports_stream_in = self.supports_stream_in
-            ## update deafault input/output streams
+            ## update default input/output streams
             if script.default_input:
                 di = script.args[script.default_input]
                 if di is not None and isinstance(di, file) and di.closed:

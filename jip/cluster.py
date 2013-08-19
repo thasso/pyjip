@@ -106,7 +106,7 @@ class Slurm(Cluster):
         if job is None or job.job_id is None:
             return
         cmd = ['scancel', str(job.job_id)]
-        out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+        Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
 
 
 #     def list(self):

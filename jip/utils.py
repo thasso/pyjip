@@ -4,7 +4,6 @@
 from os import walk, getcwd, getenv
 from os.path import exists, abspath, join, dirname
 
-
 # simple name to script file cache
 script_cache = {}
 
@@ -27,6 +26,7 @@ def log(msg, *args):
 
 
 def colorize(string, color):
+    """Colorize a string using ANSI colors."""
     if color == NORMAL:
         return string
     return "%s%s%s" % (color, string, ENDC)
@@ -126,7 +126,7 @@ def table_to_string(value, empty=""):
 
 
 def create_table(header, rows, empty="", to_string=table_to_string):
-    from jip.texttable import Texttable
+    from jip.vendor.texttable import Texttable
     t = Texttable(0)
     t.set_deco(Texttable.HEADER)
     if header is not None:

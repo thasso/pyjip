@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-This command executes jobs from the job database
+Executes jobs from the job database
 
 Usage:
    jip-exec [--help|-h] <id>
@@ -11,11 +11,9 @@ Options:
 Other Options:
     -h --help             Show this help message
 """
-import sys
 
-from jip.docopt import docopt
-from jip.db import STATE_FAILED
-from jip.executils import set_state, run_job
+from jip.vendor.docopt import docopt
+from jip.executils import run_job
 
 
 def main():
@@ -23,6 +21,7 @@ def main():
     try:
         run_job(args["<id>"])
     except Exception, e:
+        import sys
         sys.stderr.write(str(e))
         sys.stderr.write("\n")
         sys.exit(1)
