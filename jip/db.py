@@ -16,6 +16,8 @@ from jip.utils import parse_time
 # global instances
 engine = None
 Session = None
+db_path = None
+db_in_memory = False
 
 Base = declarative_base()
 
@@ -182,7 +184,10 @@ class Job(Base):
         """Returns the commen that should be executed on the
         cluster to run this job
         """
-        return """jip exec %d""" % (self.id)
+        if db_in_memory or db_path is None:
+            return """jip exec %d""" % (self.id)
+        else:
+            return "jip exec --db %s %d" % (db_path, self.id)
 
     def cancel(self, remove_logs=False):
         """Initialize the cluster that runs this jobs and cancel it
@@ -230,11 +235,12 @@ class Job(Base):
                 cmd = ""
             script = parse_script(path=None, lines=cmd.split("\n"))
             script.path = self.path
-            for k, v in self.configuration.iteritems():
-                if isinstance(v, dependency):
-                    script.args[k] = v.value
-                else:
-                    script.args[k] = v
+            if self.configuration is not None:
+                for k, v in self.configuration.iteritems():
+                    if isinstance(v, dependency):
+                        script.args[k] = v.value
+                    else:
+                        script.args[k] = v
             script.default_output = self.default_output
             script.default_input = self.default_input
             script.outputs = self.outputs
@@ -342,11 +348,13 @@ class Job(Base):
 def init(path=None, in_memory=False):
     from sqlalchemy import create_engine as slq_create_engine
     from sqlalchemy.orm import sessionmaker
-    from os.path import exists, dirname
+    from os.path import exists, dirname, abspath
     from os import makedirs
-    global engine, Session
+    global engine, Session, db_path, db_in_memory
 
     if in_memory:
+        db_in_memory = True
+        db_path = None
         engine = slq_create_engine("sqlite://")
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine, expire_on_commit=False)
@@ -359,10 +367,20 @@ def init(path=None, in_memory=False):
             raise LookupError("Database engine configuration not found")
 
     # make sure folders exists
-    type, folder = path.split(":///")
+    path_split = path.split(":///")
+    if len(path_split) != 2:
+        ## dynamically create an sqlite path
+        if not path.startswith("/"):
+            path = abspath(path)
+        path = "sqlite:///%s" % path
+        path_split = ["sqlite", path]
+
+    type, folder = path_split
     if not exists(folder) and not exists(dirname(folder)):
         makedirs(dirname(folder))
 
+    db_path = path
+    db_in_memory = False
     # check before because engine creation will create the file
     create_tables = not exists(folder) and type == "sqlite"
     # create engine

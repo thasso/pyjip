@@ -3,23 +3,24 @@
 Executes jobs from the job database
 
 Usage:
-   jip-exec [--help|-h] <id>
+   jip-exec [--help|-h] [-d <db>] <id>
 
 Options:
-    <id>  the job id of the job that will be executed
+    -d, --db <db>  the database source that will be used to find the job
+    <id>           the job id of the job that will be executed
 
 Other Options:
     -h --help             Show this help message
 """
 
-from jip.vendor.docopt import docopt
 from jip.executils import run_job
+from . import parse_args
 
 
 def main():
-    args = docopt(__doc__, options_first=True)
+    args = parse_args(__doc__, options_first=True)
     try:
-        run_job(args["<id>"])
+        run_job(args["<id>"], db=args["--db"])
     except Exception, e:
         import sys
         sys.stderr.write(str(e))

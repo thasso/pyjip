@@ -3,15 +3,16 @@
 The JIP job lister
 
 Usage:
-    jip-list [-lD] [-s <state>...] [-o <out>...]
+    jip-jobs [-lD] [-s <state>...] [-o <out>...]
              [--show-archived] [-a|-d|-c] [--clean]
              [-j <id>...] [-J <cid>...]
              [-r [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
                  [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [-R]]
-             [--hold] [--resume]
-    jip-list [--help|-h]
+             [--hold] [--resume] [--db <db>]
+    jip-jobs [--help|-h]
 
 Options:
+    --db <db>                Select a path to a specific job database
     -a, --archive            Archive listed jobs
     -d, --delete             Delete listed jobs
     -c, --cancel             Cancel selected jobs if they are in Queued
@@ -159,7 +160,7 @@ def detail_view(job):
 
 def main():
     args = docopt(__doc__, options_first=False)
-    init()
+    init(path=args["--db"])
     session = create_session()
     ####################################################################
     # Query jobs

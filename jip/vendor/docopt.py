@@ -445,6 +445,7 @@ def parse_argv(tokens, options, options_first=False):
         elif options_first:
             return parsed + [Argument(None, v) for v in tokens]
         else:
+
             if len(parsed) > 0 and isinstance(parsed[-1], Option) \
                and parsed[-1].argcount > 0:
                 last = parsed[-1]

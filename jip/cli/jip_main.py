@@ -12,7 +12,9 @@ Options:
 
 The most commonly used commands:
 
-    list  list jobs
+    jobs    list and update jobs from the job database
+    run     Locally run a jip script
+    submit  submit a jip script to a remote cluster
 """
 import sys
 import jip

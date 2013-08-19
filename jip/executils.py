@@ -73,7 +73,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     if not isinstance(id_or_job, Job):
         job = find_job_by_id(session, id_or_job)
 
-    log("JOB-%d | set state [%s]=>[%s]" % (job.id, job.state, new_state))
+    log("JOB-%s | set state [%s]=>[%s]" % (str(job.id), job.state, new_state))
     # we do not overwrite CANCELED or HOLD with FAILED
     if new_state == STATE_FAILED and job.state \
             in [STATE_CANCELED, STATE_HOLD]:
@@ -110,7 +110,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
             script.terminate()
             log("Keep job output on failure cleanup ? %s" % (job.keep_on_fail))
             if not job.keep_on_fail:
-                log("Cleaning job %d after failure", job.id)
+                log("Cleaning job %s after failure", str(job.id))
                 script.cleanup()
 
     # check embedded children of this job
@@ -287,12 +287,17 @@ def reload_script(job):
     job.command = script.render_command()
 
 
-def run_job(id, session=None):
+def run_job(id, session=None, db=None):
     """Find the job specified by id and execute it. This
     updates the state of the job (and all pipe_to children)
     as long as the job does not fail.
     """
-    from jip.db import STATE_QUEUED, create_session, find_job_by_id
+    from jip.db import STATE_QUEUED, create_session, find_job_by_id, init
+
+    if db is not None:
+        ## reinitialize the database
+        init(path=db)
+
     ## load the job
     session_created = False
     if session is None:

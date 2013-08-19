@@ -176,6 +176,11 @@ def parse_script_args(script, script_args):
     options += opt.parse_defaults(doc_string, "outputs:")
     options += opt.parse_defaults(doc_string)
 
+    for o in options:
+        if hasattr(o, "argcount") and o.argcount > 0:
+            if not isinstance(o.value, (list, tuple)):
+                o.value = [o.value]
+    print options
     pattern = opt.parse_pattern(opt.formal_usage(usage_sections[0]),
                                 options)
 
@@ -183,8 +188,8 @@ def parse_script_args(script, script_args):
     pattern_options = set(pattern.flat(opt.Option))
     for options_shortcut in pattern.flat(opt.OptionsShortcut):
         doc_options = opt.parse_defaults(doc_string) + \
-                      opt.parse_defaults(doc_string, "inputs:") + \
-                      opt.parse_defaults(doc_string, "outputs:")
+            opt.parse_defaults(doc_string, "inputs:") + \
+            opt.parse_defaults(doc_string, "outputs:")
         options_shortcut.children = list(set(doc_options) - pattern_options)
 
     matched, left, collected = pattern.fix().match(argv)
