@@ -64,7 +64,7 @@ class ScriptError(Exception):
         script_error._script = block.script
         script_error._block = block
         script_error._lineno = block.lineno
-        script_error.message = e.message if e.message != "" else "Syntax error"
+        script_error.message = str(e) if str(e) != "" else "Syntax error"
         if hasattr(e, "lineno"):
             script_error._lineno = block.lineno + e.lineno
         if hasattr(e, "offset"):
@@ -196,7 +196,7 @@ class Block(object):
 
     def _run_python_block(self, args):
         """Run this block as a python block"""
-        block_func = TemplateBlock(args)
+        block_func = TemplateBlock(args, script=self.script)
         env = {"args": args, "jip": block_func}
         try:
             exec "\n".join(self.content) in locals(), env
@@ -208,9 +208,9 @@ class Block(object):
 
     def _run_pipeline_block(self, args):
         """Run this block as a pipeline block"""
-        template_block = TemplateBlock(args)
+        template_block = TemplateBlock(args, script=self.script)
         script_block = PipelineBlock(self.script, args)
-        env = {"jip": template_block}
+        env = {"jip": template_block, "args": args}
         for k, v in vars(script_block).items():
             if k[0] != "_":
                 env[k] = v
@@ -256,7 +256,7 @@ class Block(object):
         # create template
         template = Template("\n".join(self.content))
         # create template context
-        block_func = TemplateBlock(args)
+        block_func = TemplateBlock(args, script=self.script)
         env = dict(args)
         env["jip"] = block_func
         return template.render(env)
@@ -295,6 +295,8 @@ class Script(object):
         self.default_output = None
         self.stdout = None
         self.stdin = None
+        self.threads = 1
+        self.validated = False
         if self.args is None:
             self.args = {}
 
@@ -308,7 +310,9 @@ class Script(object):
         result = None
         for i, v_block in enumerate(self.blocks.get(key, [])):
             self.running_block = v_block
-            result = v_block.run(self.args)
+            args = self._clean_args()
+            result = v_block.run(args)
+            self.args = args
         self.running_block = None
         return result
 
@@ -324,6 +328,7 @@ class Script(object):
             return True
         if len(self.blocks.get(PIPELINE_BLOCK, [])) == 0:
             return False
+        self.validate()
         self.pipeline = self.__run_blocks(PIPELINE_BLOCK)
         return True
 
@@ -332,7 +337,8 @@ class Script(object):
         files of this process"""
         if self.outputs is None:
             return []
-        files = [self.args[k] if isinstance(self.args[k], (list, tuple)) else [self.args[k]]
+        files = [self.args[k] if isinstance(self.args[k], (list, tuple))
+                 else [self.args[k]]
                  for k in self.outputs.iterkeys()]
         # flatten
         files = [y if not isinstance(y, dependency) else y.value for x in files
@@ -343,6 +349,8 @@ class Script(object):
     def validate(self):
         """Call all validation blocks of a script
         """
+        if self.validated:
+            return
         # make sure we do not mix pipeline and command blocks
         if(len(self.blocks.get(COMMAND_BLOCK, [])) > 0
            and len(self.blocks.get(PIPELINE_BLOCK, [])) > 0):
@@ -351,6 +359,7 @@ class Script(object):
                                                "blocks is currently not "
                                                "supported!")
         self.__run_blocks(VALIDATE_BLOCK)
+        self.validated = True
         if self._load_pipeline():
             self.pipeline.validate()
 
@@ -389,6 +398,8 @@ class Script(object):
         """
         from os.path import exists
         files = self._get_output_files()
+        if files is None or len(files) == 0:
+            return False
         for f in files:
             if not isinstance(f, basestring) or not exists(f):
                 return False
@@ -402,11 +413,37 @@ class Script(object):
         """Render this script blocks to a string"""
         lines = ["#!/usr/bin/env jip"]
         # render validate blocks
+        args = self._clean_args()
         for block in self.blocks.get(VALIDATE_BLOCK, []):
-            lines.append(block.render(self.args))
+            lines.append(block.render(args))
         for block in self.blocks.get(COMMAND_BLOCK, []):
-            lines.append(block.render(self.args))
+            lines.append(block.render(args))
         return "\n".join(lines)
+
+    def _clean_args(self):
+        """Check multiplicity of inputs/outputs and options
+        and create a clean copy of the args map"""
+        clean = {}
+        for k, v in self.args.iteritems():
+            o = self._get_option(k)
+            if isinstance(v, dependency):
+                v = v.value
+            clean[k] = v
+            if o is not None:
+                if isinstance(v, (list, tuple)):
+                    if o.multiplicity == 1:
+                        if len(v) == 1:
+                            clean[k] = v[0] if v[0] is not None else None
+                        if len(v) == 0:
+                            clean[k] = None
+        return clean
+
+    def _get_option(self, name):
+        if name in self.inputs:
+            return self.inputs[name]
+        if name in self.outputs:
+            return self.outputs[name]
+        return self.options.get(name, None)
 
     def __repr__(self):
         return self.name
@@ -428,6 +465,11 @@ class Pipeline(object):
         """
         node = ScriptNode(script, len(self.nodes), self)
         self.nodes.append(node)
+        for k, v in script.args.iteritems():
+            if isinstance(v, parameter) and v.node is not None:
+                node.parents.append(v.node)
+                v.node.children.append(node)
+
         return node
 
     def validate(self):
@@ -454,17 +496,20 @@ class Pipeline(object):
         self.nodes = result
 
 
-class _parameter(object):
-    def __init__(self, source, name, value):
+class parameter(object):
+    def __init__(self, source, name, value, multiplicity=0, node=None):
         self.source = source
         self.name = name
         self.value = value
+        self.multiplicity = multiplicity
+        self.node = node
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return str(self.value)
+        return "Parameter{name: %s, multiplicity: %d, default: %s}" % \
+            (self.name, self.multiplicity, self.value)
 
 
 class dependency(object):
@@ -493,13 +538,15 @@ class ScriptNode(object):
 
     def __getattr__(self, name):
         value = self.script.args[name]
-        if isinstance(value, _parameter):
-            return _parameter(self, name, value.value)
+        if isinstance(value, parameter):
+            return parameter(self, name, value.value,
+                             multiplicity=value.multiplicity,
+                             node=value.node)
 
-        return _parameter(self, name, value)
+        return parameter(self, name, value, node=self)
 
     def __setattr__(self, name, value):
-        if isinstance(value, _parameter):
+        if isinstance(value, parameter):
             self.script.args[name] = dependency(value.value)
             self.parents.append(value.source)
             value.source.children.append(self)

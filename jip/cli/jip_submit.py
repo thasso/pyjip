@@ -2,15 +2,14 @@
 """
 Submit a jip script to a remote cluster
 
-usage: jip-submit [-f] [-k] [--show] [-P <profile>] [-t <time>] [-q <queue>]
+usage: jip-submit [-f] [-k] [-P <profile>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
-                  [-d <db>] <file> [<args>...]
+                  [-d <db>] [-H] [--dry] <file> [<args>...]
 
 Options:
   -f, --force              force command execution
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation
-  --show                   show the rendered script rather than running it
   -P, --profile <profile>  Select a job profile for resubmission
   -t, --time <time>        Max wallclock time for the job
   -q, --queue <queue>      Job queue
@@ -21,6 +20,9 @@ Options:
   -n, --name <name>        Job name
   -d, --db <db>            Path to the database that will be used to store the
                            job information
+  -H, --hold               submit job put put in on hold and don't send
+                           it to the queue
+  --dry                    Do not submit but show the dry configuration
   <file>                   the script that will be executed
   <args>                   optional script argument
 
@@ -46,12 +48,9 @@ def main(argv=None):
     if "-h" in script_args or "--help" in script_args:
         print script.help()
         sys.exit(0)
-    if args["--show"]:
-        print script.render_command()
-        sys.exit(0)
 
     try:
-        submit_script(script, args, script_args)
+        submit_script(script, args, dry=args['--dry'])
     except ValidationException, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
@@ -62,19 +61,16 @@ def main(argv=None):
         sys.exit(1)
 
 
-def submit_script(script, jip_args, script_args):
+def submit_script(script, jip_args, dry=False):
     from jip.db import create_session, init
     ## initialize custom database location
-    db_path = jip_args.get('--db', None)
-    if db_path is not None:
-        init(path=db_path)
+    if dry:
+        init(in_memory=True)
+    else:
+        db_path = jip_args.get('--db', None)
+        if db_path is not None:
+            init(path=db_path)
 
-    # parse argument
-    script.validate()
-    if script.is_done() and not jip_args["--force"]:
-        sys.stderr.write("Script results exist! Skipping "
-                         "(use <script> -- --force to force execution\n")
-        sys.exit(0)
     session = create_session()
     ## create jobs
     jobs = create_jobs(script, keep=jip_args["--keep"], session=session)
@@ -90,6 +86,23 @@ def submit_script(script, jip_args, script_args):
                                name=jip_args["--name"],
                                load_default=True
                                )
+    if dry:
+        from jip_run import show_dry_run
+        for job in jobs:
+            job.update_profile(profile)
+        show_dry_run(jobs)
+        return
+
+    if jip_args["--hold"]:
+        from jip.executils import set_state
+        from jip.db import STATE_HOLD
+        # save jobs, but don't submit
+        for job in jobs:
+            job.update_profile(profile)
+            set_state(STATE_HOLD, job, session=session)
+            print "Job %d submitted and on hold" % (job.id)
+        session.commit()
+        return
     try:
         submitted, skipped = submit(jobs, profile, force=jip_args["--force"],
                                     session=session)

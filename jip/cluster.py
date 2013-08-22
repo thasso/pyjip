@@ -10,6 +10,8 @@ class SubmissionError(Exception):
 
 def from_name(name):
     """Load a cluster engine from given name"""
+    if name is None:
+        return None
     (modulename, classname) = name.rsplit('.', 1)
     mod = __import__(modulename, globals(), locals(), [classname])
     return getattr(mod, classname)()
@@ -76,6 +78,15 @@ class Slurm(Cluster):
             cmd.extend(["--mem-per-cpu", str(job.max_memory)])
         if job.extra is not None:
             cmd.extend(job.extra)
+
+        # dependencies
+        if len(job.dependencies) > 0:
+            deps = set([])
+            for dep in job.dependencies:
+                if len(dep.pipe_from) == 0 and dep.job_id is not None:
+                    deps.add(dep.job_id)
+            if len(deps) > 0:
+                cmd.extend(['-d', "afterok:%s" % (":".join(deps))])
 
         # get/set job log files
         cwd = job.working_directory if job.working_directory is not None \

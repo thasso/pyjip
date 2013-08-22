@@ -10,11 +10,26 @@ Options:
     -h --help     Show this help message
     --version     Show the version information
 
-The most commonly used commands:
+The commands to execute jobs:
 
-    jobs    list and update jobs from the job database
     run     Locally run a jip script
     submit  submit a jip script to a remote cluster
+    bash    Run or submit a bash command
+
+The following command can be used to show and filter a list of
+jobs:
+
+    jobs    list and update jobs from the job database
+
+The jip jobs command output can be piped into one of the following
+action command. Note that the commands also work standalon:
+
+    delete   delete the selected jobs
+    archive  archive the selected jobs
+    cancel   cancel selected and running jobs
+    hold     put selected jobs on hold
+    resume   resume selected jobs that are on hold
+    restart  restart selected jobs
 """
 import sys
 import jip

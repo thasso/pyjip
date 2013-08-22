@@ -3,43 +3,23 @@
 The JIP job lister
 
 Usage:
-    jip-jobs [-lD] [-s <state>...] [-o <out>...]
-             [--show-archived] [-a|-d|-c] [--clean]
-             [-j <id>...] [-J <cid>...]
-             [-r [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
-                 [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [-R]]
-             [--hold] [--resume] [--db <db>]
+    jip-jobs [-ld] [-s <state>...] [-o <out>...]
+             [--show-archived] [-j <id>...] [-J <cid>...]
+             [--db <db>] [-N] [-q <queue>]
     jip-jobs [--help|-h]
 
 Options:
     --db <db>                Select a path to a specific job database
-    -a, --archive            Archive listed jobs
-    -d, --delete             Delete listed jobs
-    -c, --cancel             Cancel selected jobs if they are in Queued
-                             or Running state
-    --clean                  Remove jobs log files of selected job
-    -r, --restart            Restart the selected job
-    --hold                   Hold the selected jobs. NOTE that all
-                             running and queued job will be canceld and
-                             removed from the cluster
-    --resume                 Resume jobs on hold
-    -P, --profile <profile>  Select a job profile for resubmission
-    -t, --time <time>        Max wallclock time for the job
-    -q, --queue <queue>      Job queue
-    -p, --priority <prio>    Job priority
-    -A, --account <account>  The account to use for submission
-    -C, --cpus <cpus>        Number of CPU's assigned to the job
-    -m, --max-mem <mem>      Max memory assigned to the job
-    -n, --name <name>        Job name
-    -R, --reload             Reload and rerender the job command
     --show-archived          Show archived jobs
-    -D, --detail             Show detail job view instead of the table
+    -d, --detail             Show detail job view instead of the table
     -o, --output <out>       Show only specified columns. See below for a list
                              of supported columns
     -l, --long               Show long output
     -s, --state <state>      List jobs with specified state
+    -q, --queue <queue>      List jobs with a specified queue
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
+    -N, --no-pager           Does not pipe the result to the pager
     -h --help                Show this help message
 
 Columns supported for output:
@@ -64,14 +44,15 @@ Columns supported for output:
 
 from jip.vendor.docopt import docopt
 from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
-    NORMAL, get_time, confirm
+    NORMAL, get_time
 from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
     STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
-from jip.executils import submit, load_job_profile, get_pipeline_jobs
 
 import sys
+from os import getenv
 from datetime import timedelta, datetime
 from functools import partial
+from subprocess import PIPE, Popen
 
 STATE_COLORS = {
     STATE_DONE: GREEN,
@@ -109,6 +90,12 @@ def resolve_log_files(job):
                            cluster.resolve_log(job, job.stderr))
     return logs
 
+
+def resolve_dependencies(job):
+    if len(job.dependencies) == 0:
+        return None
+    return ",".join([str(j.id) for j in job.dependencies])
+
 FULL_HEADER = [
     ("ID", partial(resolve, "id")),
     ("C-ID", partial(resolve, "job_id")),
@@ -116,6 +103,7 @@ FULL_HEADER = [
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", partial(resolve, "queue")),
     ("Priority", partial(resolve, "priority")),
+    ("Dependencies", lambda job: resolve_dependencies(job)),
     ("Threads", partial(resolve, "threads")),
     ("Hosts", partial(resolve, "hosts")),
     ("Account", partial(resolve, "account")),
@@ -147,15 +135,42 @@ def resolve_job_range(ids):
     return r
 
 
-def detail_view(job):
+def detail_view(job, exclude_times=False):
     """Render job detail view"""
     rows = []
     for k, v in FULL_HEADER:
-        rows.append([k, v(job)])
+        if not exclude_times or k not in ["Created", "Started", "Finished",
+                                          "Runtime"]:
+            rows.append([k, v(job)])
     t = render_table(None, rows, empty="-")
     max_len = max(map(len, t.split("\n")))
+
+    config = "\nConfiguration\n-------------\n"
+    cfg = dict(job.configuration)
+
+    cfg_rows = []
+    for k, v in job.to_script().inputs.iteritems():
+        cfg_rows.append([str(k), cfg.get(k)])
+        if k in cfg:
+            del cfg[k]
+
+    for k, v in job.to_script().outputs.iteritems():
+        cfg_rows.append([str(k), cfg.get(k)])
+        if k in cfg:
+            del cfg[k]
+
+    for k, v in job.to_script().options.iteritems():
+        cfg_rows.append([str(k), cfg.get(k)])
+        if k in cfg:
+            del cfg[k]
+
+    if len(cfg) > 0:
+        for k, v in cfg.iteritems():
+            cfg_rows.append([str(k), str(v)])
+    if len(cfg_rows) > 0:
+        config += render_table(None, cfg_rows, empty="-")
     hl = "#" * max_len
-    return "%s\n%s\n%s" % (hl, t, hl)
+    print "%s\n%s\n%s\n%s" % (hl, t, config, hl)
 
 
 def main():
@@ -177,6 +192,24 @@ def main():
         jobs = jobs.filter(Job.id.in_(resolve_job_range(job_ids)))
     if len(cluster_ids) > 0:
         jobs = jobs.filter(Job.job_id.in_(resolve_job_range(cluster_ids)))
+    if args["--queue"]:
+        jobs = jobs.filter(Job.queue.like("%" + args["--queue"] + "%"))
+    ####################################################################
+    # Print full table without header and decorations for
+    # pipe mode
+    ####################################################################
+    output = sys.stdout
+    if not sys.stdout.isatty() and not args["--detail"]:
+        trans = dict(FULL_HEADER)
+        header = [k[0] for k in FULL_HEADER]
+        del header[header.index("Logs")]
+        try:
+            for job in jobs:
+                print "\t".join([str(trans[c](job)) for c in header])
+            output = sys.stderr
+            exit(0)
+        except IOError:
+            exit(0)
 
     ####################################################################
     # Print job table
@@ -186,161 +219,38 @@ def main():
         trans = dict(FULL_HEADER)
         if args["--long"]:
             header = [k[0] for k in FULL_HEADER]
-        else:
-            if args["--output"]:
-                header = args["--output"]
-                ## check the headr
-                columns_error = False
-                for h in header:
-                    if not h in trans:
-                        print >>sys.stderr, "Unknown column name %s" % h
-                        columns_error = True
-                if columns_error:
+        elif args["--output"]:
+            header = args["--output"]
+            ## check the headr
+            for h in header:
+                if not h in trans:
+                    print >>sys.stderr, "Unknown column name %s" % h
                     sys.exit(1)
-            else:
-                header = ["ID", "C-ID", "Name", "State", "Queue", "Runtime",
-                          "Timelimit"]
+        else:
+            header = ["ID", "C-ID", "Name", "State", "Queue", "Threads",
+                      "Runtime", "Timelimit", "Dependencies"]
 
         columns = []
-        selected_jobs = []
-        for job in jobs:
-            selected_jobs.append(job)
-            columns.append([trans[c](job) for c in header])
-        print render_table(header, columns, empty="-")
+        map(lambda job: columns.append([trans[c](job) for c in header]), jobs)
+
+        ## pipe to pager
+        if sys.stdout.isatty() and not args['--no-pager']:
+            pager = getenv("PAGER", "less -r")
+            pager_p = Popen(pager.split(), stdin=PIPE, stdout=output)
+            output = pager_p.stdin
+            print >>output, render_table(header, columns, empty="-")
+            output.close()
+            try:
+                pager_p.wait()
+            except:
+                pager_p.terminate()
+        else:
+            print >>output, render_table(header, columns, empty="-")
+
     else:
         ## show detail view
-        for job in jobs:
-            print detail_view(job)
+        map(detail_view, jobs)
 
-    ####################################################################
-    ## Job Actions
-    ####################################################################
-    if len(selected_jobs) == 0:
-        return
-
-    if args["--delete"]:
-        import jip.db
-        if confirm("Are you sure you want "
-                   "to delete %d jobs" % len(selected_jobs),
-                   False):
-            for j in selected_jobs:
-                if j.state not in jip.db.STATES_ACTIVE:
-                    session.delete(j)
-                else:
-                    print >>sys.stderr, "Unable to delete active job %s " \
-                                        "with state '%s'" % (j.job_id, j.state)
-            session.commit()
-            print "%d jobs deleted" % len(selected_jobs)
-
-    if args["--archive"]:
-        import jip.db
-        if confirm("Are you sure you want "
-                   "to archive %d jobs" % len(selected_jobs),
-                   False):
-            for j in selected_jobs:
-                if j.state not in jip.db.STATES_ACTIVE:
-                    j.archived = True
-                    session.add(j)
-                else:
-                    print >>sys.stderr, "Unable to archive active job %s " \
-                                        "with state '%s'" % (j.job_id, j.state)
-            session.commit()
-            print "%d jobs archived" % len(selected_jobs)
-
-    if args["--cancel"]:
-        if confirm("Are you sure you want "
-                   "to cancel %d jobs" % len(selected_jobs),
-                   False):
-            count = 0
-            for j in selected_jobs:
-                if j.cancel(remove_logs=args["--clean"]):
-                    count += 1
-                    session.add(j)
-            session.commit()
-            print "%d jobs canceled" % count
-
-    if not args["--cancel"] and args["--clean"]:
-        import jip.db
-        if confirm("Are you sure you want "
-                   "to clean %d jobs" % len(selected_jobs),
-                   False):
-            count = 0
-            for j in selected_jobs:
-                if j.state not in jip.db.STATES_RUNNING:
-                    j.clean()
-                    count += 1
-                else:
-                    print >>sys.stderr, "Unable to clean active job %s " \
-                                        "with state '%s'" % (j.job_id, j.state)
-            print "%d jobs cleaned" % count
-
-    if args["--hold"]:
-        if confirm("Are you sure you want "
-                   "to hold %d jobs" % len(selected_jobs),
-                   False):
-            import jip
-            import jip.db
-            count = 0
-            for j in selected_jobs:
-                if j.state in jip.db.STATES_ACTIVE and \
-                   not j.state == jip.db.STATE_HOLD:
-                    #cancel the job
-                    j.cancel(remove_logs=True)
-                    j.state = jip.db.STATE_HOLD
-                    j.start_date = None
-                    j.finish_date = None
-                    # remove logs
-                    count += 1
-                    session.add(j)
-            session.commit()
-            print "%d jobs canceled" % count
-
-    if args["--resume"]:
-        if confirm("Are you sure you want "
-                   "to resume %d jobs" % len(selected_jobs),
-                   False):
-            import jip
-            import jip.db
-            for j in selected_jobs:
-                if j.state == jip.db.STATE_HOLD:
-                    submit(job=j)
-                    print "Job %d with remote id %s " \
-                          "resumed" % (j.id, j.job_id)
-                else:
-                    print >>sys.stderr, "Unable to resume active job %s " \
-                                        "with state '%s'" % (j.job_id, j.state)
-            session.commit()
-
-    if args["--restart"]:
-        if confirm("Are you sure you want "
-                   "to restart %d jobs" % len(selected_jobs),
-                   False):
-            count = 0
-            import jip
-            import jip.db
-            for j in selected_jobs:
-                if j.state not in jip.db.STATES_ACTIVE:
-                    ## get parent job(s)
-                    jobs = get_pipeline_jobs(j)
-                    profile = load_job_profile(
-                        profile_name=args["--profile"],
-                        time=args["--time"],
-                        queue=args["--queue"],
-                        priority=args["--priority"],
-                        account=args["--account"],
-                        cpus=args["--cpus"],
-                        max_mem=args["--max-mem"],
-                        name=args["--name"]
-                    )
-                    for j in submit(jobs, profile, session=session,
-                                    reload=args["--reload"]):
-                        print "Job %d with remote id %s " \
-                              "re-submitted (Reloaded: %s)" % \
-                              (j.id, j.job_id, str(args["--reload"]))
-                else:
-                    print >>sys.stderr, "Unable to restart active job %s " \
-                                        "with state '%s'" % (j.job_id, j.state)
-            session.commit()
 
 if __name__ == "__main__":
     main()

@@ -100,7 +100,8 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
                 pass
     elif new_state in STATES_FINISHED:
         job.finish_date = datetime.now()
-    session.add(job)
+    if session_created:
+        session.add(job)
 
     # if we are in finish state but not DONE,
     # performe a cleanup
@@ -191,9 +192,7 @@ def create_jobs(script, persist=True, keep=False, validate=True, session=None):
     submission.
     """
     from jip.db import Job, create_session
-    if validate:
-        script.validate()
-    jobs = Job.from_script(script, keep=keep)
+    jobs = Job.from_script(script, keep=keep, validate=validate)
     if persist:
         _session = session
         if session is None:
@@ -203,11 +202,12 @@ def create_jobs(script, persist=True, keep=False, validate=True, session=None):
         _session.commit()
         if session is None:
             _session.close()
+
     return jobs
 
 
 def submit(jobs, profile=None, cluster_name=None, session=None,
-           reload=False, force=False):
+           reload=False, force=False, update_profile=True):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -222,7 +222,7 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
         if cluster_name is None:
             raise ValueError("No cluster engine configured!")
     # load profile
-    if profile is None:
+    if profile is None and update_profile:
         profile = load_job_profile(load_default=True)
 
     # create the cluster and init the db
@@ -245,7 +245,8 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
                 log("Skipped job %d", job.id)
             else:
                 log("Submitting job %d", job.id)
-                job.update_profile(profile)
+                if update_profile:
+                    job.update_profile(profile)
                 job.cluster = cluster_name
                 set_state(jip.db.STATE_QUEUED, job, session=session)
                 cluster.submit(job)
@@ -270,7 +271,8 @@ def get_pipeline_jobs(job, jobs=None):
     if jobs is None:
         jobs = []
     # add this
-    jobs.append(job)
+    if job not in jobs:
+        jobs.append(job)
 
     ## add all children of this job
     for parent in job.parents:
@@ -320,6 +322,7 @@ def run_job(id, session=None, db=None):
 
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(session)
+    session.commit()
 
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.wait(session)

@@ -10,7 +10,7 @@ from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
-from jip.utils import parse_time
+from jip.utils import parse_time, log
 
 
 # global instances
@@ -199,10 +199,10 @@ class Job(Base):
             cluster = jip.cluster.from_name(self.cluster)
             if cluster:
                 cluster.cancel(self)
-                self.state = STATE_CANCELED
-                if remove_logs:
-                    self.clean()
-                return True
+            self.state = STATE_CANCELED
+            if remove_logs:
+                self.clean()
+            return True
         return False
 
     def clean(self):
@@ -244,6 +244,7 @@ class Job(Base):
             script.default_output = self.default_output
             script.default_input = self.default_input
             script.outputs = self.outputs
+            script.threads = self.threads
             script.inputs = self.inputs
             script.supports_stream_out = self.supports_stream_out
             script.supports_stream_in = self.supports_stream_in
@@ -269,6 +270,11 @@ class Job(Base):
         self.max_time = parse_time(profile.get("max_time", self.max_time))
         self.name = profile.get("name", self.name)
 
+        if self.account == "":
+            self.account = None
+        if self.priority == "":
+            self.priority = None
+
     def is_done(self):
         return self.to_script().is_done()
 
@@ -276,14 +282,44 @@ class Job(Base):
         return "JOB-%d" % (self.id)
 
     @classmethod
-    def from_script(cls, script, profile=None, cluster=None, keep=False):
+    def from_script(cls, script, profile=None, cluster=None, keep=False,
+                    validate=True):
         """Create a job instance (unsaved) from given script"""
+        from jip.utils import flat_list
         from os import getcwd, getenv
         import sys
 
         def single_script2job(script):
             """No pipeline check, transcforms a script directly"""
+            # check for fanout in
+            source_args = dict(script.args)
+            for ip in script.inputs.itervalues():
+                value = script.args.get(ip.name, None)
+                if value is None:
+                    continue
+                value = flat_list(value)
+                if ip.multiplicity == 1 and len(value) > 1:
+                    log("Fan out on %s paramter and create %d jobs", ip.name,
+                        len(value))
+                    ## fan out on this paramter
+                    jobs = []
+                    for v in value:
+                        script.args = dict(source_args)
+                        script.args[ip.name] = v
+                        jobs.append(_single_script2job(script))
+                    return jobs
+                elif ip.multiplicity == 1 and len(value) == 1:
+                    script.args[ip.name] = value[0]
+
+            return [_single_script2job(script)]
+
+        def _single_script2job(script):
+            """No pipeline check, transcforms a script directly"""
+            if validate:
+                script.validate()
+
             job = Job()
+            job.name = script.name
             job.state = STATE_QUEUED
             job.path = script.path
             job.working_directory = getcwd()
@@ -298,7 +334,12 @@ class Job(Base):
             job.outputs = script.outputs
             job.inputs = script.inputs
 
-            job.configuration = dict(script.args)
+            job.configuration = {}
+            for k, v in script.args.iteritems():
+                if hasattr(v, 'value'):
+                    v = v.value
+                job.configuration[k] = v
+
             job.command = script.render_command()
             job.keep_on_fail = keep
 
@@ -328,21 +369,23 @@ class Job(Base):
                         preserve_out = def_out
                         node.script.args[out] = sys.stdout
 
-                job = single_script2job(node.script)
-                if preserve_out is not None:
-                    job.configuration[out] = preserve_out
-                for dep in node.parents:
-                    job.dependencies.append(jobs[dep.id])
-                jobs[node.id] = job
+                single_jobs = single_script2job(node.script)
+                for job in single_jobs:
+                    if preserve_out is not None:
+                        job.configuration[out] = preserve_out
+                    for dep in node.parents:
+                        job.dependencies.append(jobs[dep.id])
+                    jobs[node.id] = job
 
-                if len(node.parents) > 0:
-                    for p in node.parents:
-                        parent = nodes[p.id]
-                        if node in parent._pipe_to or parent in node._pipe_from:
-                            pj = jobs[parent.id]
-                            pj.pipe_to.append(job)
+                    if len(node.parents) > 0:
+                        for p in node.parents:
+                            parent = nodes[p.id]
+                            if node in parent._pipe_to or \
+                                    parent in node._pipe_from:
+                                pj = jobs[parent.id]
+                                pj.pipe_to.append(job)
             return [j for k, j in jobs.iteritems()]
-        return [single_script2job(script)]
+        return single_script2job(script)
 
 
 def init(path=None, in_memory=False):
@@ -372,8 +415,8 @@ def init(path=None, in_memory=False):
         ## dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
-        path = "sqlite:///%s" % path
         path_split = ["sqlite", path]
+        path = "sqlite:///%s" % path
 
     type, folder = path_split
     if not exists(folder) and not exists(dirname(folder)):

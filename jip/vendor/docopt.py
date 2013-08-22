@@ -392,9 +392,15 @@ def parse_seq(tokens, options):
     result = []
     while tokens.current() not in [None, ']', ')', '|']:
         atom = parse_atom(tokens, options)
-        if tokens.current() == '...':
+        already_list = False
+        if len(atom) == 1:
+            a = atom[0]
+            if hasattr(a, 'value') and isinstance(a.value, (list, tuple)):
+                already_list = True
+        if tokens.current() == '...' or already_list:
             atom = [OneOrMore(*atom)]
-            tokens.move()
+            if tokens.current() == "...":
+                tokens.move()
         result += atom
     return result
 
@@ -425,7 +431,7 @@ def parse_atom(tokens, options):
         return [Command(tokens.move())]
 
 
-def parse_argv(tokens, options, options_first=False):
+def parse_argv(tokens, options, options_first=False, check_original=False):
     """Parse command-line argument vector.
 
     If options_first:
@@ -435,17 +441,44 @@ def parse_argv(tokens, options, options_first=False):
 
     """
     parsed = []
+    names = [o.name for o in options]
     while tokens.current() is not None:
         if tokens.current() == '--':
             return parsed + [Argument(None, v) for v in tokens]
         elif tokens.current().startswith('--'):
-            parsed += parse_long(tokens, options)
+            o = parse_long(tokens, options)
+            if not check_original or o[0].name in names:
+                parsed += o
+            elif check_original:
+                # not an original paramters, append to last
+                if len(parsed) > 0 and isinstance(parsed[-1], Option) \
+                   and parsed[-1].argcount > 0:
+                    last = parsed[-1]
+                    v = o[0].value
+                    if o[0].argcount == 0:
+                        v = o[0].long
+                    parsed.append(Option(last.short, last.long,
+                                         last.argcount, v))
+
+            #parsed += parse_long(tokens, options)
         elif tokens.current().startswith('-') and tokens.current() != '-':
-            parsed += parse_shorts(tokens, options)
+            #parsed += parse_shorts(tokens, options)
+            o = parse_shorts(tokens, options)
+            if not check_original or o[0].name in names:
+                parsed += o
+            elif check_original:
+                # not an original paramters, append to last
+                if len(parsed) > 0 and isinstance(parsed[-1], Option) \
+                   and parsed[-1].argcount > 0:
+                    last = parsed[-1]
+                    v = o[0].value
+                    if o[0].argcount == 0:
+                        v = o[0].short
+                    parsed.append(Option(last.short, last.long,
+                                         last.argcount, v))
         elif options_first:
             return parsed + [Argument(None, v) for v in tokens]
         else:
-
             if len(parsed) > 0 and isinstance(parsed[-1], Option) \
                and parsed[-1].argcount > 0:
                 last = parsed[-1]

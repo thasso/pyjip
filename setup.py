@@ -17,6 +17,9 @@ setup(
     license="BSD",
     long_description='''This is yet another pipeline library''',
     packages=['jip'],
+    package_data={
+        'jip.scripts': ['*.jip']
+    },
     install_requires=["sqlalchemy==0.8.2",
                       "jinja2==2.7",
                       ],

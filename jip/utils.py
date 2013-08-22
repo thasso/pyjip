@@ -62,8 +62,8 @@ def find_script(name, script=None):
     pattern = re.compile(r'^.*' + re.escape(name) + '(.jip)?$')
 
     #1. check script base dir
-    if script is not None:
-        path = _search_folder(abspath(dirname()), pattern)
+    if script is not None and script.path is not None:
+        path = _search_folder(abspath(dirname(script.path)), pattern)
         if path is not None:
             return add_to_cache(name, path)
 
@@ -219,3 +219,54 @@ def get_time(days=0, hours=0, minutes=0, seconds=0):
     """Convert to time delta"""
     from datetime import timedelta
     return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+
+def resolve_job_range(ids):
+    """Resolve ranges from a list of ids"""
+    r = []
+    for i in ids:
+        s = i.split("-")
+        if len(s) == 1:
+            r.append(i)
+        elif len(s) == 2:
+            start = int(s[0])
+            end = int(s[1])
+            start, end = min(start, end), max(start, end)
+            r.extend(range(start, end + 1))
+        else:
+            raise ValueError("Unable to guess a job range from %s" % i)
+    return r
+
+
+def query_jobs_by_ids(session, job_ids=None, cluster_ids=None, archived=False,
+                      query_all=True):
+    """Query the session for jobs with the gibven job or cluster
+    ids. If both job and cluster ids lists are empty and query_all is False,
+    an empty list will be returned.
+    """
+    from jip.db import Job
+    job_ids = [] if job_ids is None else job_ids
+    cluster_ids = [] if cluster_ids is None else cluster_ids
+    if sum(map(len, [job_ids, cluster_ids])) == 0 and not query_all:
+        return []
+
+    jobs = session.query(Job)
+    if archived is not None:
+        jobs = jobs.filter(Job.archived == archived)
+    if job_ids is not None and len(job_ids) > 0:
+        jobs = jobs.filter(Job.id.in_(resolve_job_range(job_ids)))
+    if job_ids is not None and len(cluster_ids) > 0:
+        jobs = jobs.filter(Job.job_id.in_(resolve_job_range(cluster_ids)))
+    return jobs
+
+
+def read_ids_from_pipe():
+    """Read job ids from a stream"""
+    import sys
+    job_ids = []
+    if not sys.stdin.isatty():
+        for line in sys.stdin:
+            job_ids.append(line.strip().split("\t")[0])
+        # reopen stdin
+        sys.stdin = open('/dev/tty', 'r')
+    return job_ids

@@ -2,13 +2,15 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-f] [-k] [--show] <file> [<args>...]
+usage: jip-run [-h] [-f] [-k] [-C <cpus>] [--dry] [--show] <file> [<args>...]
 
 Options:
   -f, --force              force command execution
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation
+  -C, --cpus <cpus>        number of threads assigned to the process
   --show                   show the rendered script rather than running it
+  --dry                    show the configuration of the script/pipeline
   <file>                   the script that will be executed
   <args>                   optional script argument
 
@@ -31,17 +33,21 @@ def main(argv=None):
     # parse the script
     script = Script.from_file(script_file)
     script.parse_args(script_args)
+    if args["--cpus"]:
+        script.threads = int(args["--cpus"])
     # always catch help message
     if "-h" in script_args or "--help" in script_args:
         print script.help()
         sys.exit(0)
     if args["--show"]:
+        script.validate()
         print script.render_command()
         sys.exit(0)
 
     try:
         run_script(script, keep=args["--keep"],
-                   force=args["--force"])
+                   force=args["--force"],
+                   dry=args["--dry"])
     except ValidationException, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
@@ -52,14 +58,18 @@ def main(argv=None):
         sys.exit(1)
 
 
-def run_script(script, keep=False, force=False):
+def run_script(script, keep=False, force=False, dry=False):
     # persis the script to in memoru database
     import jip.db
     from jip.db import create_session
     jip.db.init(in_memory=True)
     # create the jobs
-    jobs = create_jobs(script, keep=keep)
     session = create_session()
+    jobs = create_jobs(script, keep=keep, session=session)
+
+    if dry:
+        show_dry_run(jobs)
+        return
     # run all main jobs
     for job in jobs:
         if not force and job.is_done():
@@ -70,6 +80,12 @@ def run_script(script, keep=False, force=False):
             session.add(job)
             run_job(job.id)
 
+
+def show_dry_run(jobs):
+    from jip_jobs import detail_view
+    for job in jobs:
+        detail_view(job, exclude_times=True)
+        print ""
 
 if __name__ == "__main__":
     main()

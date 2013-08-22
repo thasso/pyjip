@@ -6,6 +6,7 @@ import os
 import sys
 import re
 
+from jip.utils import flat_list
 import jip.vendor.docopt as opt
 from jip.model import Script, Block, ScriptError, \
     VALIDATE_BLOCK, COMMAND_BLOCK, SUPPORTED_BLOCKS
@@ -148,6 +149,7 @@ def option_value(opt):
         return [__resolve_value(v) for v in opt.value]
     return __resolve_value(opt.value)
 
+
 def is_stream_option(opt):
     """Return true if the option supports streams"""
     if opt.argcount <= 0:
@@ -158,6 +160,7 @@ def is_stream_option(opt):
             return False
         value = value[0]
     return __default_value_translations.get(value, None) is not None
+
 
 def __resolve_value(value):
     """Helper function to translate default 'stdin' etc values
@@ -178,13 +181,14 @@ def parse_script_args(script, script_args):
 
     for o in options:
         if hasattr(o, "argcount") and o.argcount > 0:
-            if not isinstance(o.value, (list, tuple)):
-                o.value = [o.value]
-    print options
+            o.value = flat_list(o.value)
+            if len(o.value) == 1 and o.value[0] is None:
+                o.value = []
+
     pattern = opt.parse_pattern(opt.formal_usage(usage_sections[0]),
                                 options)
 
-    argv = opt.parse_argv(opt.Tokens(script_args), list(options), False)
+    argv = opt.parse_argv(opt.Tokens(script_args), list(options), False, True)
     pattern_options = set(pattern.flat(opt.Option))
     for options_shortcut in pattern.flat(opt.OptionsShortcut):
         doc_options = opt.parse_defaults(doc_string) + \
@@ -193,6 +197,9 @@ def parse_script_args(script, script_args):
         options_shortcut.children = list(set(doc_options) - pattern_options)
 
     matched, left, collected = pattern.fix().match(argv)
+    if not matched and len(left) > 0:
+        raise ValueError("Argument parsing error! Missing arguments!")
+
     options = set(script.inputs.keys() +
                   script.outputs.keys() +
                   script.options.keys())
@@ -205,18 +212,20 @@ def parse_script_args(script, script_args):
 
     for a in (pattern.flat() + collected):
         name = option_name(a.name)
-#        if not name in options:
-#            continue
-        # set value in arg
         value = option_value(a)
         script.args[name] = value
-        # set value in inputs,outputs,options
-        for target in [script.inputs, script.outputs, script.options]:
-            if name in target:
-                target[name] = value
-                break
+
+
+def create_parameter(script, option):
+    from jip.model import parameter
+    multiplicity = 0
+    value = option_value(option)
+    if hasattr(option, 'argcount'):
+        if option.argcount > 0:
+            multiplicity = 2 if isinstance(value, (list, tuple)) else 1
         else:
-            script.options[name] = value
+            multiplicity = 0
+    return parameter(script, option_name(option.name), value, multiplicity)
 
 
 def parse_script(path=None, script_class=Script, lines=None,
@@ -256,11 +265,22 @@ def parse_script_options(script):
                             (script.options, "options:"),
                             (script.options, "usage:")]:
         for o in opt.parse_defaults(doc_string, section):
-            target[option_name(o.name)] = option_value(o)
-            script.args[option_name(o.name)] = option_value(o)
+            name = option_name(o.name)
+            value = option_value(o)
+            target[name] = create_parameter(script, o)
+            script.args[name] = value
             if target == script.inputs and script.default_input is None:
                 script.default_input = option_name(o.name)
                 script.supports_stream_in = is_stream_option(o)
             elif target == script.outputs and script.default_output is None:
                 script.default_output = option_name(o.name)
                 script.supports_stream_out = is_stream_option(o)
+
+    #usage_sections = opt.parse_section('usage:', doc_string)
+    #if len(usage_sections) > 0:
+        #print usage_sections
+        #options = opt.parse_defaults(doc_string, "inputs:")
+        #options += opt.parse_defaults(doc_string, "outputs:")
+        #options += opt.parse_defaults(doc_string)
+        #pattern = opt.parse_pattern(opt.formal_usage(usage_sections[0]),
+                                    #options)
