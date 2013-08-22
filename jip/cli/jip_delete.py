@@ -48,7 +48,7 @@ def main():
                "to delete %d jobs" % len(jobs),
                False):
         count = 0
-        for j in flat_list([get_pipeline_jobs(job) for job in jobs]):
+        for j in set(flat_list([get_pipeline_jobs(job) for job in jobs])):
             if j.state not in STATES_ACTIVE:
                 session.delete(j)
                 count += 1
