@@ -279,7 +279,7 @@ class Job(Base):
         return self.to_script().is_done()
 
     def __repr__(self):
-        return "JOB-%d" % (self.id)
+        return "JOB-%s" % (str(self.id) if self.id is not None else self.name)
 
     @classmethod
     def from_script(cls, script, profile=None, cluster=None, keep=False,
@@ -384,7 +384,8 @@ class Job(Base):
                                     parent in node._pipe_from:
                                 pj = jobs[parent.id]
                                 pj.pipe_to.append(job)
-            return [j for k, j in jobs.iteritems()]
+            result = [j for k, j in jobs.iteritems()]
+            return result
         return single_script2job(script)
 
 
@@ -450,4 +451,3 @@ def find_job_by_id(session, id):
     """
     query = session.query(Job).filter(Job.id == id)
     return query.one()
-
