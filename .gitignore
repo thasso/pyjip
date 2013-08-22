@@ -4,3 +4,5 @@ build
 **.so
 jip.egg-info
 *.iml
+dist/
+Makefile.*

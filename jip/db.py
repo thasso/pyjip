@@ -392,7 +392,7 @@ def init(path=None, in_memory=False):
     from sqlalchemy import create_engine as slq_create_engine
     from sqlalchemy.orm import sessionmaker
     from os.path import exists, dirname, abspath
-    from os import makedirs
+    from os import makedirs, getenv
     global engine, Session, db_path, db_in_memory
 
     if in_memory:
@@ -402,6 +402,9 @@ def init(path=None, in_memory=False):
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine, expire_on_commit=False)
         return
+    if path is None:
+        # check for environment
+        path = getenv("JIP_DB", None)
 
     if path is None:
         import jip

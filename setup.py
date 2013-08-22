@@ -16,7 +16,7 @@ setup(
     url='',
     license="BSD",
     long_description='''This is yet another pipeline library''',
-    packages=['jip'],
+    packages=['jip', 'jip.cli', 'jip.vendor', 'jip.scripts'],
     package_data={
         'jip.scripts': ['*.jip']
     },
