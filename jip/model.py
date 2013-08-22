@@ -504,6 +504,12 @@ class parameter(object):
         self.multiplicity = multiplicity
         self.node = node
 
+    def __getstate__(self):
+        odict = self.__dict__.copy()
+        del odict['node']
+        del odict['source']
+        return odict
+
     def __str__(self):
         return self.__repr__()
 
