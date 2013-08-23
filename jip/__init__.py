@@ -4,6 +4,9 @@
 from os import getenv
 __version__ = "1.0"
 
+# disable module search in execution mode
+_disable_module_search = False
+
 # the main jip configuration
 configuration = {
     "db": "sqlite:///%s/.jip/jobs.db" % (getenv("HOME", "")),
@@ -69,3 +72,26 @@ def create_temp_file():
         __temporary_files = []
     __temporary_files.append(f.name)
     return open(f.name, 'wb')
+
+
+#########################################################
+# decorators
+########################################################
+class tool(object):
+    def __init__(self, name, inputs=None, outputs=None, argparse=None):
+        self.name = name
+        self.inputs = inputs
+        self.outputs = outputs
+        self.argparse = argparse
+
+    def __call__(self, cls):
+        if not _disable_module_search:
+            from jip.utils import add_script
+            from jip.model import PythonClassScript
+            add_script(self.name, PythonClassScript(cls, self))
+        return cls
+
+    def check_option(self, target, name):
+        if target is not None and name in target:
+            return True
+        return False

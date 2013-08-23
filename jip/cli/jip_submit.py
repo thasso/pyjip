@@ -35,6 +35,7 @@ import sys
 from . import parse_args
 from jip.model import Script, ScriptError, ValidationException
 from jip.executils import load_job_profile, create_jobs, submit
+from jip.utils import find_script_in_modules
 
 
 def main(argv=None):
@@ -42,7 +43,13 @@ def main(argv=None):
     script_file = args["<file>"]
     script_args = args["<args>"]
     # parse the script
-    script = Script.from_file(script_file)
+    try:
+        script = Script.from_file(script_file)
+    except Exception, e:
+        script = find_script_in_modules(script_file)
+        if script is None:
+            print >>sys.stderr, str(e)
+            sys.exit(1)
     script.parse_args(script_args)
     # always catch help message
     if "-h" in script_args or "--help" in script_args:

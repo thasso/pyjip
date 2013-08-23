@@ -24,8 +24,8 @@ SUPPORTED_BLOCKS = [
 class ScriptError(Exception):
     """Default error raised by the script parser"""
 
-    def __init__(self, *args, **kwargs):
-        super(ScriptError, self).__init__(*args, **kwargs)
+    def __init__(self, msg=None):
+        self._message = msg
         self._block = None
         self._script = None
         self._offset = None
@@ -33,10 +33,13 @@ class ScriptError(Exception):
         self._lineno = 0
 
     def __str__(self):
-        path = "<unknown>" if self._script is None else self._script.path
-        lines = ["""Error in script %s\n""" % path]
+        path = None if self._script is None else self._script.path
+        lines = []
+        if path is not None:
+            lines = ["""Error in script %s\n""" % path]
+
         if self._block is None:
-            lines.append(self.message)
+            lines.append(self._message)
             return "\n".join(lines)
 
         block_line = self._block.lineno if self._lineno == 0 else self._lineno
@@ -297,6 +300,7 @@ class Script(object):
         self.stdin = None
         self.threads = 1
         self.validated = False
+        self.script_options = None
         if self.args is None:
             self.args = {}
 
@@ -452,6 +456,101 @@ class Script(object):
     def from_file(cls, path):
         from jip.parser import parse_script
         return parse_script(path, cls)
+
+
+class Option(object):
+    def __init__(self):
+        self.short = None
+        self.long = None
+        self.value = None
+        self.name = None
+        self.multiplicity = 0
+
+
+class PythonClassScript(Script):
+    """Script extension that allows to wrap
+    python classes as executable units
+    """
+    def __init__(self, cls, decorator):
+        Script.__init__(self, None)
+        self.cls = cls
+        self.decorator = decorator
+        self.instance = cls()
+        self.doc_string = self.instance.__doc__
+        self.name = decorator.name
+        self.argparser = None
+        ## parse options
+        if self.decorator.argparse:
+            from argparse import ArgumentParser
+            argparser = ArgumentParser(prog=self.name)
+            init_parser = getattr(self.instance, self.decorator.argparse)
+            init_parser(argparser)
+            for action in argparser._optionals._actions:
+                target = self.options
+                o = Option()
+                o.value = action.default
+                o.name = action.dest
+                if self.decorator.check_option(self.decorator.inputs, o.name):
+                    target = self.inputs
+                if self.decorator.check_option(self.decorator.outputs, o.name):
+                    target = self.outputs
+
+                o.multiplicity = 1 if o.value is None or \
+                    not isinstance(o.value, bool) else 0
+                if isinstance(o.value, (list, tuple)):
+                    o.multiplicity = 2
+                for s in action.option_strings:
+                    if s.startswith("--") and o.long is None:
+                        o.long = s
+                    elif s.startswith("-") and o.short is None:
+                        o.short = s
+                    if self.decorator.check_option(self.decorator.inputs, s):
+                        target = self.inputs
+                    if self.decorator.check_option(self.decorator.outputs, s):
+                        target = self.outputs
+                target[o.name] = o
+
+    def parse_args(self, script_args):
+        if self.decorator.argparse:
+            from argparse import ArgumentParser
+            argparser = ArgumentParser(prog=self.name)
+            init_parser = getattr(self.instance, self.decorator.argparse)
+            init_parser(argparser)
+            args = argparser.parse_args(script_args)
+            self.args = vars(args)
+        else:
+            Script.parse_args(self, script_args)
+
+    def _load_pipeline(self):
+        return False
+
+    def validate(self):
+        return False
+
+    def run(self):
+        if self._load_pipeline():
+            return self.pipeline.run()
+        else:
+            # create an instance
+            self.instance(**(self.args))
+
+    def terminate(self):
+        raise Exception("NOT IMPLEMENTED")
+
+    def render_command(self):
+        import cPickle
+        template = """
+python -c '
+import sys;
+import cPickle;
+import jip;
+jip._disable_module_search = True;
+source="".join([l for l in sys.stdin]).decode("base64");
+cPickle.loads(source).run();
+'<< __EOF__
+%s__EOF__
+"""
+        return template % (cPickle.dumps(self).encode("base64"))
 
 
 class Pipeline(object):

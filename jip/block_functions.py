@@ -33,6 +33,31 @@ class TemplateBlock(object):
         self.__dict__["echo"] = self.output
         self.__dict__["if_not"] = partial(self.if_arg, negate=True)
 
+    def __resolve_option(self, name):
+        from jip.parser import option_name
+        for k, v in self.script.script_options.iteritems():
+            if name in (v.name, option_name(v), v.short, v.long):
+                return option_name(v), v
+        return name, None
+
+    def opt(self, name):
+        name, option = self.__resolve_option(name)
+        value = self.resolve(self.args.get(name, None))
+        if value and isinstance(value, bool):
+            return option.short if option.short else option.long
+        if value and option and not isinstance(value, file):
+            return "%s %s" % (option.short if option.short else option.long,
+                              str(value))
+        return ""
+
+    def opts(self, exclude=None):
+        s = []
+        for k, v in self.args.iteritems():
+            val = self.opt(k)
+            if val != "":
+                s.append(val)
+        return " ".join(s)
+
     def error(self, field, message, *args):
         """Add an error message for a field"""
         self._errors[field] = message % args
@@ -91,6 +116,8 @@ class TemplateBlock(object):
                                   if isinstance(v, basestring))
         if isinstance(value, file):
             return ""
+        if isinstance(value, bool):
+            value = argument
         return "%s%s%s" % (prefix, value, suffix)
 
     def if_arg(self, option, replacement=None, join=" ", prefix="", suffix="",
@@ -99,6 +126,7 @@ class TemplateBlock(object):
         evaluates to True in the arguments dict. If not, empty string
         is returned"""
         value = self.args.get(option, False)
+        print ">>>VALUE", value, self.args
         if (not negate and value) or (negate and not value):
             return self.output(option, replacement=replacement,
                                join=join,

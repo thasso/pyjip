@@ -135,6 +135,9 @@ def parse_doc_string(header):
 def option_name(opt):
     """Clean a command line option name line --XXX and
     make it XXX"""
+    if hasattr(opt, "argcount") and opt.argcount <= 0:
+        return opt.name
+    opt = opt.name
     import re
     clean = re.sub(r'^-+', "", opt)
     clean = re.sub(r'[<|>]', "", clean)
@@ -144,7 +147,7 @@ def option_name(opt):
 def option_value(opt):
     """Return options default value"""
     if hasattr(opt, "argcount") and opt.argcount <= 0:
-        return False
+        return opt.value
     if isinstance(opt.value, (list, tuple)):
         return [__resolve_value(v) for v in opt.value]
     return __resolve_value(opt.value)
@@ -211,7 +214,7 @@ def parse_script_args(script, script_args):
     script.args.update(script.options)
 
     for a in (pattern.flat() + collected):
-        name = option_name(a.name)
+        name = option_name(a)
         value = option_value(a)
         script.args[name] = value
 
@@ -225,7 +228,7 @@ def create_parameter(script, option):
             multiplicity = 2 if isinstance(value, (list, tuple)) else 1
         else:
             multiplicity = 0
-    return parameter(script, option_name(option.name), value, multiplicity)
+    return parameter(script, option_name(option), value, multiplicity)
 
 
 def parse_script(path=None, script_class=Script, lines=None,
@@ -260,20 +263,22 @@ def parse_script_options(script):
     doc_string = script.help()
     if script.args is None:
         script.args = {}
+    script.script_options = {}
     for target, section in [(script.inputs, "inputs:"),
                             (script.outputs, "outputs:"),
                             (script.options, "options:"),
                             (script.options, "usage:")]:
         for o in opt.parse_defaults(doc_string, section):
-            name = option_name(o.name)
+            name = option_name(o)
             value = option_value(o)
             target[name] = create_parameter(script, o)
+            script.script_options[name] = o
             script.args[name] = value
             if target == script.inputs and script.default_input is None:
-                script.default_input = option_name(o.name)
+                script.default_input = option_name(o)
                 script.supports_stream_in = is_stream_option(o)
             elif target == script.outputs and script.default_output is None:
-                script.default_output = option_name(o.name)
+                script.default_output = option_name(o)
                 script.supports_stream_out = is_stream_option(o)
 
     #usage_sections = opt.parse_section('usage:', doc_string)

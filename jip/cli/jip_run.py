@@ -23,6 +23,7 @@ import sys
 from . import parse_args
 from jip.model import Script, ScriptError, ValidationException
 from jip.executils import create_jobs, run_job
+from jip.utils import find_script_in_modules
 
 
 def main(argv=None):
@@ -31,7 +32,14 @@ def main(argv=None):
     script_args = args["<args>"]
 
     # parse the script
-    script = Script.from_file(script_file)
+    try:
+        script = Script.from_file(script_file)
+    except Exception, e:
+        script = find_script_in_modules(script_file)
+        if script is None:
+            print >>sys.stderr, str(e)
+            sys.exit(1)
+
     script.parse_args(script_args)
     if args["--cpus"]:
         script.threads = int(args["--cpus"])
