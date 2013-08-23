@@ -4,6 +4,9 @@ import sys
 import os
 
 
+_cluster_cache = {}
+
+
 class SubmissionError(Exception):
     pass
 
@@ -12,9 +15,14 @@ def from_name(name):
     """Load a cluster engine from given name"""
     if name is None:
         return None
+    if name in _cluster_cache:
+        return _cluster_cache[name]
+
     (modulename, classname) = name.rsplit('.', 1)
     mod = __import__(modulename, globals(), locals(), [classname])
-    return getattr(mod, classname)()
+    instance = getattr(mod, classname)()
+    _cluster_cache[name] = instance
+    return instance
 
 
 class Cluster(object):

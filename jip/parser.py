@@ -132,12 +132,13 @@ def parse_doc_string(header):
     return "\n".join(clean)
 
 
-def option_name(opt):
+def option_name(opt=None, name=None):
     """Clean a command line option name line --XXX and
     make it XXX"""
-    if hasattr(opt, "argcount") and opt.argcount <= 0:
-        return opt.name
-    opt = opt.name
+    if opt:
+        if hasattr(opt, "argcount") and opt.argcount <= 0:
+            return opt.name
+    opt = opt.name if name is None else name
     import re
     clean = re.sub(r'^-+', "", opt)
     clean = re.sub(r'[<|>]', "", clean)

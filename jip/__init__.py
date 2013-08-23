@@ -78,20 +78,36 @@ def create_temp_file():
 # decorators
 ########################################################
 class tool(object):
-    def __init__(self, name, inputs=None, outputs=None, argparse=None):
+    def __init__(self, name, inputs=None, outputs=None, argparse=None,
+                 get_command=None, validate=None, add_outputs=None):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
         self.argparse = argparse
+        self.get_command = get_command
+        self.validate = validate
+        self.add_outputs = add_outputs
 
     def __call__(self, cls):
         if not _disable_module_search:
             from jip.utils import add_script
-            from jip.model import PythonClassScript
-            add_script(self.name, PythonClassScript(cls, self))
+            from jip.model import PythonClassScript, Option
+            script = add_script(self.name, PythonClassScript(cls, self))
+            if self.add_outputs:
+                for out in self.add_outputs:
+                    o = Option()
+                    o.name = out
+                    o.long = "--%s" % out
+                    o.multiplicity = 1
+                    o.value = None
+                    script.outputs[out] = o
         return cls
 
     def check_option(self, target, name):
         if target is not None and name in target:
+            return True
+        if target is not None and "--" + name in target:
+            return True
+        if target is not None and "-" + name in target:
             return True
         return False

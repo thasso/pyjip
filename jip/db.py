@@ -283,7 +283,7 @@ class Job(Base):
 
     @classmethod
     def from_script(cls, script, profile=None, cluster=None, keep=False,
-                    validate=True):
+                    validate=True, pipeline=None):
         """Create a job instance (unsaved) from given script"""
         from jip.utils import flat_list
         from os import getcwd, getenv
@@ -350,9 +350,9 @@ class Job(Base):
                 job.update_profile(profile)
             return job
 
-        if script._load_pipeline():
+        if (script and script._load_pipeline()) or pipeline:
             # catch the pipeline case
-            pipeline = script.pipeline
+            pipeline = script.pipeline if not pipeline else pipeline
             pipeline._sort_nodes()
             jobs = {}
             nodes = {}

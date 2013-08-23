@@ -194,8 +194,17 @@ class Block(object):
         """
         Terminate currently running blocks
         """
-        if self.process is not None and self.process.poll() is None:
-            self.process.kill()
+        if self.process is not None:
+            if self.process._popen is not None:
+                self.process.terminate()
+                # give it 5 seconds to cleanup and exit
+                import time
+                time.sleep(5)
+                if self.process.is_alive():
+                    # kill it
+                    import os
+                    import signal
+                    os.kill(self.process._popen.pid, signal.SIGKILL)
 
     def _run_python_block(self, args):
         """Run this block as a python block"""
@@ -341,13 +350,15 @@ class Script(object):
         files of this process"""
         if self.outputs is None:
             return []
-        files = [self.args[k] if isinstance(self.args[k], (list, tuple))
-                 else [self.args[k]]
+        files = [self.args.get(k, None) if isinstance(self.args.get(k, None),
+                                                      (list, tuple))
+                 else [self.args.get(k, None)]
                  for k in self.outputs.iterkeys()]
         # flatten
         files = [y if not isinstance(y, dependency) else y.value for x in files
                  for y in x if not only_files or isinstance(y, basestring) or
-                 isinstance(y, dependency)]
+                 isinstance(y, dependency) or y is None]
+        files = filter(lambda x: x is not None, files)
         return files
 
     def validate(self):
@@ -442,6 +453,16 @@ class Script(object):
                             clean[k] = None
         return clean
 
+    def validate_args(self, exclude=None):
+        valid = True
+        exclude = set([] if not exclude else exclude)
+        for k, v in self.args.iteritems():
+            o = self._get_option(k)
+            if o is None and k not in exclude:
+                valid = False
+                print >>sys.stderr, "Unknonwn option %s" % k
+        return valid
+
     def _get_option(self, name):
         if name in self.inputs:
             return self.inputs[name]
@@ -479,6 +500,7 @@ class PythonClassScript(Script):
         self.doc_string = self.instance.__doc__
         self.name = decorator.name
         self.argparser = None
+        self.script_options = {}
         ## parse options
         if self.decorator.argparse:
             from argparse import ArgumentParser
@@ -490,10 +512,18 @@ class PythonClassScript(Script):
                 o = Option()
                 o.value = action.default
                 o.name = action.dest
+                if o.name == "help":
+                    o.value = False
                 if self.decorator.check_option(self.decorator.inputs, o.name):
                     target = self.inputs
+                    self.default_input = o.name
+                    if o.value == sys.stdin:
+                        self.supports_stream_in = True
                 if self.decorator.check_option(self.decorator.outputs, o.name):
                     target = self.outputs
+                    self.default_output = o.name
+                    if o.value == sys.stdout:
+                        self.supports_stream_out = True
 
                 o.multiplicity = 1 if o.value is None or \
                     not isinstance(o.value, bool) else 0
@@ -509,6 +539,8 @@ class PythonClassScript(Script):
                     if self.decorator.check_option(self.decorator.outputs, s):
                         target = self.outputs
                 target[o.name] = o
+                self.args[o.name] = o.value
+                self.script_options[o.name] = o
 
     def parse_args(self, script_args):
         if self.decorator.argparse:
@@ -525,6 +557,10 @@ class PythonClassScript(Script):
         return False
 
     def validate(self):
+        if self.decorator.validate:
+            validate_fun = getattr(self.instance, self.decorator.validate)
+            r = validate_fun(self.args)
+            return r
         return False
 
     def run(self):
@@ -538,6 +574,18 @@ class PythonClassScript(Script):
         raise Exception("NOT IMPLEMENTED")
 
     def render_command(self):
+        if self.decorator.get_command is not None:
+            cmd_fun = getattr(self.instance, self.decorator.get_command)
+            cmd = cmd_fun(self.args)
+            from jinja2 import Template
+            # create template
+            template = Template(cmd)
+            # create template context
+            block_func = TemplateBlock(self.args, script=self)
+            env = dict(self.args)
+            env["jip"] = block_func
+            return template.render(env)
+
         import cPickle
         template = """
 python -c '
@@ -555,8 +603,29 @@ cPickle.loads(source).run();
 
 class Pipeline(object):
     """Represents a pipeline graph as a set of ScriptNodes and edges"""
-    def __init__(self):
+    def __init__(self, script=None):
         self.nodes = []
+        self.script = script
+
+    def run(self, name, **kwargs):
+        """Find named script and add it"""
+        # find script with name
+        from jip.parser import parse_script
+        from jip.utils import find_script_in_modules, find_script
+        try:
+            path = find_script(name, self.script)
+            script = parse_script(path, args=kwargs)
+        except:
+            script = find_script_in_modules(name)
+            if not script:
+                raise
+        script.args.update(kwargs)
+        try:
+            script.validate()
+            script.validated = False
+        except:
+            pass
+        return self.add(script)
 
     def add(self, script):
         """Add a script to the pipeline and return the ScriptNode that
@@ -564,11 +633,14 @@ class Pipeline(object):
         """
         node = ScriptNode(script, len(self.nodes), self)
         self.nodes.append(node)
-        for k, v in script.args.iteritems():
+        for k, v in list(script.args.iteritems()):
             if isinstance(v, parameter) and v.node is not None:
                 node.parents.append(v.node)
                 v.node.children.append(node)
-
+            if isinstance(v, ScriptNode):
+                script.args[k] = v.script.args[v.script.default_output]
+                node.parents.append(v)
+                v.children.append(node)
         return node
 
     def validate(self):
@@ -655,6 +727,11 @@ class ScriptNode(object):
             self.script.args[name] = dependency(value.value)
             self.parents.append(value.source)
             value.source.children.append(self)
+        elif isinstance(value, ScriptNode):
+            other = value.script
+            self.script.args[name] = other.args[other.default_output]
+            self.parents.append(value)
+            value.children.append(self)
         else:
             self.script.args[name] = value
 

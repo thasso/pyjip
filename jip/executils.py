@@ -191,8 +191,14 @@ def create_jobs(script, persist=True, keep=False, validate=True, session=None):
     jobs submitted to a cluster, the profile shoudl be applied before
     submission.
     """
+    from jip.model import Script
     from jip.db import Job, create_session
-    jobs = Job.from_script(script, keep=keep, validate=validate)
+    if isinstance(script, Script):
+        jobs = Job.from_script(script, keep=keep, validate=validate)
+    else:
+        jobs = Job.from_script(None, keep=keep, validate=validate,
+                               pipeline=script)
+
     if persist:
         _session = session
         if session is None:

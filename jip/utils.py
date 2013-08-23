@@ -6,7 +6,8 @@ from os.path import exists, abspath, join, dirname
 
 # simple name to script file cache
 script_cache = {}
-script_instance_cache = None
+script_instance_cache = {}
+__script_instances_scanned = False
 
 NORMAL = ''
 BLUE = '\033[94m'
@@ -89,16 +90,15 @@ def find_script(name, script=None):
 
 def find_script_in_modules(name):
     #5. search python path for decorated classes
-    global script_instance_cache
-    if script_instance_cache is None:
-        script_instance_cache = {}
+    global __script_instances_scanned
+    if not __script_instances_scanned:
+        __script_instances_scanned = True
         import os
         path = os.getenv("JIP_MODULES", None)
         if path is not None:
             for module in path.split(":"):
                 __import__(module)
     return script_instance_cache.get(name, None)
-
 
 
 def add_to_cache(name, path):
@@ -109,6 +109,7 @@ def add_to_cache(name, path):
 
 def add_script(name, script):
     script_instance_cache[name] = script
+    return script
 
 
 def list_dir(base):

@@ -35,6 +35,8 @@ class TemplateBlock(object):
 
     def __resolve_option(self, name):
         from jip.parser import option_name
+        if self.script is None or self.script.script_options is None:
+            return name, None
         for k, v in self.script.script_options.iteritems():
             if name in (v.name, option_name(v), v.short, v.long):
                 return option_name(v), v
@@ -188,19 +190,6 @@ class PipelineBlock(object):
         """Initialize the TemplateBlock with optional arguments"""
         from jip.model import Pipeline
         self.script = script
-        self.pipeline = Pipeline()
+        self.pipeline = Pipeline(script=script)
         # export functions to dict to get them into the script context
-        self.__dict__["run"] = self.run
-
-    def run(self, name, **kwargs):
-        """Find named script and add it"""
-        # find script with name
-        path = find_script(name, self.script)
-        from jip.parser import parse_script
-        script = parse_script(path, args=kwargs)
-        try:
-            script.validate()
-            script.validated = False
-        except:
-            pass
-        return self.pipeline.add(script)
+        self.__dict__["run"] = self.pipeline.run

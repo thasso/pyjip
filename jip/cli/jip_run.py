@@ -89,6 +89,7 @@ def run_script(script, keep=False, force=False, dry=False):
             run_job(job.id)
 
 
+
 def show_dry_run(jobs):
     from jip_jobs import detail_view
     for job in jobs:

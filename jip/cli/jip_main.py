@@ -30,6 +30,7 @@ action command. Note that the commands also work standalon:
     hold     put selected jobs on hold
     resume   resume selected jobs that are on hold
     restart  restart selected jobs
+    log      show log files of jobs
 """
 import sys
 import jip
@@ -54,6 +55,7 @@ def main():
         sys.argv = argv  # reset options
         runpy.run_module("jip.cli.jip_%s" % cmd, run_name="__main__")
     except ImportError:
+        raise
         # check interpreter mode
         import os
         if os.path.exists(cmd):
