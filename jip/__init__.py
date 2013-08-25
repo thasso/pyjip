@@ -6,6 +6,8 @@ __version__ = "1.0"
 
 # disable module search in execution mode
 _disable_module_search = False
+# store list of temporary files that are deleted on exit
+__temporary_files = None
 
 # the main jip configuration
 configuration = {
@@ -20,8 +22,6 @@ configuration = {
         }
     }
 }
-
-__temporary_files = None
 
 
 def initialize_configuration():
