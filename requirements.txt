@@ -3,3 +3,4 @@ MarkupSafe==0.18
 SQLAlchemy==0.8.2
 distribute==0.6.34
 Sphinx==1.2b1
+sphinx-bootstrap-theme==0.2.7

@@ -5,6 +5,9 @@ all:
 develop:
 	python setup.py develop
 
+doc:
+	$(MAKE) -C docs html
+
 clean:
 	@rm -f jip/*.so
 	@rm -f jip/*.pyc

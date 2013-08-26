@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """
-The JIP command line utility
+This is the master and control command for jip. Use it to invoke supported
+sub-command to launch, check, and modify jobs.
 
 Usage:
     jip <command> [<args>...]
     jip [--version] [--help]
 
-Options:
+Options::
     -h --help     Show this help message
     --version     Show the version information
 
