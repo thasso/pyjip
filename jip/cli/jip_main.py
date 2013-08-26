@@ -56,7 +56,6 @@ def main():
         sys.argv = argv  # reset options
         runpy.run_module("jip.cli.jip_%s" % cmd, run_name="__main__")
     except ImportError:
-        raise
         # check interpreter mode
         import os
         if os.path.exists(cmd):

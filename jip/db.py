@@ -320,16 +320,18 @@ class Job(Base):
                     for v in value:
                         script.args = dict(source_args)
                         script.args[ip.name] = v
-                        jobs.append(_single_script2job(script))
+                        jobs.append(_single_script2job(script,
+                                                       revalidate=True))
                     return jobs
                 elif ip.multiplicity == 1 and len(value) == 1:
                     script.args[ip.name] = value[0]
 
             return [_single_script2job(script)]
 
-        def _single_script2job(script):
+        def _single_script2job(script, revalidate=False):
             """No pipeline check, transcforms a script directly"""
-            if validate:
+            if validate or revalidate:
+                script.validated = False
                 script.validate()
 
             job = Job()
