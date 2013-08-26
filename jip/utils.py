@@ -98,7 +98,10 @@ def find_script_in_modules(name):
         if path is not None:
             for module in path.split(":"):
                 __import__(module)
-    return script_instance_cache.get(name, None)
+    s = script_instance_cache.get(name, None)
+    if s is None:
+        raise LookupError("Script '%s' not found!" % name)
+    return s.clone()
 
 
 def add_to_cache(name, path):
@@ -199,6 +202,25 @@ def flat_list(o):
         if isinstance(x, (list, tuple))
         else r.append(x), o)
     return r
+
+
+def rreplace(s, old, new, occurences=-1):
+    """Replace all occurencens of 'old' with 'new'
+    starting at the right hand side of the string. If occurences
+    is specified, the number of replacements is limited to
+    occurences.
+
+    :param s: the input string
+    :type s: string
+    :param old: the string that will be replaced
+    :type old: string
+    :param new: the replacement string
+    :type new: string
+    :param occurences: the maximal number of replacements
+    :type new: integer
+    """
+    li = s.rsplit(old, occurences)
+    return new.join(li)
 
 
 def parse_time(time):

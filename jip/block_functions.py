@@ -45,6 +45,13 @@ class TemplateBlock(object):
     def opt(self, name):
         name, option = self.__resolve_option(name)
         value = self.resolve(self.args.get(name, None))
+        #if option is None:
+            #opts = "<Unknown>"
+            #if self.script is not None and \
+                    #self.script.script_options is not None:
+                #opts = "\n%s" % "\n".join(self.script.script_options.keys())
+            #raise ValueError("Option %s no found! Available options: %s" %
+                             #(name, opts))
         if value and isinstance(value, bool):
             return option.short if option.short else option.long
         if value and option and not isinstance(value, file):

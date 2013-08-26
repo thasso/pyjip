@@ -142,6 +142,8 @@ def detail_view(job, exclude_times=False):
         if not exclude_times or k not in ["Created", "Started", "Finished",
                                           "Runtime"]:
             rows.append([k, v(job)])
+    rows.append(["Pipes to", "-" if len(job.pipe_to) == 0
+                else ",".join([str(c.id) for c in job.pipe_to])])
     t = render_table(None, rows, empty="-")
     max_len = max(map(len, t.split("\n")))
 

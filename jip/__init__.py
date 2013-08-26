@@ -92,15 +92,8 @@ class tool(object):
         if not _disable_module_search:
             from jip.utils import add_script
             from jip.model import PythonClassScript, Option
-            script = add_script(self.name, PythonClassScript(cls, self))
-            if self.add_outputs:
-                for out in self.add_outputs:
-                    o = Option()
-                    o.name = out
-                    o.long = "--%s" % out
-                    o.multiplicity = 1
-                    o.value = None
-                    script.outputs[out] = o
+            script = add_script(self.name, PythonClassScript(cls, self,
+                                                             self.add_outputs))
         return cls
 
     def check_option(self, target, name):

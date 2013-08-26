@@ -163,15 +163,6 @@ def _exec(job):
     ## handle pipes
     _load_job_env(job)
     script = job.to_script()
-    if script.stdin is None and script.supports_stream_in:
-        # check if the scripts default input is
-        def_in = script.default_input
-        infile = script.args.get(def_in, None) if def_in is not None else None
-        if infile is not None and isinstance(infile, basestring):
-            ## set input stream from file
-            log("JOB-%d | setting input stream from file : %s", job.id, infile)
-            script.stdin = open(infile, 'rb')
-
     log("JOB-%d | start :: stdin: %s, stdout: %s", job.id,
         script.stdin, script.stdout)
     return script.run()

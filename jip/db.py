@@ -276,7 +276,21 @@ class Job(Base):
             self.priority = None
 
     def is_done(self):
-        return self.to_script().is_done()
+        script_done = self.to_script().is_done()
+        num_children = len(self.pipe_to)
+        if num_children == 0:
+            return script_done
+        # we have pipe target. Check that all script
+        # output goes to streams. If so, check the and
+        # return the is_done state of the children
+        streams = filter(lambda x: isinstance(x, file),
+                         self.to_script()._get_output_files())
+        if len(streams) > 0 or len(self.pipe_to) > 0:
+            done = True
+            for child in self.pipe_to:
+                done &= child.is_done()
+            return done
+        return script_done
 
     def __repr__(self):
         return "JOB-%s" % (str(self.id) if self.id is not None else self.name)

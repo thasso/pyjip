@@ -80,6 +80,8 @@ def run_script(script, keep=False, force=False, dry=False):
         return
     # run all main jobs
     for job in jobs:
+        if len(job.pipe_from) > 0:
+            continue
         if not force and job.is_done():
             sys.stderr.write("Job (%d) results exist! Skipping "
                              "(use <script> -- --force to force execution\n" %
@@ -89,11 +91,14 @@ def run_script(script, keep=False, force=False, dry=False):
             run_job(job.id)
 
 
-
-def show_dry_run(jobs):
+def show_dry_run(jobs, show_children=False):
     from jip_jobs import detail_view
     for job in jobs:
-        detail_view(job, exclude_times=True)
+        if show_children or len(job.pipe_from) == 0:
+            detail_view(job, exclude_times=True)
+            if len(job.pipe_to) > 0:
+                print ""
+                show_dry_run(job.pipe_to, True)
         print ""
 
 if __name__ == "__main__":

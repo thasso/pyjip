@@ -384,6 +384,7 @@ class Script(object):
         if self._load_pipeline():
             return self.pipeline.run()
         else:
+            log("Running command:\n%s", self.render_command())
             return self.__run_blocks(COMMAND_BLOCK)
 
     def terminate(self):
@@ -492,9 +493,10 @@ class PythonClassScript(Script):
     """Script extension that allows to wrap
     python classes as executable units
     """
-    def __init__(self, cls, decorator):
+    def __init__(self, cls, decorator, add_outputs=None):
         Script.__init__(self, None)
         self.cls = cls
+        self.add_outputs = add_outputs
         self.decorator = decorator
         self.instance = cls()
         self.doc_string = self.instance.__doc__
@@ -511,6 +513,8 @@ class PythonClassScript(Script):
                 target = self.options
                 o = Option()
                 o.value = action.default
+                if o.value is None and action.nargs in ("*", "+"):
+                    o.value = []
                 o.name = action.dest
                 if o.name == "help":
                     o.value = False
@@ -541,6 +545,19 @@ class PythonClassScript(Script):
                 target[o.name] = o
                 self.args[o.name] = o.value
                 self.script_options[o.name] = o
+
+        if self.add_outputs:
+            for out in self.add_outputs:
+                o = Option()
+                o.name = out.replace("-", "_")
+                o.long = "--%s" % out.replace("_", "-")
+                o.multiplicity = 1
+                o.value = None
+                self.outputs[o.name] = o
+                #self.script_options[o.name] = o
+
+    def clone(self):
+        return PythonClassScript(self.cls, self.decorator, self.add_outputs)
 
     def parse_args(self, script_args):
         if self.decorator.argparse:
@@ -619,6 +636,7 @@ class Pipeline(object):
             script = find_script_in_modules(name)
             if not script:
                 raise
+
         script.args.update(kwargs)
         try:
             script.validate()
@@ -633,14 +651,35 @@ class Pipeline(object):
         """
         node = ScriptNode(script, len(self.nodes), self)
         self.nodes.append(node)
-        for k, v in list(script.args.iteritems()):
-            if isinstance(v, parameter) and v.node is not None:
-                node.parents.append(v.node)
-                v.node.children.append(node)
-            if isinstance(v, ScriptNode):
-                script.args[k] = v.script.args[v.script.default_output]
-                node.parents.append(v)
-                v.children.append(node)
+        for k, value in list(script.args.iteritems()):
+            if not isinstance(value, (list, tuple)):
+                value = [value]
+            new_values = None
+            for v in value:
+                if isinstance(v, parameter) and v.node is not None:
+                    #print ">>>>", v
+                    if not v.node in node.parents:
+                        node.parents.append(v.node)
+                    if not node in v.node.children:
+                        v.node.children.append(node)
+                if isinstance(v, ScriptNode):
+                    if new_values is None:
+                        new_values = []
+                    new_values.append(v.script.args[v.script.default_output])
+                    if not v in node.parents:
+                        node.parents.append(v)
+                    if not node in v.children:
+                        v.children.append(node)
+
+            if new_values is not None:
+                if script.script_options[k].multiplicity > 1:
+                    script.args[k] = new_values
+                elif len(new_values) == 1:
+                    script.args[k] = new_values[0]
+                else:
+                    script.args[k] = new_values
+
+
         return node
 
     def validate(self):
@@ -685,8 +724,7 @@ class parameter(object):
         return self.__repr__()
 
     def __repr__(self):
-        return "Parameter{name: %s, multiplicity: %d, default: %s}" % \
-            (self.name, self.multiplicity, self.value)
+        return str(self.value)
 
 
 class dependency(object):
@@ -714,6 +752,9 @@ class ScriptNode(object):
         object.__setattr__(self, 'pipeline', pipeline)
 
     def __getattr__(self, name):
+        if not name in self.script.args:
+            raise LookupError("Argument not found: %s %s" % (name,
+                                                             self.script.args))
         value = self.script.args[name]
         if isinstance(value, parameter):
             return parameter(self, name, value.value,
