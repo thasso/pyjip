@@ -7,7 +7,7 @@ import datetime
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.ext.declarative import declarative_base
 
 from jip.utils import parse_time, log
@@ -129,24 +129,24 @@ class Job(Base):
     # to allow clean restarts and moves of a job
     # even though the users current environment setting
     # has changed
-    env = Column(PickleType)
+    env = deferred(Column(PickleType))
     # default input
-    default_input = Column(PickleType)
+    default_input = deferred(Column(PickleType))
     # default output
-    default_output = Column(PickleType)
+    default_output = deferred(Column(PickleType))
     # configured outputs
-    outputs = Column(PickleType)
+    outputs = deferred(Column(PickleType))
     # configured inputs
-    inputs = Column(PickleType)
+    inputs = deferred(Column(PickleType))
     # keep or delete outputs if the job fails
     keep_on_fail = Column(Boolean, default=False)
     # the main job command template
-    command = Column(Text)
+    command = deferred(Column(Text))
     # the configuration that is used to populate the command template
-    configuration = Column(PickleType)
+    configuration = deferred(Column(PickleType))
     # extra configuration stores an array of additional parameters
     # passed during job submission
-    extra = Column(PickleType)
+    extra = deferred(Column(PickleType))
     # dependencies
     dependencies = relationship("Job",
                                 secondary=job_dependencies,

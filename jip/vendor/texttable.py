@@ -140,8 +140,12 @@ class bcolors:
     ENDC = '\033[0m'
     WHITE = ''
 
+__bcols = list(name for name in dir(bcolors) if not name.startswith('_'))
+
+
 def bcolors_public_props():
-    return (name for name in dir(bcolors) if not name.startswith('_'))
+    return __bcols
+    #return (name for name in dir(bcolors) if not name.startswith('_'))
 
 def get_color_string(type, string):
     end = bcolors.ENDC
@@ -484,8 +488,6 @@ class Texttable:
             length = 0
             parts = line.split('\t')
             for part, i in zip(parts, range(1, len(parts) + 1)):
-                for attr in bcolors_public_props():
-                    part = part.replace(getattr(bcolors, attr), '')
                 length = length + len(part)
                 if i < len(parts):
                     length = (length/8 + 1) * 8

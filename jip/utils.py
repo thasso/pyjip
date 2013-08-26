@@ -147,21 +147,33 @@ def table_to_string(value, empty=""):
                           seconds=value.seconds)
     return str(value)
 
+def table_string(value, empty=""):
+    """Translates the given value to a string
+    that can be rendered in a table"""
+    if value is None:
+        return empty
+    return str(value)
 
-def create_table(header, rows, empty="", to_string=table_to_string):
+
+def create_table(header, rows, empty="", to_string=table_to_string,
+                 widths=None):
     from jip.vendor.texttable import Texttable
     t = Texttable(0)
     t.set_deco(Texttable.HEADER)
     if header is not None:
         t.header(header)
+    if widths is not None:
+        t.set_cols_width(widths)
     map(t.add_row, [[to_string(x, empty=empty) for x in r]
                     for r in rows])
     return t
 
 
-def render_table(header, rows, empty=""):
+def render_table(header, rows, empty="", widths=None,
+                 to_string=table_to_string):
     """Create a simple ascii table"""
-    return create_table(header, rows, empty=empty).draw()
+    return create_table(header, rows, empty=empty,
+                        widths=widths, to_string=to_string).draw()
 
 
 def confirm(msg, default=True):

@@ -23,28 +23,30 @@ Options:
     -h --help                Show this help message
 
 Columns supported for output:
-    ID         The internal job id
-    C-ID       The job id assigned by the clsuter
-    Name       The jobs name
-    State      The jobs current state
-    Queue      The jobs queue
-    Priority   The jobs priority
-    Threads    Number of threads assigned to the job
-    Hosts      Host(s) where the job is executed
-    Account    The account used for the job
-    Memory     The jobs max memory setting
-    Timelimit  The jobs time limit
-    Runtime    The runtime of the job
-    Created    Create date of the job
-    Started    Execution start date of the job
-    Finished   Execution finish date of the job
-    Directory  The jobs working directory
-    Logs       The path to the stdout and stderr log files of the job
+    ID          The internal job id
+    C-ID        The job id assigned by the clsuter
+    Name        The jobs name
+    State       The jobs current state
+    Queue       The jobs queue
+    Priority    The jobs priority
+    Threads     Number of threads assigned to the job
+    Hosts       Host(s) where the job is executed
+    Account     The account used for the job
+    Memory      The jobs max memory setting
+    Timelimit   The jobs time limit
+    Runtime     The runtime of the job
+    Created     Create date of the job
+    Started     Execution start date of the job
+    Finished    Execution finish date of the job
+    Directory   The jobs working directory
+    Error-Logs  The path to the stderr log file
+    Log         The path to the stdout log file
+
 """
 
 from jip.vendor.docopt import docopt
 from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
-    NORMAL, get_time
+    NORMAL, get_time, table_string
 from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
     STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
 
@@ -70,6 +72,17 @@ def resolve(v, job):
     return v(job)
 
 
+def resolve_date(v, job):
+    value = getattr(job, v)
+    return value.strftime('%H:%M %d/%m/%y') if value is not None else None
+
+
+def resolve_time(v, job):
+    value = getattr(job, v)
+    return str(timedelta(days=value.days,
+                         seconds=value.seconds))
+
+
 def resolve_runtime(job):
     runtime = None
     if job.start_date is not None:
@@ -78,43 +91,52 @@ def resolve_runtime(job):
         if runtime.days < 0:
             ## clock screwup on one of the nodes ?
             runtime = timedelta()
-    return runtime
+        return str(timedelta(days=runtime.days,
+                             seconds=runtime.seconds))
+    return None
 
 
-def resolve_log_files(job):
+def resolve_log_files(type, job):
     import jip.cluster
     cluster = jip.cluster.from_name(job.cluster)
-    logs = ""
     if cluster:
-        logs = "%s\n%s" % (cluster.resolve_log(job, job.stdout),
-                           cluster.resolve_log(job, job.stderr))
-    return logs
+        if type == "stderr":
+            return cluster.resolve_log(job, job.stderr)
+        return cluster.resolve_log(job, job.stdout)
+    return None
 
 
 def resolve_dependencies(job):
-    if len(job.dependencies) == 0:
+    if not job.dependencies or len(job.dependencies) == 0:
         return None
     return ",".join([str(j.id) for j in job.dependencies])
 
 FULL_HEADER = [
-    ("ID", partial(resolve, "id")),
-    ("C-ID", partial(resolve, "job_id")),
-    ("Name", partial(resolve, "name")),
-    ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
-    ("Queue", partial(resolve, "queue")),
-    ("Priority", partial(resolve, "priority")),
-    ("Dependencies", lambda job: resolve_dependencies(job)),
-    ("Threads", partial(resolve, "threads")),
-    ("Hosts", partial(resolve, "hosts")),
-    ("Account", partial(resolve, "account")),
-    ("Memory", partial(resolve, "max_memory")),
-    ("Timelimit", lambda job: get_time(minutes=job.max_time)),
-    ("Runtime", resolve_runtime),
-    ("Created", partial(resolve, "create_date")),
-    ("Started", partial(resolve, "start_date")),
-    ("Finished", partial(resolve, "finish_date")),
-    ("Directory", partial(resolve, "working_directory")),
-    ("Logs", resolve_log_files),
+    ("ID", partial(resolve, "id"), 10, Job.id),
+    ("C-ID", partial(resolve, "job_id"), 10, Job.job_id),
+    ("Name", partial(resolve, "name"), 10, Job.name),
+    ("State", lambda job: colorize(job.state, STATE_COLORS[job.state]), 10,
+     Job.state),
+    ("Queue", partial(resolve, "queue"), 10, Job.queue),
+    ("Priority", partial(resolve, "priority"), 10, Job.priority),
+    ("Dependencies", lambda job: resolve_dependencies(job), 10,
+     Job.dependencies),
+    ("Threads", partial(resolve, "threads"), 10, Job.threads),
+    ("Hosts", partial(resolve, "hosts"), 10, Job.hosts),
+    ("Account", partial(resolve, "account"), 10, Job.account),
+    ("Memory", partial(resolve, "max_memory"), 10, Job.max_memory),
+    ("Timelimit", lambda job: get_time(minutes=job.max_time), 10,
+     Job.max_time),
+    ("Runtime", resolve_runtime, 10, Job.start_date, Job.finish_date),
+    ("Created", partial(resolve_date, "create_date"), 10, Job.create_date),
+    ("Started", partial(resolve_date, "start_date"), 10, Job.start_date),
+    ("Finished", partial(resolve_date, "finish_date"), 10, Job.finish_date),
+    ("Directory", partial(resolve, "working_directory"), 10,
+     Job.working_directory),
+    ("Error-Log", partial(resolve_log_files, "stderr"), 10, Job.cluster,
+     Job.stderr, Job.job_id),
+    ("Log", partial(resolve_log_files, "stdout"), 10, Job.cluster, Job.stdout,
+     Job.job_id),
 ]
 
 
@@ -187,7 +209,27 @@ def main():
     list_states = [t.title() for t in args["--state"]]
     job_ids = args["--job"]
     cluster_ids = args["--cluster-job"]
-    jobs = session.query(Job).filter(Job.archived == list_archived)
+    header = None
+    trans = dict((v[0], v[1]) for v in FULL_HEADER)
+    if args["--long"] or (not sys.stdout.isatty() and not args["--detail"]):
+        header = [k[0] for k in FULL_HEADER]
+    elif args["--output"]:
+        header = args["--output"]
+        ## check the headr
+        for h in header:
+            if not h in trans:
+                print >>sys.stderr, "Unknown column name %s" % h
+                sys.exit(1)
+    else:
+        header = ["ID", "C-ID", "Name", "State", "Queue", "Threads",
+                  "Runtime", "Timelimit", "Dependencies"]
+    fields = set([])
+    for element in [e for e in FULL_HEADER if e[0] in header]:
+        for e in filter(lambda x: x is not None, element[3:]):
+            fields.add(e)
+    #widths = [v[2] for v in FULL_HEADER if v[0] in header]
+
+    jobs = session.query(*fields).filter(Job.archived == list_archived)
     if len(list_states) > 0:
         jobs = jobs.filter(Job.state.in_(list_states))
     if len(job_ids) > 0:
@@ -201,10 +243,10 @@ def main():
     # pipe mode
     ####################################################################
     output = sys.stdout
+
     if not sys.stdout.isatty() and not args["--detail"]:
-        trans = dict(FULL_HEADER)
-        header = [k[0] for k in FULL_HEADER]
-        del header[header.index("Logs")]
+        del header[header.index("Log")]
+        del header[header.index("Error-Log")]
         try:
             for job in jobs:
                 print "\t".join([str(trans[c](job)) for c in header])
@@ -216,38 +258,26 @@ def main():
     ####################################################################
     # Print job table
     ####################################################################
-    ## easily translate header names the their resolver function
     if not args["--detail"]:
-        trans = dict(FULL_HEADER)
-        if args["--long"]:
-            header = [k[0] for k in FULL_HEADER]
-        elif args["--output"]:
-            header = args["--output"]
-            ## check the headr
-            for h in header:
-                if not h in trans:
-                    print >>sys.stderr, "Unknown column name %s" % h
-                    sys.exit(1)
-        else:
-            header = ["ID", "C-ID", "Name", "State", "Queue", "Threads",
-                      "Runtime", "Timelimit", "Dependencies"]
-
         columns = []
         map(lambda job: columns.append([trans[c](job) for c in header]), jobs)
-
         ## pipe to pager
         if sys.stdout.isatty() and not args['--no-pager']:
             pager = getenv("PAGER", "less -r")
             pager_p = Popen(pager.split(), stdin=PIPE, stdout=output)
             output = pager_p.stdin
-            print >>output, render_table(header, columns, empty="-")
-            output.close()
             try:
+                print >>output, render_table(header, columns, empty="-",
+                                             widths=None,
+                                             to_string=table_string)
+                output.close()
                 pager_p.wait()
             except:
                 pager_p.terminate()
         else:
-            print >>output, render_table(header, columns, empty="-")
+            print >>output, render_table(header, columns, empty="-",
+                                         widths=None,
+                                         to_string=table_string)
 
     else:
         ## show detail view
