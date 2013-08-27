@@ -135,7 +135,6 @@ class TemplateBlock(object):
         evaluates to True in the arguments dict. If not, empty string
         is returned"""
         value = self.args.get(option, False)
-        print ">>>VALUE", value, self.args
         if (not negate and value) or (negate and not value):
             return self.output(option, replacement=replacement,
                                join=join,
