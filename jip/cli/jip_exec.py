@@ -21,7 +21,6 @@ from . import parse_args
 def main():
     args = parse_args(__doc__, options_first=True)
     try:
-        print args
         log("Starting job with id %s stored in %s", args['<id>'], args['--db'])
         run_job(args["<id>"], db=args["--db"])
     except Exception, e:

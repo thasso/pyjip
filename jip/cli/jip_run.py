@@ -48,15 +48,11 @@ def main(argv=None):
     if "-h" in script_args or "--help" in script_args:
         print script.help()
         sys.exit(0)
-    if args["--show"]:
-        script.validate()
-        print script.render_command()
-        sys.exit(0)
-
     try:
         run_script(script, keep=args["--keep"],
                    force=args["--force"],
-                   dry=args["--dry"])
+                   dry=args["--dry"],
+                   show=args['--show'])
     except ValidationException, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
@@ -67,7 +63,7 @@ def main(argv=None):
         sys.exit(1)
 
 
-def run_script(script, keep=False, force=False, dry=False):
+def run_script(script, keep=False, force=False, dry=False, show=False):
     # persis the script to in memoru database
     import jip.db
     from jip.db import create_session
@@ -78,6 +74,9 @@ def run_script(script, keep=False, force=False, dry=False):
 
     if dry:
         show_dry_run(jobs)
+        return
+    if show:
+        show_command(jobs)
         return
     # run all main jobs
     for job in jobs:
@@ -90,6 +89,16 @@ def run_script(script, keep=False, force=False, dry=False):
         else:
             session.add(job)
             run_job(job.id)
+
+
+def show_command(jobs, show_children=False):
+    for job in jobs:
+        script = job.to_script()
+        try:
+            script.validate()
+        except:
+            pass
+        print script.render_command()
 
 
 def show_dry_run(jobs, show_children=False):

@@ -23,6 +23,37 @@ configuration = {
     }
 }
 
+LOG_ERROR = 1000
+LOG_WARN = 100
+LOG_INFO = 10
+LOG_DEBUG = 0
+
+
+LOG_LEVEL = LOG_ERROR
+
+
+def log_level(name):
+    global LOG_LEVEL
+    if name is None:
+        return
+    try:
+        LOG_LEVEL = int(name)
+    except:
+        name = name.upper()
+        levels = ["ERROR", "WARN", "INFO", "DEBUG"]
+        i = levels.index(name)
+        if i == 0:
+            LOG_LEVEL = LOG_ERROR
+        elif i == 1:
+            LOG_LEVEL = LOG_WARN
+        elif i == 2:
+            LOG_LEVEL = LOG_INFO
+        elif i == 3:
+            LOG_LEVEL = LOG_DEBUG
+
+## initialize default log level from environment
+log_level(getenv("JIP_LOGLEVEL", None))
+
 
 def initialize_configuration():
     """Reinitialize configuration from current configuration home"""

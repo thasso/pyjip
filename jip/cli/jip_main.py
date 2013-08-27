@@ -4,12 +4,13 @@ This is the master and control command for jip. Use it to invoke supported
 sub-command to launch, check, and modify jobs.
 
 Usage:
-    jip <command> [<args>...]
+    jip [--loglevel <level>] <command> [<args>...]
     jip [--version] [--help]
 
 Options::
-    -h --help     Show this help message
-    --version     Show the version information
+    -h --help           Show this help message
+    --version           Show the version information
+    --loglevel <level>  Set the JIP log level to one of error|warn|info|debug
 
 The commands to execute jobs:
 
@@ -41,6 +42,8 @@ from jip.vendor.docopt import docopt
 def main():
     args = docopt(__doc__, version=str(jip.__version__),
                   options_first=True, help=True)
+    if args['--loglevel']:
+        jip.log_level(args['--loglevel'])
     cmd = args['<command>']
     if not cmd:
         sys.stderr.write("\nNo command specified \n\n")
@@ -56,7 +59,6 @@ def main():
         sys.argv = argv  # reset options
         runpy.run_module("jip.cli.jip_%s" % cmd, run_name="__main__")
     except ImportError:
-        raise
         # check interpreter mode
         import os
         if os.path.exists(cmd):

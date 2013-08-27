@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """JIP utilities and helper functions"""
 
+from jip import LOG_LEVEL, LOG_DEBUG
 from os import walk, getcwd, getenv
 from os.path import exists, abspath, join, dirname
 
@@ -8,6 +9,7 @@ from os.path import exists, abspath, join, dirname
 script_cache = {}
 script_instance_cache = {}
 __script_instances_scanned = False
+
 
 NORMAL = ''
 BLUE = '\033[94m'
@@ -17,8 +19,11 @@ RED = '\033[91m'
 ENDC = '\033[0m'
 
 
-def log(msg, *args):
+def log(msg, *args, **kwargs):
     """Log a message to stderr and flush"""
+    level = kwargs.get("level", LOG_DEBUG)
+    if LOG_LEVEL > level:
+        return
     import sys
     from datetime import datetime
     sys.stderr.write("[%s] " % datetime.now())
@@ -85,6 +90,7 @@ def find_script(name, script=None):
         path = _search_folder(folder, pattern)
         if path is not None:
             return add_to_cache(name, path)
+
     raise LookupError("Script '%s' not found!" % name)
 
 
@@ -100,6 +106,16 @@ def find_script_in_modules(name):
                 __import__(module)
     s = script_instance_cache.get(name, None)
     if s is None:
+        try:
+            import pkgutil
+            ## check for prepackaged scripts
+            script_lines = pkgutil \
+                .get_data("jip.scripts", "bash.jip") \
+                .split("\n")
+            from jip.parser import parse_script
+            return parse_script(lines=script_lines)
+        except:
+            pass
         raise LookupError("Script '%s' not found!" % name)
     return s.clone()
 

@@ -10,6 +10,7 @@ from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.ext.declarative import declarative_base
 
+from jip import LOG_LEVEL
 from jip.utils import parse_time, log
 
 
@@ -269,6 +270,8 @@ class Job(Base):
         self.max_memory = profile.get("max_memory", self.max_memory)
         self.max_time = parse_time(profile.get("max_time", self.max_time))
         self.name = profile.get("name", self.name)
+        self.stdout = profile.get("out", self.stdout)
+        self.stderr = profile.get("err", self.stderr)
 
         if self.account == "":
             self.account = None
@@ -343,6 +346,7 @@ class Job(Base):
                 "PATH": getenv("PATH", ""),
                 "PYTHONPATH": getenv("PYTHONPATH", ""),
                 "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
+                "JIP_LOGLEVEL": str(LOG_LEVEL)
             }
             job.cluster = cluster
             job.default_input = script.default_input

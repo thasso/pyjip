@@ -384,7 +384,7 @@ class Script(object):
         if self._load_pipeline():
             return self.pipeline.runo()
         else:
-            log("Running command:\n%s", self.render_command())
+            #log("Running command:\n%s", self.render_command())
             return self.__run_blocks(COMMAND_BLOCK)
 
     def terminate(self):

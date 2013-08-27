@@ -6,7 +6,7 @@ from jip.utils import log
 
 def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
                      account=None, cpus=None, max_mem=None, name=None,
-                     load_default=False):
+                     load_default=False, err=None, out=None):
     """Create a profile. If a profile name is specified, the configuration
     is checked for that profile. In addition you can set load_default
     to True to load the default profile from the configuration.
@@ -36,6 +36,10 @@ def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
         profile['max_mem'] = max_mem
     if name is not None:
         profile['name'] = name
+    if err is not None:
+        profile['err'] = err
+    if out is not None:
+        profile['out'] = out
     return profile
 
 

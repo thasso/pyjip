@@ -103,7 +103,10 @@ def resolve_log_files(type, job):
         if type == "stderr":
             return cluster.resolve_log(job, job.stderr)
         return cluster.resolve_log(job, job.stdout)
-    return None
+    if type == "stderr":
+        return job.stderr
+    else:
+        return job.stdout
 
 
 def resolve_dependencies(job):
@@ -160,7 +163,7 @@ def resolve_job_range(ids):
 def detail_view(job, exclude_times=False):
     """Render job detail view"""
     rows = []
-    for k, v in FULL_HEADER:
+    for k, v in [(v[0], v[1]) for v in FULL_HEADER]:
         if not exclude_times or k not in ["Created", "Started", "Finished",
                                           "Runtime"]:
             rows.append([k, v(job)])
@@ -229,7 +232,8 @@ def main():
             fields.add(e)
     #widths = [v[2] for v in FULL_HEADER if v[0] in header]
 
-    jobs = session.query(*fields).filter(Job.archived == list_archived)
+    #jobs = session.query(*fields).filter(Job.archived == list_archived)
+    jobs = session.query(Job).filter(Job.archived == list_archived)
     if len(list_states) > 0:
         jobs = jobs.filter(Job.state.in_(list_states))
     if len(job_ids) > 0:

@@ -4,6 +4,7 @@ Submit a jip script to a remote cluster
 
 usage: jip-submit [-f] [-k] [-P <profile>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
+                  [-o <out>] [-e <err]
                   [-d <db>] [-H] [--dry] <file> [<args>...]
 
 Options:
@@ -20,6 +21,8 @@ Options:
   -n, --name <name>        Job name
   -d, --db <db>            Path to the database that will be used to store the
                            job information
+  -o, --out <out>          Stdout log file
+  -e, --err <err>          Stderr log file
   -H, --hold               submit job put put in on hold and don't send
                            it to the queue
   --dry                    Do not submit but show the dry configuration
@@ -84,6 +87,8 @@ def submit_script(script, jip_args, dry=False):
     # laod default profile
     profile = load_job_profile(profile_name=jip_args.get("--profile",
                                                          None),
+                               out=jip_args["--out"],
+                               err=jip_args["--err"],
                                time=jip_args["--time"],
                                queue=jip_args["--queue"],
                                priority=jip_args["--priority"],
