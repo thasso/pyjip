@@ -110,7 +110,7 @@ def find_script_in_modules(name):
             import pkgutil
             ## check for prepackaged scripts
             script_lines = pkgutil \
-                .get_data("jip.scripts", "bash.jip") \
+                .get_data("jip.scripts", "%s.jip" % name) \
                 .split("\n")
             from jip.parser import parse_script
             return parse_script(lines=script_lines)
@@ -118,6 +118,17 @@ def find_script_in_modules(name):
             pass
         raise LookupError("Script '%s' not found!" % name)
     return s.clone()
+
+
+def scan_modules():
+    global __script_instances_scanned
+    __script_instances_scanned = True
+    import os
+    path = os.getenv("JIP_MODULES", None)
+    if path is not None:
+        for module in path.split(":"):
+            __import__(module)
+    return script_instance_cache
 
 
 def add_to_cache(name, path):

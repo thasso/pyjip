@@ -186,6 +186,14 @@ class TemplateBlock(object):
         if self.script is not None:
             self.script.name = name
 
+    def stdout(self, out):
+        if self.script.job:
+            self.script.job.stdout = out
+
+    def stderr(self, err):
+        if self.script.job:
+            self.script.job.stderr = err
+
 
 class PipelineBlock(object):
     """Class that holds the template block

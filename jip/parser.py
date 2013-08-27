@@ -262,6 +262,7 @@ def parse_script(path=None, script_class=Script, lines=None,
 
 
 def parse_script_options(script):
+    from jip.model import Option
     doc_string = script.help()
     if script.args is None:
         script.args = {}
@@ -273,8 +274,20 @@ def parse_script_options(script):
         for o in opt.parse_defaults(doc_string, section):
             name = option_name(o)
             value = option_value(o)
+
+            oo = Option()
+            oo.name = name
+            oo.value = value
+            oo.long = o.long
+            oo.shor = o.short
+            if o.argcount > 0:
+                oo.multiplicity = 2 if isinstance(o.value, (list, tuple)) \
+                    else 1
+            else:
+                oo.multiplicity = 0
+
             target[name] = create_parameter(script, o)
-            script.script_options[name] = o
+            script.script_options[name] = oo
             script.args[name] = value
             if target == script.inputs and script.default_input is None:
                 script.default_input = option_name(o)

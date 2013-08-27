@@ -189,6 +189,7 @@ class Option(LeafPattern):
         short, long, argcount, value = None, None, 0, False
         options, _, description = option_description.strip().partition('  ')
         options = options.replace(',', ' ').replace('=', ' ')
+        is_list = False
         for s in options.split():
             if s.startswith('--'):
                 long = s
@@ -196,9 +197,13 @@ class Option(LeafPattern):
                 short = s
             else:
                 argcount = 1
+                if not is_list:
+                    is_list = re.findall("\.\.\.", s)
         if argcount:
             matched = re.findall('\[default: (.*)\]', description, flags=re.I)
             value = matched[0] if matched else None
+            if is_list:
+                value = [value] if value is not None else []
         return class_(short, long, argcount, value)
 
     def single_match(self, left):

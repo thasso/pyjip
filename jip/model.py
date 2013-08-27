@@ -5,7 +5,7 @@ Block model and teh custom Exceptions.
 import sys
 
 from jip.block_functions import TemplateBlock, PipelineBlock
-from jip.utils import render_table, log
+from jip.utils import render_table, log, flat_list
 
 
 #currently supported block type
@@ -310,6 +310,7 @@ class Script(object):
         self.threads = 1
         self.validated = False
         self.script_options = None
+        self.job = None
         if self.args is None:
             self.args = {}
 
@@ -498,8 +499,14 @@ class PythonClassScript(Script):
         self.cls = cls
         self.add_outputs = add_outputs
         self.decorator = decorator
-        self.instance = cls()
+        try:
+            self.instance = cls()
+        except:
+            self.instance = cls
         self.doc_string = self.instance.__doc__
+        if self.doc_string:
+            import textwrap
+            self.doc_string = textwrap.dedent(self.doc_string)
         self.name = decorator.name
         self.argparser = None
         self.script_options = {}
@@ -545,6 +552,9 @@ class PythonClassScript(Script):
                 target[o.name] = o
                 self.args[o.name] = o.value
                 self.script_options[o.name] = o
+        else:
+            from jip.parser import parse_script_options
+            parse_script_options(self)
 
         if self.add_outputs:
             for out in self.add_outputs:
@@ -571,6 +581,12 @@ class PythonClassScript(Script):
             Script.parse_args(self, script_args)
 
     def _load_pipeline(self):
+        if self.pipeline:
+            True
+        if self.decorator.pipeline:
+            pipeline_fun = getattr(self.instance, self.decorator.pipeline)
+            self.pipeline = pipeline_fun(self.args)
+            return True
         return False
 
     def validate(self):
@@ -585,9 +601,6 @@ class PythonClassScript(Script):
             return self.pipeline.run()
         else:
             self.instance(**(self.args))
-
-    def terminate(self):
-        raise Exception("NOT IMPLEMENTED")
 
     def render_command(self):
         if self.decorator.get_command is not None:
@@ -669,7 +682,6 @@ class Pipeline(object):
                         node.parents.append(v)
                     if not node in v.children:
                         v.children.append(node)
-
             if new_values is not None:
                 if script.script_options[k].multiplicity > 1:
                     script.args[k] = new_values
@@ -677,8 +689,6 @@ class Pipeline(object):
                     script.args[k] = new_values[0]
                 else:
                     script.args[k] = new_values
-
-
         return node
 
     def validate(self):
@@ -759,7 +769,6 @@ class ScriptNode(object):
             return parameter(self, name, value.value,
                              multiplicity=value.multiplicity,
                              node=value.node)
-
         return parameter(self, name, value, node=self)
 
     def __setattr__(self, name, value):
@@ -813,25 +822,37 @@ class ScriptNode(object):
         self.pipeline._sort_nodes()
         return other
 
-    def __rshift__(self, other):
+    def __rshift__(self, others):
         """Create a non piped dependency"""
         #todo: check for cycles
-        self.children.append(other)
-        for sibling in other.siblings:
-            self.children.append(sibling)
-            sibling.parents.append(self)
-            self.pipe_default_io(sibling)
-
-        other.parents.append(self)
-        self.pipe_default_io(other)
-
-        ## also pipe things from my siblings
-        for sibling in self.siblings:
-            sibling.children.append(other)
-            other.parents.append(sibling)
-            sibling.pipe_default_io(other)
-        self.pipeline._sort_nodes()
+        for other in flat_list(others):
+            other.depends_on(self)
+            for sibling in other.siblings:
+                sibling.depends_on(self)
+                self.pipe_default_io(sibling)
+            self.pipe_default_io(other)
+            ## also pipe things from my siblings
+            for sibling in self.siblings:
+                other.depends_on(sibling)
+                sibling.pipe_default_io(other)
+            self.pipeline._sort_nodes()
         return other
+
+    def __lshift__(self, others):
+        for other in flat_list(others):
+            if isinstance(other, ScriptNode):
+                other.__rshift__(self)
+            elif isinstance(other, parameter):
+                self._add_to_default_inputs(other.value)
+                self.depends_on(other.node)
+        return self
+
+    def depends_on(self, others):
+        for other in flat_list(others):
+            if not other in self.parents:
+                self.parents.append(other)
+            if not self in other.children:
+                other.children.append(self)
 
     def pipe_default_io(self, other):
         """Set this nodes default output as the other nodes default input"""
@@ -839,7 +860,18 @@ class ScriptNode(object):
         dip = other.script.default_input
         if dip is not None and dop is not None and \
                 self.script.args[dop] is not None:
-            other.script.args[dip] = self.script.args[dop]
+            other._add_to_default_inputs(self.script.args.get(dop, None))
+
+    def _add_to_default_inputs(self, value):
+        dip = self.script.default_input
+        if dip is not None and value is not None:
+            l = self.script.args[dip]
+            if l is None:
+                self.script.args[dip] = value
+            elif isinstance(l, (list, tuple)):
+                l.append(value)
+            else:
+                self.script.args[dip] = [l] + [value]
 
     def __add__(self, other):
         """Create a parallel run of two nodes"""

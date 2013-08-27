@@ -335,6 +335,7 @@ class Job(Base):
             """No pipeline check, transcforms a script directly"""
             if validate or revalidate:
                 script.validated = False
+                script.job = Job()
                 script.validate()
 
             job = Job()
@@ -368,6 +369,10 @@ class Job(Base):
 
             if profile is not None:
                 job.update_profile(profile)
+            if script.job.stdout:
+                job.stdout = script.job.stdout
+            if script.job.stderr:
+                job.stderr = script.job.stderr
             return job
 
         if (script and script._load_pipeline()) or pipeline:
@@ -417,6 +422,7 @@ def init(path=None, in_memory=False):
     global engine, Session, db_path, db_in_memory
 
     if in_memory:
+        log("Initialize DB engine with: %s %s", path, in_memory)
         db_in_memory = True
         db_path = None
         engine = slq_create_engine("sqlite://")
