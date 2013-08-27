@@ -188,7 +188,8 @@ def parse_script_args(script, script_args):
             o.value = flat_list(o.value)
             if len(o.value) == 1 and o.value[0] is None:
                 o.value = []
-
+    if len(usage_sections) == 0:
+        return
     pattern = opt.parse_pattern(opt.formal_usage(usage_sections[0]),
                                 options)
 

@@ -24,6 +24,7 @@ from . import parse_args
 from jip.model import Script, ScriptError, ValidationException
 from jip.executils import create_jobs, run_job
 from jip.utils import find_script_in_modules
+import jip.scripts
 
 
 def main(argv=None):

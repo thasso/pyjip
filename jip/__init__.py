@@ -75,8 +75,37 @@ def create_temp_file():
 
 
 #########################################################
+# Job utilities and helper functions
+#########################################################
+def get_job():
+    """Load and return a tuple of (job, session) for the currently executed.
+    If no job could be loaded, a LookupError is raised
+    """
+    import os
+    from jip.db import create_session, find_job_by_id
+    job_id = os.getenv("JIP_ID", None)
+    if job_id:
+        session = create_session()
+        return find_job_by_id(session, job_id), session
+    raise LookupError("No job was found!")
+
+
+#########################################################
 # decorators
-########################################################
+#########################################################
+class FunctionWrapper(object):
+    def __init__(self, name):
+        self.run_function = None
+        self.name = name
+
+    def __call__(self):
+        return self
+
+    def run(self, args):
+        pass
+        #self.run_function(args)
+
+
 class tool(object):
     def __init__(self, name, inputs=None, outputs=None, argparse=None,
                  get_command=None, validate=None, add_outputs=None):
@@ -90,10 +119,15 @@ class tool(object):
 
     def __call__(self, cls):
         if not _disable_module_search:
+            import types
             from jip.utils import add_script
-            from jip.model import PythonClassScript, Option
-            script = add_script(self.name, PythonClassScript(cls, self,
-                                                             self.add_outputs))
+            from jip.model import PythonClassScript
+
+            if isinstance(cls, types.FunctionType):
+                cls = FunctionWrapper(self.name)
+
+            add_script(self.name, PythonClassScript(cls, self,
+                                                    self.add_outputs))
         return cls
 
     def check_option(self, target, name):

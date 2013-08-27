@@ -382,7 +382,7 @@ class Script(object):
         """Call all command blocks of a script
         """
         if self._load_pipeline():
-            return self.pipeline.run()
+            return self.pipeline.runo()
         else:
             log("Running command:\n%s", self.render_command())
             return self.__run_blocks(COMMAND_BLOCK)
@@ -584,7 +584,6 @@ class PythonClassScript(Script):
         if self._load_pipeline():
             return self.pipeline.run()
         else:
-            # create an instance
             self.instance(**(self.args))
 
     def terminate(self):
