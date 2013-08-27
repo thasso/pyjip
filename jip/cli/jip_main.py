@@ -31,7 +31,7 @@ action command. Note that the commands also work standalon:
     hold     put selected jobs on hold
     resume   resume selected jobs that are on hold
     restart  restart selected jobs
-    log      show log files of jobs
+    logs     show log files of jobs
 """
 import sys
 import jip

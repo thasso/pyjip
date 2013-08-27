@@ -20,12 +20,10 @@ Options:
     -h --help                Show this help message
 """
 
-from jip.db import init, create_session
-from jip.utils import query_jobs_by_ids, read_ids_from_pipe, colorize, \
-    GREEN, RED, BLUE
+from jip.utils import colorize, GREEN, RED, BLUE
 from jip.cli.jip_jobs import STATE_COLORS
 import jip.cluster
-from . import parse_args
+from . import parse_args, _query_jobs
 
 from subprocess import Popen
 from os.path import exists
@@ -33,23 +31,7 @@ from os.path import exists
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    init(path=args["--db"])
-    session = create_session()
-    ####################################################################
-    # Query jobs
-    ####################################################################
-    job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
-
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-    job_ids += read_ids_from_pipe()
-
-    jobs = query_jobs_by_ids(session, job_ids=job_ids,
-                             cluster_ids=cluster_ids,
-                             archived=None, query_all=False)
+    session, jobs = _query_jobs(args)
     for job in jobs:
         if len(job.pipe_from) == 0:
             if job.cluster is None:

@@ -293,7 +293,7 @@ def resolve_job_range(ids):
 
 
 def query_jobs_by_ids(session, job_ids=None, cluster_ids=None, archived=False,
-                      query_all=True):
+                      query_all=True, fields=None):
     """Query the session for jobs with the gibven job or cluster
     ids. If both job and cluster ids lists are empty and query_all is False,
     an empty list will be returned.
@@ -303,8 +303,8 @@ def query_jobs_by_ids(session, job_ids=None, cluster_ids=None, archived=False,
     cluster_ids = [] if cluster_ids is None else cluster_ids
     if sum(map(len, [job_ids, cluster_ids])) == 0 and not query_all:
         return []
-
-    jobs = session.query(Job)
+    fields = [Job] if fields is None else fields
+    jobs = session.query(*fields)
     if archived is not None:
         jobs = jobs.filter(Job.archived == archived)
     if job_ids is not None and len(job_ids) > 0:
