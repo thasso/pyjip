@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """JIP utilities and helper functions"""
 
+from contextlib import contextmanager
 from jip import LOG_LEVEL, LOG_DEBUG
 from os import walk, getcwd, getenv
-from os.path import exists, abspath, join, dirname
+from os.path import exists, abspath, join, dirname, basename
 
 # simple name to script file cache
 script_cache = {}
@@ -17,6 +18,18 @@ GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
 ENDC = '\033[0m'
+
+
+#################################################################
+# Context manager utilities
+#################################################################
+@contextmanager
+def ignored(*exceptions):
+    """Ignores given set of exception"""
+    try:
+        yield
+    except exceptions:
+        pass
 
 
 def log(msg, *args, **kwargs):
@@ -39,6 +52,20 @@ def colorize(string, color):
     return "%s%s%s" % (color, string, ENDC)
 
 
+def find(name, parent_script=None):
+    from jip.model import Script
+    if exists(name):
+        return Script.from_file(name)
+    # first, search python modules
+    with ignored(LookupError):
+        return find_script_in_modules(name)
+    # find script
+    with ignored(LookupError):
+        path = find_script(name, script=parent_script)
+        return Script.from_file(path)
+    raise LookupError("No script named '%s' found!" % name)
+
+
 def find_script(name, script=None):
     """Search for the script. The search order is as follows:
     The script name is always checked using the name in a regular expression
@@ -56,6 +83,8 @@ def find_script(name, script=None):
     If the script is found, it is put in a cache and queries always go to
     the cache first
     """
+    if exists(name):
+        return name
     # first check the cache
     path = script_cache.get(name, None)
     if path is not None:
@@ -96,14 +125,8 @@ def find_script(name, script=None):
 
 def find_script_in_modules(name):
     #5. search python path for decorated classes
-    global __script_instances_scanned
     if not __script_instances_scanned:
-        __script_instances_scanned = True
-        import os
-        path = os.getenv("JIP_MODULES", None)
-        if path is not None:
-            for module in path.split(":"):
-                __import__(module)
+        scan_modules()
     s = script_instance_cache.get(name, None)
     if s is None:
         try:
@@ -124,11 +147,38 @@ def scan_modules():
     global __script_instances_scanned
     __script_instances_scanned = True
     import os
+    import jip
     path = os.getenv("JIP_MODULES", None)
     if path is not None:
         for module in path.split(":"):
             __import__(module)
+    for module in jip.configuration.get("jip_modules", []):
+            __import__(module)
     return script_instance_cache
+
+
+def scan_scripts():
+    def _search(folder, pattern):
+        for path in list_dir(folder):
+            if pattern.match(path):
+                yield path
+    import re
+    pattern = re.compile(r'^.*(.jip)$')
+
+    #check cwd
+    for path in _search(getcwd(), pattern):
+        add_to_cache(basename(path), path)
+
+    import jip
+    jip_path = "%s:%s" % (jip.configuration.get("jip_path", ""),
+                          getenv("JIP_PATH", ""))
+    for folder in jip_path.split(":"):
+        if len(folder) == 0:
+            continue
+        path = _search_folder(folder, pattern)
+        for path in _search(getcwd(), pattern):
+            add_to_cache(basename(path), path)
+    return script_cache
 
 
 def add_to_cache(name, path):
@@ -173,6 +223,7 @@ def table_to_string(value, empty=""):
         value = timedelta(days=value.days,
                           seconds=value.seconds)
     return str(value)
+
 
 def table_string(value, empty=""):
     """Translates the given value to a string
