@@ -2,6 +2,10 @@
 """JIP script execution and pipeline system"""
 
 from os import getenv
+from functools import partial
+
+
+
 __version__ = "1.0"
 
 # disable module search in execution mode
@@ -23,36 +27,63 @@ configuration = {
     }
 }
 
-LOG_ERROR = 1000
-LOG_WARN = 100
-LOG_INFO = 10
-LOG_DEBUG = 0
 
+class Logger(object):
+    LEVEL_ERROR = 1000
+    LEVEL_WARN = 100
+    LEVEL_INFO = 10
+    LEVEL_DEBUG = 0
 
-LOG_LEVEL = LOG_ERROR
+    def __init__(self, level):
+        self.level = level
+        self.info = partial(self._write, Logger.LEVEL_INFO)
+        self.warn = partial(self._write, Logger.LEVEL_WARN)
+        self.error = partial(self._write, Logger.LEVEL_ERROR)
+        self.debug = partial(self._write, Logger.LEVEL_DEBUG)
 
+    @property
+    def level(self):
+        return self._level
 
-def log_level(name):
-    global LOG_LEVEL
-    if name is None:
-        return
-    try:
-        LOG_LEVEL = int(name)
-    except:
+    @level.setter
+    def level(self, name):
+        if name is None:
+            return
+        try:
+            self._level = int(name)
+        except:
+            self._level_by_name(name)
+
+    def _level_by_name(self, name):
         name = name.upper()
         levels = ["ERROR", "WARN", "INFO", "DEBUG"]
         i = levels.index(name)
         if i == 0:
-            LOG_LEVEL = LOG_ERROR
+            self._level = Logger.LOG_ERROR
         elif i == 1:
-            LOG_LEVEL = LOG_WARN
+            self._level = Logger.LOG_WARN
         elif i == 2:
-            LOG_LEVEL = LOG_INFO
+            self._level = Logger.LOG_INFO
         elif i == 3:
-            LOG_LEVEL = LOG_DEBUG
+            self._level = Logger.LOG_DEBUG
+
+    def _write(self, level, msg, *args):
+        if self._level > level:
+            return
+        import sys
+        from datetime import datetime
+        sys.stderr.write("[%s] " % datetime.now())
+        sys.stderr.write(str(msg) % args)
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+
+    def __call__(self, msg, *args, **kwargs):
+        """Log a message to stderr and flush"""
+        level = kwargs.get("level", Logger.LEVEL_DEBUG)
+        self._write(level, msg, *args)
 
 ## initialize default log level from environment
-log_level(getenv("JIP_LOGLEVEL", None))
+log = Logger(getenv("JIP_LOGLEVEL", Logger.LEVEL_ERROR))
 
 
 def initialize_configuration():
@@ -140,3 +171,4 @@ class tool(object):
 
 ## import default tools
 import jip.scripts
+from jip.utils import find

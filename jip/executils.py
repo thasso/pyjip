@@ -104,8 +104,8 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
                 pass
     elif new_state in STATES_FINISHED:
         job.finish_date = datetime.now()
-    if session_created:
-        session.add(job)
+    ## add the job to the session
+    session.add(job)
 
     # if we are in finish state but not DONE,
     # performe a cleanup

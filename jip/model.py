@@ -264,14 +264,14 @@ class Block(object):
 
     def _render_interpreter_block(self, args):
         """Execute a interpreter block"""
-        from jinja2 import Template
-        # create template
-        template = Template("\n".join(self.content))
+        from jip.templates import render_template
         # create template context
         block_func = TemplateBlock(args, script=self.script)
         env = dict(args)
         env["jip"] = block_func
-        return template.render(env)
+        env['script'] = self.script
+        template = "\n".join(self.content)
+        return render_template(template, **env)
 
     def __str__(self):
         return "Block[type:'%s']" % self.type
@@ -442,7 +442,7 @@ class Script(object):
         and create a clean copy of the args map"""
         clean = {}
         for k, v in self.args.iteritems():
-            o = self._get_option(k)
+            o = self.get_option(k)
             if isinstance(v, dependency):
                 v = v.value
             clean[k] = v
@@ -459,18 +459,43 @@ class Script(object):
         valid = True
         exclude = set([] if not exclude else exclude)
         for k, v in self.args.iteritems():
-            o = self._get_option(k)
+            o = self.get_option(k)
             if o is None and k not in exclude:
                 valid = False
                 print >>sys.stderr, "Unknonwn option %s" % k
         return valid
 
-    def _get_option(self, name):
+    def get_value(self, opt):
+        if opt is None:
+            return None
+        name = opt
+        multi = None
+        if hasattr(opt, "name"):
+            name = opt.name
+            multi = opt.multiplicity
+        value = self.args.get(name, None)
+        if value is not None and multi is not None \
+                and isinstance(value, (list, tuple)) \
+                and multi == 1 and len(value) == 1:
+            value = value[0]
+        return value
+
+    def get_option(self, name):
         if name in self.inputs:
             return self.inputs[name]
         if name in self.outputs:
             return self.outputs[name]
         return self.options.get(name, None)
+
+    def get_script_option(self, name):
+        if not name in self.script_options:
+            name = name.replace("-", "")
+        if not name in self.script_options:
+            name = "-" + name
+        if not name in self.script_options:
+            name = "--" + name
+
+        return self.script_options.get(name, None)
 
     def __repr__(self):
         return self.name
@@ -488,6 +513,14 @@ class Option(object):
         self.value = None
         self.name = None
         self.multiplicity = 0
+
+    #def __str__(self):
+        #return self.__repr__()
+
+    def __repr__(self):
+        return "{Option:: name:%s short:%s long:%s multi:%s value:%s}" % \
+            (self.name, self.short, self.long, str(self.multiplicity),
+             str(self.value))
 
 
 class PythonClassScript(Script):
@@ -606,14 +639,14 @@ class PythonClassScript(Script):
         if self.decorator.get_command is not None:
             cmd_fun = getattr(self.instance, self.decorator.get_command)
             cmd = cmd_fun(self.args)
-            from jinja2 import Template
+            from jip.templates import render_template
             # create template
-            template = Template(cmd)
             # create template context
             block_func = TemplateBlock(self.args, script=self)
             env = dict(self.args)
             env["jip"] = block_func
-            return template.render(env)
+            env['script'] = self
+            return render_template(cmd, **env)
 
         import cPickle
         template = """

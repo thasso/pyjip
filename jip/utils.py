@@ -2,7 +2,7 @@
 """JIP utilities and helper functions"""
 
 from contextlib import contextmanager
-from jip import LOG_LEVEL, LOG_DEBUG
+from jip import log
 from os import walk, getcwd, getenv
 from os.path import exists, abspath, join, dirname, basename
 
@@ -30,19 +30,6 @@ def ignored(*exceptions):
         yield
     except exceptions:
         pass
-
-
-def log(msg, *args, **kwargs):
-    """Log a message to stderr and flush"""
-    level = kwargs.get("level", LOG_DEBUG)
-    if LOG_LEVEL > level:
-        return
-    import sys
-    from datetime import datetime
-    sys.stderr.write("[%s] " % datetime.now())
-    sys.stderr.write(str(msg) % args)
-    sys.stderr.write("\n")
-    sys.stderr.flush()
 
 
 def colorize(string, color):
@@ -151,9 +138,15 @@ def scan_modules():
     path = os.getenv("JIP_MODULES", None)
     if path is not None:
         for module in path.split(":"):
-            __import__(module)
+            try:
+                __import__(module)
+            except ImportError, e:
+                log.warn("Error while importing module: %s", str(e))
     for module in jip.configuration.get("jip_modules", []):
-            __import__(module)
+            try:
+                __import__(module)
+            except ImportError, e:
+                log.warn("Error while importing module: %s", str(e))
     return script_instance_cache
 
 

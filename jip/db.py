@@ -9,9 +9,8 @@ from sqlalchemy import Column, Integer, String, DateTime, \
 from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.ext.declarative import declarative_base
-
-from jip import LOG_LEVEL
-from jip.utils import parse_time, log
+from jip import log
+from jip.utils import parse_time
 
 
 # global instances
@@ -347,7 +346,7 @@ class Job(Base):
                 "PATH": getenv("PATH", ""),
                 "PYTHONPATH": getenv("PYTHONPATH", ""),
                 "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
-                "JIP_LOGLEVEL": str(LOG_LEVEL)
+                "JIP_LOGLEVEL": str(log._level)
             }
             job.cluster = cluster
             job.default_input = script.default_input

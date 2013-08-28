@@ -5,7 +5,7 @@ from os.path import exists
 import sys
 from functools import partial
 
-from jip.utils import find_script
+from jip.utils import find_script, flat_list
 
 
 def _dict_to_namedtupe(d):
@@ -158,6 +158,11 @@ class TemplateBlock(object):
                         self.error(name, 'Dependency value is None!')
                     return
         file_args = self.resolve(self.args[name], join=False, raw=True)
+        clean = []
+        for f in flat_list(file_args):
+            if isinstance(f, basestring):
+                clean.append(f)
+        file_args = clean
         if not isinstance(file_args, (list, tuple)):
             file_args = [file_args]
         map(partial(self.error, name, "file not found '%s'"),

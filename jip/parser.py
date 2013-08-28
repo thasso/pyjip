@@ -279,7 +279,7 @@ def parse_script_options(script):
             oo.name = name
             oo.value = value
             oo.long = o.long
-            oo.shor = o.short
+            oo.short = o.short
             if o.argcount > 0:
                 oo.multiplicity = 2 if isinstance(o.value, (list, tuple)) \
                     else 1
