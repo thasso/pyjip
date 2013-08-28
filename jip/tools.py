@@ -41,7 +41,7 @@ class Tool(object):
         :param options_source: either a string or an argparser instance
                                defaults to the class docstring
         """
-        self.name = None
+        self.name = name
         self.options = self._parse_options(
             options_source if options_source is not None else self.__doc__
         )
@@ -49,6 +49,9 @@ class Tool(object):
     def parse_args(self, args):
         """Parses the given argument. An excetion is raised if
         an error ocurres during argument parsing
+
+        :param args: the argument list
+        :type args: list of strings
         """
         self.options.parse(args)
 
