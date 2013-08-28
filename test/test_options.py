@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import pytest
 from jip.options import Option, Options, TYPE_OUTPUT, TYPE_INPUT, TYPE_OPTION
+from jip.options import ParserException
 
 
 def test_boolean_option():
@@ -188,7 +189,7 @@ def test_unkonw_argument():
                                [Default: stdout]
     """
     opts = Options.from_docopt(help_string)
-    with pytest.raises(Exception):
+    with pytest.raises(ParserException):
         opts.parse(['-x', 'testme'])
 
 
@@ -205,7 +206,8 @@ def test_call_to_help():
                                [Default: stdout]
     """
     opts = Options.from_docopt(help_string)
-    opts.parse(['-h'])
+    with pytest.raises(ParserException):
+        opts.parse(['-h'])
 
 
 def test_list_arguments_for_fan_out():
@@ -223,7 +225,7 @@ def test_list_arguments_for_fan_out():
     opts = Options.from_docopt(help_string)
     opts.parse(['-i', 'testme', 'testme2'])
     assert opts['input'].raw() == ['testme', 'testme2']
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         opts['input'].get()
 
 

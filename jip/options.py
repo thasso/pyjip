@@ -12,6 +12,30 @@ TYPE_INPUT = "input"
 TYPE_OUTPUT = "output"
 
 
+class ParserException(Exception):
+    """Exception raised by a the Options argument parser"""
+    def __init__(self, message, options, status=0):
+        """Create a new ParserException.
+
+        :param message: the message
+        :type message: string
+        :param options: the Options instance that raised the exception
+        :type options: jip.options.Options
+        :param status: status code
+        :type status: int
+        """
+        Exception.__init__(self, message)
+        self.options = options
+        self.status = status
+        self.msg = message
+
+    def __repr__(self):
+        return self.msg
+
+    def __str__(self):
+        return self.__repr__()
+
+
 class Option(object):
     """A script option covers the most basic information about a
     script option. This covers the following attributes::
@@ -23,7 +47,6 @@ class Option(object):
         nargs        number of arguments, supports 0, 1, + and *
         default      optional default value
         value        list of current values for this option
-        description  optional description
         required     the option needs to be specified
         hidden       the option is hidden on the command line
         join         optional join character for list options
@@ -33,7 +56,7 @@ class Option(object):
     Please note that values are always represented as a list.
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
-                 default=None, value=None, description=None, required=False,
+                 default=None, value=None, required=False,
                  hidden=False, join=" ", option_type=TYPE_OPTION):
         self.name = name
         self.short = short
@@ -42,11 +65,11 @@ class Option(object):
         self.option_type = option_type
         self.nargs = nargs
         self.default = default
-        self.description = description
         self.required = required
         self.hidden = hidden
         self.join = join
         self.nargs = nargs
+        self.source = None
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0
@@ -57,6 +80,15 @@ class Option(object):
                     self.nargs = "*"
 
         self.value = value if value is not None else default
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['source']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.source = ""
 
     @property
     def value(self):
@@ -106,7 +138,8 @@ class Option(object):
             ## single value
             v = None if len(self.value) == 0 else self.value[0]
             if v is None and self.required:
-                raise ValueError("Option '%s' is required but not set!")
+                raise ValueError("Option '%s' is required but "
+                                 "not set!" % (self._opt_string()))
             return self.__resolve(v) if v else ""
         else:
             return self.join.join([self.__resolve(v) for v in self.value])
@@ -133,11 +166,22 @@ class Option(object):
         """
         if self.required:
             if self.nargs != 0 and len(self.value) == 0:
-                raise ValueError("Option '%s' is reqired but not set!")
+                raise ValueError("Option %s is required but not set!" %
+                                 self._opt_string())
 
     def _is_list(self):
         """Return true if the current value is a list"""
         return self.nargs != 0 and self.nargs != 1
+
+    def _opt_string(self):
+        """Return a string representation of the options, i.e. -t/--test"""
+        if self.short and self.long:
+            return "%s/%s" % (self.short, self.long)
+        elif self.short:
+            return self.short
+        elif self.long:
+            return self.long
+        return self.name
 
     def __str__(self):
         """Return the command line representation for this option. An
@@ -164,17 +208,49 @@ class Option(object):
 
 
 class Options(object):
-    """Container instance for a set of options"""
+    """Container instance for a set of options.
+    If a source is specified, this becomes the source instance
+    for all options added.
+    """
 
-    def __init__(self):
+    def __init__(self, source=None):
         self.options = []
         self._usage = ""
         self._help = ""
+        self.source = source
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_usage']
+        del state['_help']
+        del state['source']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._usage = ""
+        self._help = ""
+        self.source = None
+
+    def get_by_type(self, options_type):
+        """Generator function that yields all
+        options of the specified type. The type
+        should be one of TYPE_OUTPUT, TYPE_INPUT or
+        TYPE_OPTION.
+
+        :param options_type: the type
+        :type options_type: string
+        """
+        for opt in self.options:
+            if opt.option_type == options_type:
+                yield opt
 
     def usage(self):
+        """Returns the usage message"""
         return self._usage
 
     def help(self):
+        """Returns the help message"""
         return self._help
 
     def __index(self, name):
@@ -200,18 +276,37 @@ class Options(object):
         return len(self.options)
 
     def add(self, option):
+        """Adds an options to the options set and raises an
+        exception if such option already exists.
+
+        The source is applied to an option added.
+
+        :para option: the option to add to the set
+        :type option: jip.options.Option
+        """
         i = self.__index(option.name)
         if i >= 0:
             raise ValueError("Option with the name '%s' already exists",
                              option.name)
         self.options.append(option)
+        option.source = self.source
 
     def validate(self):
         """Validate all options"""
         map(Option.validate, self.options)
 
     def parse(self, args):
-        """Parse the given arguments"""
+        """Parse the given arguments and full the options values.
+        A ParserException is raised if help is requested (-h or --help)
+        or if an option error occurs. The exceptions error message
+        is set accordingly.
+
+        The given args list should contain all command line argument to
+        parse without the programm name
+
+        :param args: the arguments
+        :type args: list
+        """
         from argparse import ArgumentParser
 
         def to_opts(o):
@@ -236,14 +331,21 @@ class Options(object):
 
         # Override the argparse error function to
         # raise an exception rather than calling a system.exit
-        def _custom_error(self, message=None):
+        def _custom_error(parser, message=None):
             if message is None:
-                message = str(self)
-            raise Exception(message)
-        def _custom_exit(self, status=0, message=None):
-            raise Exception(message)
+                message = str(parser)
+            raise ParserException(message, self, 1)
 
-        parser.error = _custom_exit
+        def _custom_exit(parser=None, status=0, message=None):
+            raise ParserException(self.help(), self, status)
+
+        def _disable_print_help(self=None):
+            pass
+
+        parser.error = _custom_error
+        parser.exit = _custom_exit
+        parser.print_help = _disable_print_help
+
         namespace = parser.parse_args(args)
         parsed = vars(namespace)
         if "help" in parsed:
@@ -254,14 +356,14 @@ class Options(object):
         return parsed
 
     @classmethod
-    def from_argparse(cls, parser, inputs=None, outputs=None):
+    def from_argparse(cls, parser, inputs=None, outputs=None, source=None):
         """Create Options from a given argparse parser
         The inputs and outputs can be set to options names to
         set a specific type
         """
         from StringIO import StringIO
 
-        opts = cls()
+        opts = cls(source=source)
         buf = StringIO()
         parser.print_usage(buf)
         opts._usage = buf.getvalue().strip()
@@ -296,13 +398,12 @@ class Options(object):
                 short=short,
                 nargs=action.nargs,
                 required=action.required,
-                description=action.help,
                 value=action.default if action.dest != "help" else False,
             ))
         return opts
 
     @classmethod
-    def from_docopt(cls, doc, inputs=None, outputs=None):
+    def from_docopt(cls, doc, inputs=None, outputs=None, source=None):
         """Create Options from a help string using docopt
         The inputs and outputs can be set to options names to
         set a specific type
@@ -313,7 +414,7 @@ class Options(object):
 
         inputs = inputs if inputs else []
         outputs = outputs if outputs else []
-        opts = cls()
+        opts = cls(source=source)
 
         usage_sections = docopt.parse_section('usage:', doc)
         if len(usage_sections) == 0:
@@ -325,6 +426,7 @@ class Options(object):
         opts._help = doc
 
         def to_name(pattern):
+            """Convert pattern name to option name"""
             name = pattern.name
             if name.startswith("<"):
                 name = name[1:-1]
@@ -334,6 +436,9 @@ class Options(object):
                 name = name[1:]
             return name
 
+        ####################################################################
+        # collect teh options and note their state
+        ####################################################################
         options = docopt.parse_defaults(doc)
         type_inputs = docopt.parse_defaults(doc, "inputs:")
         options += type_inputs
@@ -414,5 +519,4 @@ class Options(object):
                     default=pattern.value,
                     option_type=option_type
                 ))
-
         return opts
