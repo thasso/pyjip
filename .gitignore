@@ -6,3 +6,4 @@ jip.egg-info
 *.iml
 dist/
 Makefile.*
+.ropeproject/
