@@ -2,6 +2,7 @@
 """The tools moduel contains the base classes
 for executable tools
 """
+import copy
 from textwrap import dedent
 from os import remove
 from os.path import exists
@@ -158,3 +159,17 @@ class Tool(object):
 
     def __str__(self):
         return self.__repr__()
+
+    def clone(self, counter=None):
+        """Clones this instance of the tool and returns the clone. If the
+        optional counter is profiled, the name of the cloned tool will be
+        updated using .counter as a suffix.
+        """
+        cloned_tool = copy.deepcopy(self)
+        if cloned_tool.name and counter is not None:
+            cloned_tool.name = "%s.%d" % (cloned_tool.name, str(counter))
+        # update the options source
+        cloned_tool.options.source = cloned_tool
+        for o in cloned_tool.options:
+            o.source = cloned_tool
+        return cloned_tool

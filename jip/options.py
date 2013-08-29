@@ -83,7 +83,7 @@ class Option(object):
         self.value = value if value is not None else default
         ## we set streamable base on the default value
         if self.streamable is None and self.default is not None \
-           and not self._is_list():
+           and not self.is_list():
             self.streamable = self.__is_stream(self.default)
 
     def __getstate__(self):
@@ -94,6 +94,14 @@ class Option(object):
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.source = ""
+
+    def __repr__(self):
+        return "Option[%s:%s]" % (self.name, str(self.source) if self.source
+                                  else "<no-source>")
+
+    def __len__(self):
+        """Return the number of elements currently assigned to this option"""
+        return len(self._value) if self._value is not None else 0
 
     @property
     def value(self):
@@ -180,8 +188,8 @@ class Option(object):
                 raise ValueError("Option %s is required but not set!" %
                                  self._opt_string())
 
-    def _is_list(self):
-        """Return true if the current value is a list"""
+    def is_list(self):
+        """Return true if this option takes lists of values"""
         return self.nargs != 0 and self.nargs != 1
 
     def _opt_string(self):
@@ -212,10 +220,15 @@ class Option(object):
         return "%s %s" % (self._get_opt(), value)
 
     def __eq__(self, other):
-        return isinstance(other, Option) and self.name == other.name
+        if not isinstance(other, Option):
+            return False
+        return self.name == other.name
 
     def __hash__(self):
-        return self.name.__hash__()
+        if self.source is None:
+            return self.name.__hash__()
+        else:
+            return hash((self.name, self.source))
 
 
 class Options(object):
@@ -242,6 +255,28 @@ class Options(object):
         self._usage = ""
         self._help = ""
         self.source = None
+
+    def __iter__(self):
+        for opt in self.options:
+            yield opt
+
+    def get_default_output(self):
+        """Returns the first output option that is
+        found in the list of options. If no output
+        option is found, a LookupError is raised
+        """
+        for opt in self.get_by_type(TYPE_OUTPUT):
+            return opt
+        raise LookupError("No default output option found")
+
+    def get_default_input(self):
+        """Returns the first input option that is
+        found in the list of options. If no input
+        option is found, a LookupError is raised
+        """
+        for opt in self.get_by_type(TYPE_INPUT):
+            return opt
+        raise LookupError("No default input option found")
 
     def get_by_type(self, options_type):
         """Generator function that yields all
