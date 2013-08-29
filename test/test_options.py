@@ -255,3 +255,19 @@ def test_argparse_parser_usage():
     opts = Options.from_argparse(p)
     assert opts.usage() == "usage: py.test [-h] [-t] [-i INPUT] "\
                            "-o [OUTPUT [OUTPUT ...]]"
+
+
+def test_streamable_from_default_no_list():
+    help_string = """\
+    Some Tool
+
+    Usage: tools [-i <input>] -o <output>
+
+    Options:
+        -i, --input <input>    The input
+                               [Default: stdin]
+        -o, --output <output>  The output
+    """
+    opts = Options.from_docopt(help_string)
+    assert not opts['output'].streamable
+    assert opts['input'].streamable

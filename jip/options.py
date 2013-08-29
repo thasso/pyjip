@@ -50,13 +50,14 @@ class Option(object):
         required     the option needs to be specified
         hidden       the option is hidden on the command line
         join         optional join character for list options
+        streamable   true if this option can take a stream as input
         option_type  the option type, one of TYPE_OPTION, TYPE_INPUT,
                      TYPE_OUTPUT
 
     Please note that values are always represented as a list.
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
-                 default=None, value=None, required=False,
+                 default=None, value=None, required=False, streamable=False,
                  hidden=False, join=" ", option_type=TYPE_OPTION):
         self.name = name
         self.short = short
@@ -70,6 +71,7 @@ class Option(object):
         self.join = join
         self.nargs = nargs
         self.source = None
+        self.streamable = streamable
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0
@@ -78,8 +80,11 @@ class Option(object):
                     self.nargs = 1
                 else:
                     self.nargs = "*"
-
         self.value = value if value is not None else default
+        ## we set streamable base on the default value
+        if self.streamable is None and default is not None \
+           and not self._is_list():
+            self.streamable = isinstance(default, file)
 
     def __getstate__(self):
         state = self.__dict__.copy()
