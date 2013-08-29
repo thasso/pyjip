@@ -131,7 +131,7 @@ class Tool(object):
             if opt.source is not None and opt.source != self:
                 continue
             for value in opt._value:
-                if not isinstance(value, file):
+                if isinstance(value, basestring):
                     yield value
 
     def get_input_files(self):
@@ -144,7 +144,7 @@ class Tool(object):
             if opt.source is not None and opt.source != self:
                 continue
             for value in opt._value:
-                if not isinstance(value, file):
+                if isinstance(value, basestring):
                     yield value
 
     def help(self):

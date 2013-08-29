@@ -57,7 +57,7 @@ class Option(object):
     Please note that values are always represented as a list.
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
-                 default=None, value=None, required=False, streamable=False,
+                 default=None, value=None, required=False, streamable=None,
                  hidden=False, join=" ", option_type=TYPE_OPTION):
         self.name = name
         self.short = short
@@ -65,7 +65,7 @@ class Option(object):
         self.type = type
         self.option_type = option_type
         self.nargs = nargs
-        self.default = default
+        self.default = self.__resolve_default(default)
         self.required = required
         self.hidden = hidden
         self.join = join
@@ -82,9 +82,9 @@ class Option(object):
                     self.nargs = "*"
         self.value = value if value is not None else default
         ## we set streamable base on the default value
-        if self.streamable is None and default is not None \
+        if self.streamable is None and self.default is not None \
            and not self._is_list():
-            self.streamable = isinstance(default, file)
+            self.streamable = self.__is_stream(self.default)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -161,9 +161,15 @@ class Option(object):
     def __resolve(self, v):
         """Helper to resolve a single value to its string representation
         """
-        if isinstance(v, bool) or isinstance(v, file):
+        if isinstance(v, bool) or self.__is_stream(v):
             return ""
         return str(v)
+
+    def __is_stream(self, v):
+        """Reaturns true if v is a stream or stream like"""
+        if v and (isinstance(v, file) or hasattr(v, 'fileno')):
+            return True
+        return False
 
     def validate(self):
         """Validate the option and raise a ValueError if the option
