@@ -86,6 +86,33 @@ class Pipeline(object):
                 if count[successor] == 0:
                     ready.append(successor)
 
+    def groups(self):
+        """Sorts the nodes in topological order and than groups nodes
+        together if they have a dependency and at least one of the dependecy
+        options is set for streaming.
+
+        Yields lists of nodes. Each list represents a group of tools that
+        need to be executed in parallel to be able to pipe all streams.
+        """
+        resolved = set([])
+        group = []
+
+        def resolve_streaming_dependencies(node):
+            for e in node.outgoing():
+                if e._has_streaming_link():
+                    resolved.add(e._target)
+                    group.append(e._target)
+                    resolve_streaming_dependencies(e._target)
+
+        for node in self.topological_order():
+            if node in resolved:
+                continue
+            group.append(node)
+            resolved.add(node)
+            resolve_streaming_dependencies(node)
+            yield group
+            group = []
+
     def expand(self):
         """This modifies the current graph state and applies fan_out
         oprations on nodes with singleton options that are populated with
@@ -434,6 +461,13 @@ class Edge(object):
                 allow_stream and source_option.streamable and
                 target_option.streamable)
         self._links.add(link)
+
+    def _has_streaming_link(self):
+        """Returns true if a least one link is set to streaming"""
+        for l in self._links:
+            if l[2]:
+                return True
+        return False
 
     def __eq__(self, other):
         return isinstance(other, Edge) and other._source == self._source \

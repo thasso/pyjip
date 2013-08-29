@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import pytest
-from jip.tools import Tool, ValidationError
+from jip.tools import Tool, ValidationError, ScriptTool
 from jip.options import ParserException
 
 
@@ -79,3 +79,14 @@ def test_tool_validate_input_file_not_found():
     with pytest.raises(ValidationError) as execinfo:
         tool.validate()
     assert str(execinfo.value) == "tools: Input file not found: unknown"
+
+
+def test_load_script_block_from_string():
+    script = ScriptTool.from_string(
+        """#!/bin/bash
+#Simple tool
+#
+#Usage: simple [-i <input>]
+cat ${input}
+        """)
+    assert script is not None

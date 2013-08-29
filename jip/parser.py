@@ -9,7 +9,7 @@ import re
 from jip.utils import flat_list
 import jip.vendor.docopt as opt
 from jip.model import Script, Block, ScriptError, \
-    VALIDATE_BLOCK, COMMAND_BLOCK, SUPPORTED_BLOCKS
+    VALIDATE_BLOCK, COMMAND_BLOCK, SUPPORTED_BLOCKS, PIPELINE_BLOCK
 
 # the pattern to find opening blocks catching
 # #%begin [<type> [<interpreter> [<args>]]]
@@ -51,7 +51,7 @@ def split_header(lines):
     return header, content
 
 
-def parse_block_begin(l, lineno):
+def parse_block_begin(l):
     """Check if the given line opens a block. If a block is opened,
     a new block is created and returned"""
     match = _begin_block_pattern.match(l)
@@ -64,10 +64,8 @@ def parse_block_begin(l, lineno):
         if not m['type'] in SUPPORTED_BLOCKS:
             raise ScriptError("Block type '%s' not supported" % m['type'])
         interpreter = m['interpreter'] if m['interpreter'] != '' else None
-        if interpreter is None and m['type'] == VALIDATE_BLOCK:
-            interpreter = "python"
-        return Block(m['type'], interpreter, m['args'], lineno=lineno)
-    return None
+        return m['type'], interpreter, m['args']
+    return None, None, None
 
 
 def parse_block_end(l, current_block):
@@ -259,6 +257,67 @@ def parse_script(path=None, script_class=Script, lines=None,
     if args is not None:
         script.args.update(args)
     return script
+
+
+def load(content):
+    from jip.tools import Block
+    lines = content.split("\n")
+    header, content = split_header(lines)
+    num_header_lines = len(header) + 1
+
+    blocks = {}
+    current_block = None
+    current_type = COMMAND_BLOCK
+    anonymous_block = False
+    for lineno, l in enumerate(content):
+        if len(l.strip()) == 0:
+            continue
+        block_type, interpreter, args = parse_block_begin(l)
+        if block_type:
+            if anonymous_block:
+                blocks[current_type] = current_block
+                current_block = None
+                current_type = block_type
+                anonymous_block = False
+            if current_block:
+                raise ScriptError("Nested blocks are not supported! Currently "
+                                  "open block is '%s'" % current_block)
+            current_block = Block([], interpreter,
+                                  lineno=lineno + num_header_lines + 1)
+        elif parse_block_end(l, current_block):
+            blocks[current_type] = current_block
+            current_block = None
+            current_type = block_type
+            anonymous_block = False
+        elif current_block is not None:
+            current_block.content.append(l)
+        else:
+            # create anonymous bash block
+            current_block = Block([], "bash",
+                                  lineno=lineno + num_header_lines + 1)
+            current_block.content.append(l)
+            anonymous_block = True
+    if current_block is not None:
+        # close anonymous blocks
+        blocks[current_type] = current_block
+
+    command_block = blocks.get(COMMAND_BLOCK, None)
+    validate_block = blocks.get(VALIDATE_BLOCK, None)
+    pipeline_block = blocks.get(PIPELINE_BLOCK, None)
+    for block in [command_block, validate_block, pipeline_block]:
+        if block:
+            block.content = "\n".join(command_block.content)
+    return parse_doc_string(header), command_block, validate_block, pipeline_block
+
+
+def loads(path):
+    if path is not None and not os.path.exists(path):
+        raise ScriptError("Script file not found : %s" % path)
+    if path is not None and lines is None:
+        with open(path, 'r') as f:
+            lines = "\n".join([l.rstrip() for l in f.readlines()])
+    return load(lines)
+
 
 
 def parse_script_options(script):

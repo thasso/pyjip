@@ -260,6 +260,13 @@ class Options(object):
         for opt in self.options:
             yield opt
 
+    def to_dict(self):
+        """Convert the options to a dictionary pointing to the raw values"""
+        r = {}
+        for o in self.options:
+            r[o.name] = o.raw()
+        return r
+
     def get_default_output(self):
         """Returns the first output option that is
         found in the list of options. If no output
