@@ -586,8 +586,9 @@ class PythonClassScript(Script):
                 self.args[o.name] = o.value
                 self.script_options[o.name] = o
         else:
-            from jip.parser import parse_script_options
-            parse_script_options(self)
+            #from jip.parser import parse_script_options
+            #parse_script_options(self)
+            pass
 
         if self.add_outputs:
             for out in self.add_outputs:

@@ -4,13 +4,17 @@ for executable tools
 """
 import copy
 from textwrap import dedent
-from os import remove
-from os.path import exists
+from os import remove, getcwd, getenv
+from os.path import exists, basename
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template
+from jip.utils import list_dir, log
 
 
+#########################################################
+# Exceptions
+#########################################################
 class ValidationError(Exception):
     """Exception raised in validation steps. The exception
     carries the source tool and a message.
@@ -26,16 +30,112 @@ class ValidationError(Exception):
         return self.__repr__()
 
 
+#########################################################
+# decorators
+#########################################################
+class tool(object):
+    def __init__(self, name, inputs=None, outputs=None, argparse=None,
+                 get_command=None, validate=None, add_outputs=None,
+                 pipeline=None):
+        self.name = name
+        self.inputs = inputs
+        self.outputs = outputs
+        self.argparse = argparse
+        self.get_command = get_command
+        self.validate = validate
+        self.add_outputs = add_outputs
+        self.pipeline = pipeline
+
+    def __call__(self, cls):
+        Scanner.register[self.name] = PythonTool(cls, self,
+                                                 self.add_outputs)
+        return cls
+
+
+class Scanner():
+    """
+    This class holds a script/tool cache
+    The cache is organized in to dicts, the script_cache, which
+    store name->instance pairs pointing form the name of the tool
+    to its cahced instance. The find implementations will return
+    clones of the instances in the cache.
+    """
+    registry = {}
+
+    def __init__(self, jip_path=None, jip_modules=None):
+        self.instances = None
+        self.jip_path = jip_path if jip_path else ""
+        self.jip_modules = jip_modules if jip_modules else []
+
+    def find(self, name, path=None):
+        if self.instances is None:
+            self.scan()
+
+        tool = self.instances.get(name, None)
+        if tool is None:
+            raise LookupError("No tool named '%s' found!" % name)
+        if isinstance(tool, basestring):
+            ## the tool is not loaded, load the script,
+            ## and add it to the cache
+            tool = ScriptTool.from_file(tool)
+            self.instances[name] = tool
+        return tool.clone()
+
+    def scan(self, path=None):
+        self.instances = dict(Scanner.registry)
+        self._scan_files(path=path)
+        self._scan_modules()
+
+    def _scan_files(self, parent=None):
+        import re
+        pattern = re.compile(r'^.*(.jip)$')
+        if parent:
+            for path in self.__search(parent, pattern):
+                self.instances[basename(path)] = path
+
+        #check cwd
+        for path in self.__search(getcwd(), pattern):
+            self.instances[basename(path)] = path
+
+        jip_path = "%s:%s" % (self.jip_path, getenv("JIP_PATH", ""))
+        for folder in jip_path.split(":"):
+            for path in self.__search(folder, pattern):
+                self.instances[basename(path)] = path
+
+    def __search(self, folder, pattern):
+        for path in list_dir(folder):
+            if pattern.match(path):
+                yield path
+
+    def _scan_modules(self):
+        path = getenv("JIP_MODULES", "")
+        for module in path.split(":") + self.jip_modules:
+            try:
+                __import__(module)
+            except ImportError, e:
+                log.warn("Error while importing module: %s", str(e))
+
+        for module in self.jip_modules:
+            try:
+                __import__(module)
+            except ImportError, e:
+                log.warn("Error while importing module: %s", str(e))
+
+
 class Block(object):
     """Base class for executable blocks that can render themselfes to scripts
     and provide information about the interpreter that should be used to
     run the script.
     """
-    def __init__(self, content, interpreter="bash", lineno=0):
+    def __init__(self, content=None, interpreter=None, interpreter_args=None,
+                 lineno=0):
         self._lineno = lineno
         self.interpreter = interpreter
         self._process = None
         self.content = content
+        if self.content is None:
+            self.content = []
+        self.interpreter_args = interpreter_args
 
     def run(self, tool, stdin=None, stdout=None):
         """Execute this block
@@ -48,8 +148,11 @@ class Block(object):
         try:
             script_file.write(self.render(tool))
             script_file.close()
+            cmd = [self.interpreter if self.interpreter else "bash"]
+            if self.interpreter_args:
+                cmd += self.interpreter_args
             self.process = subprocess.Popen(
-                [self.interpreter, script_file.name],
+                cmd + [script_file.name],
                 stdin=stdin,
                 stdout=stdout
             )
@@ -64,6 +167,9 @@ class Block(object):
     def render(self, tool):
         """Execute this block
         """
+        content = self.content
+        if isinstance(content, (list, tuple)):
+            content = "\n".join(content)
         ctx = tool.options.to_dict()  # all tool options go into the context
         render_template(self.content, **ctx)
 
@@ -85,6 +191,31 @@ class Block(object):
 
     def __str__(self):
         return "Block['%s']" % self.interpreter
+
+
+class PythonBlock(Block):
+    """Extends block and runs the content as embedded python
+    """
+    def __init__(self, content=None, lineno=0):
+        Block.__init__(self, content=content, lineno=lineno)
+        self.interpreter = "__embedded__"
+
+    def run(self, tool, stdin=None, stdout=None):
+        """Execute this block as an embedded python script
+        """
+        tmpl = self.render(tool)
+        env = {
+            "tool": tool,
+            "args": tool.options.to_dict()
+        }
+        exec tmpl in locals(), env
+        return env
+
+    def terminate(self):
+        pass
+
+    def __str__(self):
+        return "PythonBlock"
 
 
 class Tool(object):
@@ -118,21 +249,33 @@ class Tool(object):
         """
         self.options.parse(args)
 
-    def _parse_options(self, options_source):
+    def _parse_options(self, options_source, inputs=None, outputs=None):
         """Initialize the options from the docstring or an argparser.
         In addition to the options, the function tries to deduce a tool
-        name if none was specified at construction time
+        name if none was specified at construction time.
+
+        Optional inputs and outputs lists can be specified. Both must
+        be lists of strings containing option names. If the option is found
+        the option type is set accordingly to input or output. This is
+        usefull if the options are not organized in groups and the
+        parser can not automatically identify the options type.
 
         :param options_source: ther a docstring or an argparser instance
         :type options_source: string or argparse.ArgumentParser
+        :param inputs: list of option names that will be marked as inputs
+        :type inputs: list of strings
+        :param outputs: list of option names that will be marked as outputs
+        :type outputs: list of strings
         """
         if options_source is None:
             raise Exception("No docstring or argument parser provided!")
         opts = None
         if not isinstance(options_source, basestring):
-            opts = Options.from_argparse(options_source, source=self)
+            opts = Options.from_argparse(options_source, source=self,
+                                         inputs=inputs, outputs=outputs)
         else:
-            opts = Options.from_docopt(options_source, source=self)
+            opts = Options.from_docopt(options_source, source=self,
+                                       inputs=inputs, outputs=outputs)
         if self.name is None:
             import re
             match = re.match(r'usage:\s*\n*(\w+).*', opts.usage(),
@@ -283,7 +426,9 @@ class PythonTool(Tool):
             import textwrap
             options_source = textwrap.dedent(self.instance.__doc__)
         # create the options
-        self.options = self._parse_options(options_source)
+        self.options = self._parse_options(options_source,
+                                           inputs=decorator.inputs,
+                                           outputs=decorator.outputs)
         ## add additional output arguments
         if add_outputs is not None:
             for arg in add_outputs:
@@ -307,7 +452,7 @@ class PythonTool(Tool):
         Tool.validate(self)
         if self.decorator.validate:
             validate_fun = getattr(self.instance, self.decorator.validate)
-            validate_fun(self.args)
+            validate_fun(self)
 
     def get_command(self):
         if self.decorator.get_command is not None:
@@ -330,8 +475,16 @@ cPickle.loads(source).run();
 
 class ScriptTool(Tool):
     """An extension of the tool class that is initialized
-    with a docstring and operates on Blocks that can be loaded
+    with a docstring and operates on Blocks that can be loade
     form a script file or from string.
+
+    If specified as initializer parameters, both the validation and the
+    pipeline block will be handled with special care.
+    Pipeline blocks currently can only be embedded python block. Therefore
+    the interpreter has to be 'python'. Validation blocks where the
+    interpreter is 'python' will be converted to embedded python blocks. This
+    allows the validation process to modify the tool and its arguments during
+    validation.
     """
     def __init__(self, docstring, command_block=None,
                  validation_block=None, pipeline_block=None):
@@ -339,6 +492,23 @@ class ScriptTool(Tool):
         self.command_block = command_block
         self.validation_block = validation_block
         self.pipeline_block = pipeline_block
+        if self.pipeline_block:
+            if self.pipeline_block.interpreter is not None and \
+                    self.pipeline_block.interpreter != 'pythons':
+                raise Exception("Pipeline blocks have to be implemented in "
+                                "python! Sorry about that, but its realy a "
+                                "nice language :)")
+            self.pipeline_block = PythonBlock(
+                lineno=self.pipeline_block.lineno,
+                content=self.pipeline_block.content
+            )
+        if self.validation_block and \
+                (self.validation_block.interpreter is None or
+                 self.validate_block.interpreter == 'python'):
+            self.validate_block = PythonBlock(
+                lineno=self.validation_block.lineno,
+                content=self.validation_block.content
+            )
 
     def pipeline(self):
         if self.pipeline_block:
@@ -350,9 +520,17 @@ class ScriptTool(Tool):
             self.command_block.run(self)
 
     def validate(self):
-        Tool.validate(self)
         if self.validation_block:
-            self.validation_block.run(self)
+            result = self.validation_block.run(self)
+            if result:
+                args = result.get('args', None)
+                if args:
+                    ## update the options
+                    for opt in self.options:
+                        if opt.name in args:
+                            opt.value = args[opt.name]
+
+        Tool.validate(self)
 
     def get_command(self):
         if self.command_block:
@@ -362,7 +540,9 @@ class ScriptTool(Tool):
     @classmethod
     def from_string(cls, content):
         from jip.parser import load
-        doc_string, cmd, val, pipe = load(content)
-        print ">>>", doc_string
-        return cls(dedent(doc_string), command_block=cmd,
-                   validation_block=val, pipeline_block=pipe)
+        return load(content, script_class=cls)
+
+    @classmethod
+    def from_file(cls, path):
+        from jip.parser import loads
+        return loads(path, script_class=cls)
