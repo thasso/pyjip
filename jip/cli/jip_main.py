@@ -43,7 +43,7 @@ def main():
     args = docopt(__doc__, version=str(jip.__version__),
                   options_first=True, help=True)
     if args['--loglevel']:
-        jip.log_level = args['--loglevel']
+        jip.log.level = args['--loglevel']
     cmd = args['<command>']
     if not cmd:
         sys.stderr.write("\nNo command specified \n\n")
@@ -59,7 +59,6 @@ def main():
         sys.argv = argv  # reset options
         runpy.run_module("jip.cli.jip_%s" % cmd, run_name="__main__")
     except ImportError:
-        raise
         # check interpreter mode
         import os
         if os.path.exists(cmd):

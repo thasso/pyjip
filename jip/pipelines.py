@@ -187,7 +187,9 @@ class Pipeline(object):
                     for link in e._links:
                         new_edge.add_link(link[0],
                                           cloned_tool.options[link[1].name])
-                cloned_node.__setattr__(option.name, opts[j])
+                cloned_node.set(option.name, opts[j], set_dep=False)
+                ooo = cloned_node._tool.options[option.name]
+                ooo.dependecy = option.dependecy
             # update all children
             for child in cloned_node.children():
                 child.update_options()
@@ -320,27 +322,33 @@ class Node(object):
             return opt
         raise AttributeError("Attribute not found: %s" % name)
 
-    def __setattr__(self, name, value):
+    def set(self, name, value, set_dep=False):
+        """Set an option"""
         opt = self.__getattr__(name)
-        self._set_option_value(opt, value)
+        self._set_option_value(opt, value, set_dep=set_dep)
+
+    def __setattr__(self, name, value):
+        self.set(name, value)
 
     def _set_option_value(self, option, value, append=False,
-                          allow_stream=True):
+                          allow_stream=True, set_dep=True):
         if isinstance(value, (list, tuple)):
             # if the value is a list, set the value to None
             # first to clear the list and then append all
             # values in the list
             if not append:
-                self._set_singleton_option_value(option, None)
+                self._set_singleton_option_value(option, None, set_dep=set_dep)
             for single in value:
                 self._set_singleton_option_value(option, single, append=True,
-                                                 allow_stream=allow_stream)
+                                                 allow_stream=allow_stream,
+                                                 set_dep=set_dep)
         else:
             self._set_singleton_option_value(option, value, append=append,
-                                             allow_stream=allow_stream)
+                                             allow_stream=allow_stream,
+                                             set_dep=set_dep)
 
     def _set_singleton_option_value(self, option, value, append=False,
-                                    allow_stream=True):
+                                    allow_stream=True, set_dep=True):
         """Set a singlto value of the given options and create
         an edge and an option link on the edge if the value is another option
         or another node.
@@ -361,6 +369,7 @@ class Node(object):
         if isinstance(value, Option):
             # the value is an options, we pass on the Options
             # value and create/update the edge
+            option.dependecy = True
             if not append:
                 option.value = value.raw()
             else:
@@ -373,6 +382,8 @@ class Node(object):
             edge.add_link(value, option, allow_stream=allow_stream)
         else:
             if not append:
+                #if set_dep:
+                    #option.dependecy = False
                 option.value = value
             else:
                 option.value = option.value + [value]

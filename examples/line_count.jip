@@ -19,12 +19,11 @@
 
 
 #%begin validate python
-jip.check_file("input")
-jip["valid"] = "Yes"
+check_file("input")
 #%end validate
 
 #%begin command bash
-r=$(wc {{ jip.if_not("a", "-l") }} {{ jip.if("input") }} {{ jip.if("output", prefix=">") }})
+r=$(wc ${input} ${output|arg(">")})
 echo "ERR OF ${JIP_ID}:"$r 1>&2
 echo "ID: ${JIP_ID} IN ${JIP_JB}"
 #%end command

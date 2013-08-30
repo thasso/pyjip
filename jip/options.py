@@ -72,6 +72,7 @@ class Option(object):
         self.nargs = nargs
         self.source = None
         self.streamable = streamable
+        self.dependency = False
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0
@@ -102,6 +103,9 @@ class Option(object):
     def __len__(self):
         """Return the number of elements currently assigned to this option"""
         return len(self._value) if self._value is not None else 0
+
+    def is_dependency(self):
+        return self.dependency
 
     @property
     def value(self):
@@ -202,7 +206,7 @@ class Option(object):
             return self.long
         return self.name
 
-    def __str__(self):
+    def to_cmd(self):
         """Return the command line representation for this option. An
         excption is raised if the option setting is not valid. Hidden options
         are represented as empty string. Boolean options where the value is
@@ -218,6 +222,9 @@ class Option(object):
         if not value:
             return ""
         return "%s %s" % (self._get_opt(), value)
+
+    def __str__(self):
+        return self.get()
 
     def __eq__(self, other):
         if not isinstance(other, Option):
@@ -260,11 +267,14 @@ class Options(object):
         for opt in self.options:
             yield opt
 
-    def to_dict(self):
+    def to_dict(self, raw=False):
         """Convert the options to a dictionary pointing to the raw values"""
         r = {}
         for o in self.options:
-            r[o.name] = o.raw()
+            if not raw:
+                r[o.name] = o.raw()
+            else:
+                r[o.name] = o
         return r
 
     def get_default_output(self):
@@ -373,6 +383,8 @@ class Options(object):
             return opts
         parser = ArgumentParser()
         for o in self.options:
+            if o.name == "help":
+                continue
             opts = to_opts(o)
             if o.nargs == 0:
                 ## create boolean
@@ -396,7 +408,7 @@ class Options(object):
         def _custom_error(parser, message=None):
             if message is None:
                 message = str(parser)
-            raise ParserException(message, self, 1)
+            raise ParserException("%s :: %s" % (self.source, message), self, 1)
 
         def _custom_exit(parser=None, status=0, message=None):
             raise ParserException(self.help(), self, status)

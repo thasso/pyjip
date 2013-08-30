@@ -21,7 +21,7 @@ Other Options:
 import sys
 
 from . import parse_args
-from jip import find, create_jobs, run_job, ValidationError
+from jip import find, create_jobs, run_job, ValidationError, ParserException
 
 
 def main(argv=None):
@@ -45,6 +45,10 @@ def main(argv=None):
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
+    except ParserException, va:
+        sys.stderr.write(str(va))
+        sys.stderr.write("\n")
+        sys.exit(va.status)
     except Exception:
         raise
 

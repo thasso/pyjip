@@ -18,9 +18,7 @@
 
 
 #%begin validate python
-jip.check_file("input")
+check_file("input")
 #%end validate
 
-({{ jip.if("cmd") }}) {{ jip.if("output", prefix=">") }}
-
-
+(${cmd})${output|arg(">")}

@@ -34,13 +34,13 @@ class Logger(object):
         levels = ["ERROR", "WARN", "INFO", "DEBUG"]
         i = levels.index(name)
         if i == 0:
-            self._level = Logger.LOG_ERROR
+            self._level = Logger.LEVEL_ERROR
         elif i == 1:
-            self._level = Logger.LOG_WARN
+            self._level = Logger.LEVEL_WARN
         elif i == 2:
-            self._level = Logger.LOG_INFO
+            self._level = Logger.LEVEL_INFO
         elif i == 3:
-            self._level = Logger.LOG_DEBUG
+            self._level = Logger.LEVEL_DEBUG
 
     def _write(self, level, msg, *args):
         if self._level > level:

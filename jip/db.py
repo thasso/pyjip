@@ -169,7 +169,8 @@ class Job(Base):
         if not self._tool:
             try:
                 from jip import find
-                self._tool = find(self.tool_name)
+                self._tool = find(self.tool_name if not self.path
+                                  else self.path)
                 for opt in self.configuration:
                     self._tool.options[opt.name]._value = opt._value
             except:
@@ -380,7 +381,7 @@ def init(path=None, in_memory=False):
     global engine, Session, db_path, db_in_memory
 
     if in_memory:
-        log("Initialize DB engine with: %s %s", path, in_memory)
+        log.debug("Initialize in-memory DB")
         db_in_memory = True
         db_path = None
         engine = slq_create_engine("sqlite://")

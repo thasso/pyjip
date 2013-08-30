@@ -8,6 +8,7 @@ arguments.
 
 from jinja2 import Environment, Undefined, contextfilter
 from jip.logger import log
+from jip.options import Option
 
 
 class JipUndefined(Undefined):
@@ -24,12 +25,17 @@ def arg_filter(ctx, value, prefix=None):
     try:
         if isinstance(value, JipUndefined):
             value = value._undefined_name
-        script = ctx['tool']
-        opt = script.options[value]
+        if not isinstance(value, Option):
+            script = ctx.get('tool', None)
+            if script:
+                value = script.options[value]
+        if not isinstance(value, Option):
+            return "${%s}" % value
+
         if prefix is None:
-            return str(opt)
+            return value.get()
         else:
-            value = opt.get()
+            value = value.get()
             if value == "":
                 return ""
             return "%s%s" % (prefix, value)

@@ -5,7 +5,7 @@ for executable tools
 import copy
 from textwrap import dedent
 from os import remove, getcwd, getenv
-from os.path import exists, basename
+from os.path import exists, basename, dirname
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template
@@ -68,14 +68,25 @@ class Scanner():
         self.instances = {}
         self.jip_path = jip_path if jip_path else ""
         self.jip_modules = jip_modules if jip_modules else []
+        self.jip_file_paths = set([])
 
     def find(self, name, path=None):
+        if exists(name):
+            ## the passed argument is a file. Try to load it at a
+            ## script
+            tool = ScriptTool.from_file(name)
+            self.instances[name] = tool
+            self.jip_file_paths.add(dirname(name))
+            return tool.clone()
+
         if not self.initialized:
             self.scan()
             self.initialized = True
         self.instances.update(Scanner.registry)
 
         tool = self.instances.get(name, None)
+        if tool is None:
+            tool = self.instances.get(name + ".jip", None)
         if tool is None:
             raise LookupError("No tool named '%s' found!" % name)
         if isinstance(tool, basestring):
@@ -108,7 +119,7 @@ class Scanner():
             files[basename(path)] = path
 
         jip_path = "%s:%s" % (self.jip_path, getenv("JIP_PATH", ""))
-        for folder in jip_path.split(":"):
+        for folder in jip_path.split(":") + list(self.jip_file_paths):
             for path in self.__search(folder, pattern):
                 self.instances[basename(path)] = path
                 files[basename(path)] = path
@@ -177,8 +188,10 @@ class Block(object):
         content = self.content
         if isinstance(content, (list, tuple)):
             content = "\n".join(content)
-        ctx = tool.options.to_dict()  # all tool options go into the context
-        render_template(self.content, **ctx)
+        ctx = dict(tool.options.to_dict(raw=True))
+        ctx['tool'] = tool
+        ctx['args'] = tool.options.to_dict()
+        return render_template(content, **ctx)
 
     def terminate(self):
         """
@@ -200,6 +213,28 @@ class Block(object):
         return "Block['%s']" % self.interpreter
 
 
+class PythonBlockUtils(object):
+
+    def __init__(self, tool):
+        self.tool = tool
+        self.pipeline = None
+
+    def check_file(self, name):
+        opt = self.tool.options[name]
+        if not opt.is_dependency():
+            self.tool.options[name].validate()
+
+    def run(self, name, **kwargs):
+        from jip import Pipeline, find
+        if self.pipeline is None:
+            self.pipeline = Pipeline()
+        tool = find(name)
+        node = self.pipeline.add(tool)
+        for k, v in kwargs.iteritems():
+            node.set(k, v)
+        return node
+
+
 class PythonBlock(Block):
     """Extends block and runs the content as embedded python
     """
@@ -211,9 +246,13 @@ class PythonBlock(Block):
         """Execute this block as an embedded python script
         """
         tmpl = self.render(tool)
+        utils = PythonBlockUtils(tool)
         env = {
             "tool": tool,
-            "args": tool.options.to_dict()
+            "args": tool.options.to_dict(),
+            "check_file": utils.check_file,
+            "run": utils.run,
+            'utils': utils
         }
         exec tmpl in locals(), env
         return env
@@ -243,6 +282,7 @@ class Tool(object):
                                defaults to the class docstring
         """
         self.name = name
+        self.path = None
         self.options = None
         if options_source:
             self.options = self._parse_options(options_source)
@@ -304,10 +344,17 @@ class Tool(object):
         except Exception, e:
             raise ValidationError(self, str(e))
 
-        for infile in self.get_input_files():
-            if not exists(infile):
-                raise ValidationError(self,
-                                      "Input file not found: %s" % infile)
+        for opt in self.options.get_by_type(TYPE_INPUT):
+            if opt.source is not None and opt.source != self:
+                continue
+            if opt.is_dependency():
+                continue
+            for value in opt._value:
+                if isinstance(value, basestring):
+                    if not exists(value):
+                        raise ValidationError(self,
+                                              "Input file not found: %s" %
+                                              value)
 
     def is_done(self):
         """The default implementation return true if the tools has output
@@ -509,20 +556,23 @@ class ScriptTool(Tool):
                                 "python! Sorry about that, but its realy a "
                                 "nice language :)")
             self.pipeline_block = PythonBlock(
-                lineno=self.pipeline_block.lineno,
+                lineno=self.pipeline_block._lineno,
                 content=self.pipeline_block.content
             )
         if self.validation_block and \
                 (self.validation_block.interpreter is None or
-                 self.validate_block.interpreter == 'python'):
-            self.validate_block = PythonBlock(
-                lineno=self.validation_block.lineno,
+                 self.validation_block .interpreter == 'python'):
+            self.validation_block = PythonBlock(
+                lineno=self.validation_block._lineno,
                 content=self.validation_block.content
             )
+        if not self.command_block and not self.pipeline_block:
+            raise Exception("No executable or pipeline block found!")
 
     def pipeline(self):
         if self.pipeline_block:
-            return self.pipeline_block.run(self)
+            r = self.pipeline_block.run(self)
+            return r['utils'].pipeline
         return Tool.pipeline(self)
 
     def run(self):
@@ -544,7 +594,8 @@ class ScriptTool(Tool):
 
     def get_command(self):
         if self.command_block:
-            self.command_block.interpreter, self.command_block.render(self)
+            return self.command_block.interpreter, \
+                self.command_block.render(self)
         return None, None
 
     @classmethod

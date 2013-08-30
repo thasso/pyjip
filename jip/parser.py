@@ -113,7 +113,7 @@ def parse_blocks(content, lineno=0):
                                 (lineno, current_block))
             current_block = new_block
             current_type = block_type
-        elif parse_block_end(l, current_block):
+        elif parse_block_end(l, current_type):
             if len(current_block.content) > 0:
                 blocks[current_type].append(current_block)
             current_block = None
@@ -190,5 +190,7 @@ def loads(path, script_class=None):
         raise Exception("Script file not found : %s" % path)
     with open(path, 'r') as f:
         lines = "\n".join([l.rstrip() for l in f.readlines()])
-        return load(lines, script_class=script_class)
+        tool = load(lines, script_class=script_class)
+        tool.path = os.path.abspath(path)
+        return tool
     raise Exception("Error while loading script from %s" % path)

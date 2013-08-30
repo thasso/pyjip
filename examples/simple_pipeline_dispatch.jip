@@ -19,7 +19,7 @@
 
 
 #%begin validate python
-jip.check_file("input")
+check_file("input")
 #%end validate
 
 #%begin pipeline
@@ -31,10 +31,10 @@ jip.check_file("input")
 #a = run("bash_runner", cmd='echo "FIRST JOB ${JIP_ID}"', output="a.out")
 
 
-a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
-b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+a = run("bash", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
+b = run("bash", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
 
-a >> b
+b.input = a
 
 #a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
 #b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")

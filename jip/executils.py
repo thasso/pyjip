@@ -215,7 +215,7 @@ def _create_job(node):
     tool = node._tool
     job.name = tool.name
     job.tool_name = tool.name
-    # todo add path
+    job.path = tool.path
     job.configuration = node._tool.options
     interpreter, command = node._tool.get_command()
     job.interpreter = interpreter
@@ -245,7 +245,6 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
     jobs = []
     for group in pipeline.groups():
         jobs.extend(_create_jobs_for_group(group, keep=keep))
-
     if persist:
         _session = session
         if session is None:
