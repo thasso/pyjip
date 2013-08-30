@@ -11,12 +11,13 @@ Other Options:
 
 from os import getcwd, getenv
 import jip
-from jip.utils import scan_modules, render_table, scan_scripts
+from jip.utils import render_table
 from . import parse_args
 
 
 def main():
     args = parse_args(__doc__, options_first=True)
+
     print "Tools scripts"
     print "-------------"
     print "Please note that there might be more. Here, we search only for"
@@ -28,7 +29,7 @@ def main():
     print "JIP_PATH variable: %s" % getenv("JIP_ENV", "")
     print ""
     rows = []
-    for name, path in scan_scripts().iteritems():
+    for name, path in jip.scanner.scan_files().iteritems():
         rows.append((name, path))
     print render_table(["Name", "Path"], rows)
     print ""
@@ -45,7 +46,8 @@ def main():
     print "JIP_PATH variable: %s" % getenv("JIP_MODULES", "")
     print ""
     rows = []
-    for name, cls in scan_modules().iteritems():
+    jip.scanner.scan_modules()
+    for name, cls in jip.scanner.registry.iteritems():
         help = cls.help()
         description = "-"
         if help is not None:

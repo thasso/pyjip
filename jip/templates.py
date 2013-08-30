@@ -7,8 +7,7 @@ arguments.
 """
 
 from jinja2 import Environment, Undefined, contextfilter
-
-from jip import log
+from jip.logger import log
 
 
 class JipUndefined(Undefined):
@@ -25,21 +24,17 @@ def arg_filter(ctx, value, prefix=None):
     try:
         if isinstance(value, JipUndefined):
             value = value._undefined_name
-        script = ctx['script']
-        opt = script.get_script_option(value)
-        value = script.get_value(opt)
-        if not value or isinstance(value, file):
-            return ""
-        space = ""
+        script = ctx['tool']
+        opt = script.options[value]
         if prefix is None:
-            prefix = "%s" % opt.short if opt.short else opt.long
-            space = " "
-        if opt.multiplicity == 0:
-            # boolean
-            value = ""
-            space = ""
-        return "%s%s%s" % (prefix, space, str(value))
+            return str(opt)
+        else:
+            value = opt.get()
+            if value == "":
+                return ""
+            return "%s%s" % (prefix, value)
     except:
+        raise
         return value
 
 # global environment

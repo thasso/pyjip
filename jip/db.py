@@ -86,6 +86,8 @@ class Job(Base):
     name = Column(String(256))
     # path to the jip script that created this job
     path = Column(String(1024))
+    # tool name
+    tool_name = Column(String(256))
     # a job can be archived to be able to
     # hide finished jobs but keep their information
     archived = Column(Boolean, default=False)
@@ -130,18 +132,12 @@ class Job(Base):
     # even though the users current environment setting
     # has changed
     env = deferred(Column(PickleType))
-    # default input
-    default_input = deferred(Column(PickleType))
-    # default output
-    default_output = deferred(Column(PickleType))
-    # configured outputs
-    outputs = deferred(Column(PickleType))
-    # configured inputs
-    inputs = deferred(Column(PickleType))
     # keep or delete outputs if the job fails
     keep_on_fail = Column(Boolean, default=False)
     # the main job command template
     command = deferred(Column(Text))
+    # the interpreter that will be used to run the command
+    interpreter = deferred(Column(String(128)))
     # the configuration that is used to populate the command template
     configuration = deferred(Column(PickleType))
     # extra configuration stores an array of additional parameters
@@ -152,33 +148,49 @@ class Job(Base):
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
-                                backref='parents')
+                                backref='children')
     pipe_to = relationship("Job",
                            secondary=job_pipes,
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
                            backref='pipe_from')
 
-    def __init__(self):
-        self.script = None
+    def __init__(self, tool=None):
+        self._tool = tool
+        self._process = None
 
     @orm.reconstructor
-    def init_on_load(self):
-        self.script = None
+    def __reinit__(self):
+        self._tool = None
+        self._process = None
 
-    def get_file_output(self):
-        if self.default_output is None:
-            return None
-        out = self.configuration.get(self.default_output, None)
-        if out is None or isinstance(out, file):
-            return None
-        return open(out, 'wb')
+    @property
+    def tool(self):
+        if not self._tool:
+            try:
+                from jip import find
+                self._tool = find(self.tool_name)
+                for opt in self.configuration:
+                    self._tool.options[opt.name]._value = opt._value
+            except:
+                log.error("Unable to reload tool: %s", self.tool_name)
+        return self._tool
 
-    def get_output(self):
-        return self.to_script().stdout
-
-    def get_input(self):
-        return self.to_script().stdin
+    def terminate(self):
+        """
+        Terminate currently running blocks
+        """
+        if self._process is not None:
+            if self._process.poll() is None:
+                self._process.terminate()
+                # give it 5 seconds to cleanup and exit
+                import time
+                time.sleep(5)
+                if self.process.poll() is None:
+                    # kill it
+                    import os
+                    import signal
+                    os.kill(self.process._popen.pid, signal.SIGKILL)
 
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
@@ -224,42 +236,6 @@ class Job(Base):
         except:
             pass
 
-    def to_script(self):
-        """Convert this job back into a script"""
-        if self.script is None:
-            import sys
-            from jip.model import dependency
-            from jip.parser import parse_script
-            cmd = self.command
-            if cmd is None:
-                cmd = ""
-            script = parse_script(path=None, lines=cmd.split("\n"))
-            script.path = self.path
-            if self.configuration is not None:
-                for k, v in self.configuration.iteritems():
-                    if isinstance(v, dependency):
-                        script.args[k] = v.value
-                    else:
-                        script.args[k] = v
-            script.default_output = self.default_output
-            script.default_input = self.default_input
-            script.outputs = self.outputs
-            script.threads = self.threads
-            script.inputs = self.inputs
-            script.supports_stream_out = self.supports_stream_out
-            script.supports_stream_in = self.supports_stream_in
-            ## update default input/output streams
-            if script.default_input:
-                di = script.args[script.default_input]
-                if di is not None and isinstance(di, file) and di.closed:
-                    script.args[script.default_input] = sys.stdin
-            if script.default_output:
-                di = script.args[script.default_output]
-                if di is not None and isinstance(di, file) and di.closed:
-                    script.args[script.default_output] = sys.stdout
-            self.script = script
-        return self.script
-
     def update_profile(self, profile):
         self.extra = profile.get("extra", self.extra)
         self.queue = profile.get("queue", self.queue)
@@ -276,23 +252,6 @@ class Job(Base):
             self.account = None
         if self.priority == "":
             self.priority = None
-
-    def is_done(self):
-        script_done = self.to_script().is_done()
-        num_children = len(self.pipe_to)
-        if num_children == 0:
-            return script_done
-        # we have pipe target. Check that all script
-        # output goes to streams. If so, check the and
-        # return the is_done state of the children
-        streams = filter(lambda x: isinstance(x, file),
-                         self.to_script()._get_output_files())
-        if len(streams) > 0 or len(self.pipe_to) > 0:
-            done = True
-            for child in self.pipe_to:
-                done &= child.is_done()
-            return done
-        return script_done
 
     def __repr__(self):
         return "JOB-%s" % (str(self.id) if self.id is not None else self.name)

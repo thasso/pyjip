@@ -9,7 +9,8 @@ from os.path import exists, basename
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template
-from jip.utils import list_dir, log
+from jip.utils import list_dir
+from jip.logger import log
 
 
 #########################################################
@@ -47,7 +48,7 @@ class tool(object):
         self.pipeline = pipeline
 
     def __call__(self, cls):
-        Scanner.register[self.name] = PythonTool(cls, self,
+        Scanner.registry[self.name] = PythonTool(cls, self,
                                                  self.add_outputs)
         return cls
 
@@ -63,13 +64,16 @@ class Scanner():
     registry = {}
 
     def __init__(self, jip_path=None, jip_modules=None):
-        self.instances = None
+        self.initialized = False
+        self.instances = {}
         self.jip_path = jip_path if jip_path else ""
         self.jip_modules = jip_modules if jip_modules else []
 
     def find(self, name, path=None):
-        if self.instances is None:
+        if not self.initialized:
             self.scan()
+            self.initialized = True
+        self.instances.update(Scanner.registry)
 
         tool = self.instances.get(name, None)
         if tool is None:
@@ -79,45 +83,48 @@ class Scanner():
             ## and add it to the cache
             tool = ScriptTool.from_file(tool)
             self.instances[name] = tool
-        return tool.clone()
+        clone = tool.clone()
+        return clone
 
     def scan(self, path=None):
-        self.instances = dict(Scanner.registry)
-        self._scan_files(path=path)
-        self._scan_modules()
+        self.instances = {}
+        self.scan_files(parent=path)
+        self.scan_modules()
+        for n, m in Scanner.registry.iteritems():
+            self.instances[n] = m
 
-    def _scan_files(self, parent=None):
+    def scan_files(self, parent=None):
         import re
         pattern = re.compile(r'^.*(.jip)$')
+        files = {}
         if parent:
             for path in self.__search(parent, pattern):
                 self.instances[basename(path)] = path
+                files[basename(path)] = path
 
         #check cwd
         for path in self.__search(getcwd(), pattern):
             self.instances[basename(path)] = path
+            files[basename(path)] = path
 
         jip_path = "%s:%s" % (self.jip_path, getenv("JIP_PATH", ""))
         for folder in jip_path.split(":"):
             for path in self.__search(folder, pattern):
                 self.instances[basename(path)] = path
+                files[basename(path)] = path
+        return files
 
     def __search(self, folder, pattern):
         for path in list_dir(folder):
             if pattern.match(path):
                 yield path
 
-    def _scan_modules(self):
+    def scan_modules(self):
         path = getenv("JIP_MODULES", "")
-        for module in path.split(":") + self.jip_modules:
+        for module in path.split(":") + self.jip_modules + ['jip.scripts']:
             try:
-                __import__(module)
-            except ImportError, e:
-                log.warn("Error while importing module: %s", str(e))
-
-        for module in self.jip_modules:
-            try:
-                __import__(module)
+                if module:
+                    __import__(module)
             except ImportError, e:
                 log.warn("Error while importing module: %s", str(e))
 
@@ -236,9 +243,9 @@ class Tool(object):
                                defaults to the class docstring
         """
         self.name = name
-        self.options = self._parse_options(
-            options_source if options_source is not None else self.__doc__
-        )
+        self.options = None
+        if options_source:
+            self.options = self._parse_options(options_source)
 
     def parse_args(self, args):
         """Parses the given argument. An excetion is raised if
@@ -326,7 +333,7 @@ class Tool(object):
         a string that will be rendered and the interpreter is a name of
         an interpreter that will be used to run the filled template.
         """
-        return None
+        return None, None
 
     def cleanup(self):
         """The celanup method removes all output files for this tool"""
@@ -380,6 +387,8 @@ class Tool(object):
         cloned_tool = copy.deepcopy(self)
         if cloned_tool.name and counter is not None:
             cloned_tool.name = "%s.%d" % (cloned_tool.name, str(counter))
+        cloned_tool.options._help = self.options._help
+        cloned_tool.options._usage = self.options._usage
         # update the options source
         cloned_tool.options.source = cloned_tool
         for o in cloned_tool.options:
@@ -402,6 +411,7 @@ class PythonTool(Tool):
         :param add_outputs: list of additional names that will be added
                             to the list of output options
         """
+        Tool.__init__(self)
         self.decorator = decorator
         self.cls = cls
         self.name = decorator.name

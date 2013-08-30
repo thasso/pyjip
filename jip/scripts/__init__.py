@@ -18,7 +18,6 @@ class cleanup(object):
 
     Inputs:
         -f, --files <files>...  The files that will be deleted
-                                [default: ]
     """
     def __call__(self, files=[]):
         import sys

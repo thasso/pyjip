@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from jip import tool, find
+import jip
 from jip.templates import render_template
 
 
@@ -13,7 +13,7 @@ def test_render_unknonw_variable():
 
 
 def test_render_boolean_option():
-    @tool("simple")
+    @jip.tool("simple")
     class SimpleTool(object):
         """\
         Test tool
@@ -23,14 +23,14 @@ def test_render_boolean_option():
             -t   A bool option
         """
         pass
-    script = find("simple")
-    assert render_template("${t|arg}", script=script, test="1") == ""
-    script.parse_args(['-t'])
-    assert render_template("${t|arg}", script=script, test="1") == "-t"
+    tool = jip.find("simple")
+    assert render_template("${t|arg}", tool=tool, test="1") == ""
+    tool.parse_args(['-t'])
+    assert render_template("${t|arg}", tool=tool, test="1") == "-t"
 
 
 def test_render_value_option():
-    @tool("simple")
+    @jip.tool("simple")
     class SimpleTool(object):
         """\
         Test tool
@@ -40,8 +40,8 @@ def test_render_value_option():
             -t <in>  A value option
         """
         pass
-    script = find("simple")
-    script.parse_args(["-t", "infile"])
-    assert render_template("${t|arg}", script=script, test="1") == "-t infile"
+    tool = jip.find("simple")
+    tool.parse_args(["-t", "infile"])
+    assert render_template("${t|arg}", tool=tool, test="1") == "-t infile"
     assert render_template("${t|arg('-o ')}",
-                           script=script, test="1") == "-o infile"
+                           tool=tool, test="1") == "-o infile"

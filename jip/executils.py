@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """JIP job eecution utilities"""
 from functools import partial
-from jip.utils import log
+from jip.logger import log
+from jip.db import Job
+import subprocess
 
 
 def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
@@ -66,7 +68,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     from datetime import datetime
     from jip.db import STATE_FAILED, STATE_HOLD, STATE_CANCELED, \
         STATES_WAITING, STATES_FINISHED, STATES_RUNNING, \
-        create_session, find_job_by_id, Job
+        create_session, find_job_by_id
     ## create a database session
     session_created = False
     if session is None:
@@ -109,10 +111,10 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
 
     # if we are in finish state but not DONE,
     # performe a cleanup
-    script = job.to_script()
+    script = job.tool
     if script is not None:
         if job.state in [STATE_CANCELED, STATE_HOLD, STATE_FAILED]:
-            script.terminate()
+            job.terminate()
             log("Keep job output on failure cleanup ? %s" % (job.keep_on_fail))
             if not job.keep_on_fail:
                 log("Cleaning job %s after failure", str(job.id))
@@ -164,18 +166,67 @@ def _exec(job):
     the process started and a list of child pipes targes
     that can be used as stdin streams for pipe_to targets
     """
+    import jip
     ## handle pipes
     _load_job_env(job)
-    script = job.to_script()
-    log("JOB-%d | start :: stdin: %s, stdout: %s", job.id,
-        script.stdin, script.stdout)
-    return script.run()
+    log("JOB-%d | start", job.id)
+    # write template to named temp file and run with interpreter
+    script_file = jip.create_temp_file()
+    try:
+        script_file.write(job.command)
+        script_file.close()
+        cmd = [job.interpreter if job.interpreter else "bash"]
+        #if self.interpreter_args:
+            #cmd += self.interpreter_args
+        job._process = subprocess.Popen(
+            cmd + [script_file.name],
+            #stdin=stdin,
+            #stdout=stdout
+        )
+        return job._process
+    except OSError, err:
+        # catch the errno 2 No such file or directory, which indicates the
+        # interpreter is not available
+        if err.errno == 2:
+            raise Exception("Interpreter %s not found!" % job.interpreter)
+        raise err
 
 
-def create_jobs(script, persist=True, keep=False, validate=True, session=None):
-    """Create a set of jobs from the given script. This checks the
-    script for pipelines and returns all jobs for a pipeline or
-    a list with a single job for non-pipeline jobs.
+def _create_jobs_for_group(nodes, keep=False):
+    jobs = []
+    nodes2jobs = {}
+    for node in nodes:
+        ## first create jobs
+        job = _create_job(node)
+        jobs.append(job)
+        nodes2jobs[node] = job
+    # add dependencies
+    for node in nodes:
+        job = nodes2jobs[node]
+        for inedge in node.incoming():
+            job.dependencies.append(nodes2jobs[inedge._source])
+            if inedge.has_streaming_link():
+                job.pipe_to.append(nodes2jobs[inedge._source])
+    return jobs
+
+
+def _create_job(node):
+    job = Job(node._tool)
+    tool = node._tool
+    job.name = tool.name
+    job.tool_name = tool.name
+    # todo add path
+    job.configuration = node._tool.options
+    interpreter, command = node._tool.get_command()
+    job.interpreter = interpreter
+    job.command = command
+    return job
+
+
+def create_jobs(pipeline, persist=True, keep=False, validate=True,
+                session=None):
+    """Create a set of jobs from the given pipeline. This expands the pipeline
+    and creates a job per pipeline node.
 
     If persist is set to True, the jobs are stored in the job database
     with state Queued.
@@ -186,13 +237,14 @@ def create_jobs(script, persist=True, keep=False, validate=True, session=None):
     jobs submitted to a cluster, the profile shoudl be applied before
     submission.
     """
-    from jip.model import Script
-    from jip.db import Job, create_session
-    if isinstance(script, Script):
-        jobs = Job.from_script(script, keep=keep, validate=validate)
-    else:
-        jobs = Job.from_script(None, keep=keep, validate=validate,
-                               pipeline=script)
+    from jip.db import create_session
+    pipeline.expand()
+    if validate:
+        for node in pipeline.nodes():
+            node._tool.validate()
+    jobs = []
+    for group in pipeline.groups():
+        jobs.extend(_create_jobs_for_group(group, keep=keep))
 
     if persist:
         _session = session

@@ -13,7 +13,7 @@ Other Options:
     -h --help             Show this help message
 """
 
-from jip.utils import log
+from jip import log
 from jip.executils import run_job
 from . import parse_args
 

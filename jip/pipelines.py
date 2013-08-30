@@ -99,7 +99,7 @@ class Pipeline(object):
 
         def resolve_streaming_dependencies(node):
             for e in node.outgoing():
-                if e._has_streaming_link():
+                if e.has_streaming_link():
                     resolved.add(e._target)
                     group.append(e._target)
                     resolve_streaming_dependencies(e._target)
@@ -462,7 +462,7 @@ class Edge(object):
                 target_option.streamable)
         self._links.add(link)
 
-    def _has_streaming_link(self):
+    def has_streaming_link(self):
         """Returns true if a least one link is set to streaming"""
         for l in self._links:
             if l[2]:

@@ -21,9 +21,7 @@ Other Options:
 import sys
 
 from . import parse_args
-from jip.model import ScriptError, ValidationException
-from jip.executils import create_jobs, run_job
-from jip.utils import find
+from jip import find, create_jobs, run_job, ValidationError
 
 
 def main(argv=None):
@@ -32,31 +30,23 @@ def main(argv=None):
     script_args = args["<args>"]
 
     try:
-       script = find(script_file)
+        script = find(script_file)
     except LookupError, e:
         print >>sys.stderr, str(e)
         sys.exit(1)
 
-    script.parse_args(script_args)
-    if args["--cpus"]:
-        script.threads = int(args["--cpus"])
-    # always catch help message
-    if "-h" in script_args or "--help" in script_args:
-        print script.help()
-        sys.exit(0)
     try:
+        script.parse_args(script_args)
         run_script(script, keep=args["--keep"],
                    force=args["--force"],
                    dry=args["--dry"],
                    show=args['--show'])
-    except ValidationException, va:
+    except ValidationError, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
-    except ScriptError, sa:
-        sys.stderr.write(str(sa))
-        sys.stderr.write("\n")
-        sys.exit(1)
+    except Exception:
+        raise
 
 
 def run_script(script, keep=False, force=False, dry=False, show=False):
@@ -66,8 +56,7 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
     jip.db.init(in_memory=True)
     # create the jobs
     session = create_session()
-    jobs = create_jobs(script, keep=keep, session=session)
-
+    jobs = create_jobs(script.pipeline(), keep=keep, session=session)
     if dry:
         show_dry_run(jobs)
         return
@@ -78,7 +67,7 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
     for job in jobs:
         if len(job.pipe_from) > 0:
             continue
-        if not force and job.is_done():
+        if not force and job.tool.is_done():
             sys.stderr.write("Job (%d) results exist! Skipping "
                              "(use <script> -- --force to force execution\n" %
                              (job.id))
@@ -89,12 +78,7 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
 
 def show_command(jobs, show_children=False):
     for job in jobs:
-        script = job.to_script()
-        try:
-            script.validate()
-        except:
-            pass
-        print script.render_command()
+        print job.command
 
 
 def show_dry_run(jobs, show_children=False):

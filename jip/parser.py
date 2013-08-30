@@ -161,7 +161,7 @@ def load(content, script_class=None):
     command_block = None
     validate_block = None
     pipeline_block = None
-    if sum([len(b.content) for b in blocks.values()]) == 0:
+    if sum([len(b) for b in blocks.values()]) == 0:
         raise Exception("No blocks found!")
     for block_type, blocks in blocks.iteritems():
         if len(blocks) > 1:

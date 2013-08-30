@@ -374,13 +374,22 @@ class Options(object):
         parser = ArgumentParser()
         for o in self.options:
             opts = to_opts(o)
-            parser.add_argument(
-                *opts,
-                dest=o.name,
-                nargs=0 if o.nargs == 0 else "*",
-                action="store_true" if o.nargs == 0 else None,
-                default=o.raw()
-            )
+            if o.nargs == 0:
+                ## create boolean
+                parser.add_argument(
+                    *opts,
+                    dest=o.name,
+                    action="store_true" if o.nargs == 0 else None,
+                    default=o.raw()
+                )
+            else:
+                parser.add_argument(
+                    *opts,
+                    dest=o.name,
+                    nargs="*",
+                    action="store_true" if o.nargs == 0 else None,
+                    default=o.raw()
+                )
 
         # Override the argparse error function to
         # raise an exception rather than calling a system.exit

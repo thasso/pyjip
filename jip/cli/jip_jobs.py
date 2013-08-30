@@ -173,24 +173,9 @@ def detail_view(job, exclude_times=False):
     max_len = max(map(len, t.split("\n")))
 
     config = "\nConfiguration\n-------------\n"
-    cfg = dict(job.configuration)
+    cfg = dict(job.configuration.to_dict())
 
     cfg_rows = []
-    for k, v in job.to_script().inputs.iteritems():
-        cfg_rows.append([str(k), cfg.get(k)])
-        if k in cfg:
-            del cfg[k]
-
-    for k, v in job.to_script().outputs.iteritems():
-        cfg_rows.append([str(k), cfg.get(k)])
-        if k in cfg:
-            del cfg[k]
-
-    for k, v in job.to_script().options.iteritems():
-        cfg_rows.append([str(k), cfg.get(k)])
-        if k in cfg:
-            del cfg[k]
-
     if len(cfg) > 0:
         for k, v in cfg.iteritems():
             cfg_rows.append([str(k), str(v)])
