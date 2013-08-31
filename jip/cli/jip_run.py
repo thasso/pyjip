@@ -55,12 +55,12 @@ def main(argv=None):
 
 def run_script(script, keep=False, force=False, dry=False, show=False):
     # persis the script to in memoru database
-    import jip.db
-    from jip.db import create_session
-    if not force and script.is_done():
+    if not force and script.is_done() and not dry and not show:
         sys.stderr.write("Results exist! Skipping "
                          "(use --force to force execution\n")
         return
+    import jip.db
+    from jip.db import create_session
     jip.db.init(in_memory=True)
     # create the jobs
     session = create_session()
