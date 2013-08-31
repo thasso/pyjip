@@ -36,42 +36,44 @@ Other Options:
 import sys
 
 from . import parse_args
-from jip.model import Script, ScriptError, ValidationException
+from jip import ValidationError, ParserException, find
 from jip.executils import load_job_profile, create_jobs, submit
-from jip.utils import find_script_in_modules
 
 
 def main(argv=None):
     args = parse_args(__doc__, argv=argv)
     script_file = args["<file>"]
     script_args = args["<args>"]
-    # parse the script
     try:
-        script = Script.from_file(script_file)
-    except Exception, e:
-        script = find_script_in_modules(script_file)
-        if script is None:
-            print >>sys.stderr, str(e)
-            sys.exit(1)
-    script.parse_args(script_args)
-    # always catch help message
-    if "-h" in script_args or "--help" in script_args:
-        print script.help()
-        sys.exit(0)
+        script = find(script_file)
+    except LookupError, e:
+        print >>sys.stderr, str(e)
+        sys.exit(1)
 
     try:
-        submit_script(script, args, dry=args['--dry'])
-    except ValidationException, va:
+        script.parse_args(script_args)
+        submit_script(script, keep=args["--keep"],
+                      force=args["--force"],
+                      dry=args["--dry"],
+                      show=args['--show'])
+    except ValidationError, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
-    except ScriptError, sa:
-        sys.stderr.write(str(sa))
+    except ParserException, va:
+        sys.stderr.write(str(va))
         sys.stderr.write("\n")
-        sys.exit(1)
+        sys.exit(va.status)
+    except Exception:
+        raise
 
 
-def submit_script(script, jip_args, dry=False):
+def submit_script(script, jip_args, dry=False,
+                  keep=False, force=False):
+    if not force and script.is_done() and not dry:
+        sys.stderr.write("Results exist! Skipping "
+                         "(use --force to force execution\n")
+        return
     from jip.db import create_session, init
     ## initialize custom database location
     if dry:
@@ -83,7 +85,10 @@ def submit_script(script, jip_args, dry=False):
 
     session = create_session()
     ## create jobs
-    jobs = create_jobs(script, keep=jip_args["--keep"], session=session)
+    jobs = create_jobs(script.pipeline(),
+                       parent_tool=script,
+                       keep=keep,
+                       session=session)
     # laod default profile
     profile = load_job_profile(profile_name=jip_args.get("--profile",
                                                          None),
@@ -116,7 +121,7 @@ def submit_script(script, jip_args, dry=False):
         session.commit()
         return
     try:
-        submitted, skipped = submit(jobs, profile, force=jip_args["--force"],
+        submitted, skipped = submit(jobs, profile, force=force,
                                     session=session)
         map(session.delete, skipped)
         session.commit()

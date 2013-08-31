@@ -298,7 +298,7 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
         profile = load_job_profile(load_default=True)
 
     # create the cluster and init the db
-    log("Cluster engine: %s", cluster_name)
+    log.info("Cluster engine: %s", cluster_name)
     cluster = jip.cluster.from_name(cluster_name)
 
     if session is None:
@@ -311,12 +311,12 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
             reload_script(job)
         session.add(job)
         if len(job.pipe_from) == 0:
-            log("Checking job %d", job.id)
+            log.debug("Checking job %d", job.id)
             if not force and job.is_done():
                 skipped.append(job)
-                log("Skipped job %d", job.id)
+                log.info("Skipped job %d", job.id)
             else:
-                log("Submitting job %d", job.id)
+                log.info("Submitting job %d", job.id)
                 if update_profile:
                     job.update_profile(profile)
                 job.cluster = cluster_name
@@ -355,10 +355,9 @@ def get_pipeline_jobs(job, jobs=None):
 
 def reload_script(job):
     """Reload the command template from the source script"""
-    from jip.model import Script
-    script = Script.from_file(job.path)
-    script.args = job.configuration
-    job.command = script.render_command()
+    tool = job.tool
+    _, cmd = tool.get_command()
+    job.command = cmd
 
 
 def run_job(id, session=None, db=None):
