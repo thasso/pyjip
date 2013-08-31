@@ -13,6 +13,14 @@ class Pipeline(object):
         self._nodes = {}
         self._edges = set([])
 
+    def run(self, name, **kwargs):
+        from jip import find
+        tool = find(name)
+        node = self.add(tool)
+        for k, v in kwargs.iteritems():
+            node.set(k, v)
+        return node
+
     def add(self, tool):
         if not tool in self._nodes:
             self._nodes[tool] = Node(tool, self)
@@ -189,7 +197,7 @@ class Pipeline(object):
                                           cloned_tool.options[link[1].name])
                 cloned_node.set(option.name, opts[j], set_dep=False)
                 ooo = cloned_node._tool.options[option.name]
-                ooo.dependecy = option.dependecy
+                ooo.dependency = option.dependency
             # update all children
             for child in cloned_node.children():
                 child.update_options()
@@ -253,8 +261,8 @@ class Node(object):
                 self.__or__(o)
         else:
             inp = other._tool.options.get_default_input()
-            if out and inp:
-                other._set_option_value(inp, out)
+            if out is not None and inp is not None:
+                other._set_option_value(inp, out, allow_stream=True)
             else:
                 # just add an edge
                 self._graph.add_edge(self, other)
@@ -270,8 +278,9 @@ class Node(object):
                 self.__lshift__(o)
         else:
             out = other._tool.options.get_default_output()
-            if out and inp:
-                self._set_option_value(inp, out, append=True)
+            if out is not None and inp is not None:
+                self._set_option_value(inp, out, append=True,
+                                       allow_stream=False)
             else:
                 # just add an edge
                 self._graph.add_edge(self, other)
@@ -288,7 +297,7 @@ class Node(object):
                 self.__rshift__(o)
         else:
             inp = other._tool.options.get_default_input()
-            if out and inp:
+            if out is not None and inp is not None:
                 other._set_option_value(inp, out, append=True,
                                         allow_stream=False)
             else:
@@ -322,13 +331,14 @@ class Node(object):
             return opt
         raise AttributeError("Attribute not found: %s" % name)
 
-    def set(self, name, value, set_dep=False):
+    def set(self, name, value, set_dep=False, allow_stream=True):
         """Set an option"""
         opt = self.__getattr__(name)
-        self._set_option_value(opt, value, set_dep=set_dep)
+        self._set_option_value(opt, value, set_dep=set_dep,
+                               allow_stream=allow_stream)
 
     def __setattr__(self, name, value):
-        self.set(name, value)
+        self.set(name, value, allow_stream=False)
 
     def _set_option_value(self, option, value, append=False,
                           allow_stream=True, set_dep=True):
@@ -337,7 +347,9 @@ class Node(object):
             # first to clear the list and then append all
             # values in the list
             if not append:
-                self._set_singleton_option_value(option, None, set_dep=set_dep)
+                self._set_singleton_option_value(option, None,
+                                                 set_dep=set_dep,
+                                                 allow_stream=allow_stream)
             for single in value:
                 self._set_singleton_option_value(option, single, append=True,
                                                  allow_stream=allow_stream,
@@ -369,24 +381,31 @@ class Node(object):
         if isinstance(value, Option):
             # the value is an options, we pass on the Options
             # value and create/update the edge
-            option.dependecy = True
+            option.dependency = True
+            new_value = value.raw() if not append else value.value
+            if allow_stream:
+                if option.streamable and value.streamable:
+                    # switch the value to the default
+                    new_value = value.default
+                else:
+                    allow_stream = False
             if not append:
-                option.value = value.raw()
+                option.set(new_value)
             else:
                 # we do not append directly as we want the calue checks to
                 # happen
-                option.value = option.value + value.value
+                option.append(new_value)
             # get the edge. The source is the values.source, which
             # references the other options tool
             edge = self._graph.add_edge(value.source, self._tool)
             edge.add_link(value, option, allow_stream=allow_stream)
         else:
             if not append:
-                #if set_dep:
-                    #option.dependecy = False
-                option.value = value
+                if set_dep:
+                    option.dependecy = False
+                option.set(value)
             else:
-                option.value = option.value + [value]
+                option.append(value)
 
     def update_options(self):
         """Update the option values resolving new values from the incoming

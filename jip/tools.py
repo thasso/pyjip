@@ -83,6 +83,12 @@ class Scanner():
             self.scan()
             self.initialized = True
         self.instances.update(Scanner.registry)
+        s = name.split(" ", 1)
+        args = None
+        if len(s) > 1:
+            import shlex
+            name = s[0]
+            args = shlex.split(s[1])
 
         tool = self.instances.get(name, None)
         if tool is None:
@@ -95,6 +101,8 @@ class Scanner():
             tool = ScriptTool.from_file(tool)
             self.instances[name] = tool
         clone = tool.clone()
+        if args:
+            clone.parse_args(args)
         return clone
 
     def scan(self, path=None):
@@ -191,6 +199,8 @@ class Block(object):
         ctx = dict(tool.options.to_dict(raw=True))
         ctx['tool'] = tool
         ctx['args'] = tool.options.to_dict()
+        tool.options.render_context(ctx)
+
         return render_template(content, **ctx)
 
     def terminate(self):
@@ -225,14 +235,10 @@ class PythonBlockUtils(object):
             self.tool.options[name].validate()
 
     def run(self, name, **kwargs):
-        from jip import Pipeline, find
+        from jip import Pipeline
         if self.pipeline is None:
             self.pipeline = Pipeline()
-        tool = find(name)
-        node = self.pipeline.add(tool)
-        for k, v in kwargs.iteritems():
-            node.set(k, v)
-        return node
+        return self.pipeline.run(name, **kwargs)
 
 
 class PythonBlock(Block):
@@ -245,7 +251,10 @@ class PythonBlock(Block):
     def run(self, tool, stdin=None, stdout=None):
         """Execute this block as an embedded python script
         """
-        tmpl = self.render(tool)
+        #tmpl = self.render(tool)
+        content = self.content
+        if isinstance(content, (list, tuple)):
+            content = "\n".join(content)
         utils = PythonBlockUtils(tool)
         env = {
             "tool": tool,
@@ -254,7 +263,7 @@ class PythonBlock(Block):
             "run": utils.run,
             'utils': utils
         }
-        exec tmpl in locals(), env
+        exec content in locals(), env
         return env
 
     def terminate(self):
@@ -284,7 +293,7 @@ class Tool(object):
         self.name = name
         self.path = None
         self.options = None
-        if options_source:
+        if options_source is not None:
             self.options = self._parse_options(options_source)
 
     def parse_args(self, args):

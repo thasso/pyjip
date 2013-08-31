@@ -18,10 +18,6 @@
 #                             [default: stdout]
 
 
-#%begin validate python
-check_file("input")
-#%end validate
-
 #%begin pipeline
 #run("line_count", input=args.input, output="test_run.out") | run("line_count") 
 #run("line_count", input=args.input, output="test_run.out") | (run("line_count") | run("line_count"))
@@ -31,11 +27,11 @@ check_file("input")
 #a = run("bash_runner", cmd='echo "FIRST JOB ${JIP_ID}"', output="a.out")
 
 
-a = run("bash", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
-b = run("bash", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
+a = run("bash", cmd='echo "1 JOB-${JIP_ID}"', output=args['output'])
+#b = run("bash", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat ${input}; echo "2 DONE"', output="b.out")
+b = run("""bash -c 'echo "2 JOB-$JIP_ID. INPUT:"; cat ${input}; echo "2 DONE"' --output=b.out""")
 
-b.input = a
-
+a | b
 #a = run("bash_runner", cmd='echo "1 JOB-${JIP_ID}"', output="a.out")
 #b = run("bash_runner", cmd='echo "2 JOB-$JIP_ID. INPUT:"; cat -; echo "2 DONE"', output="b.out")
 #c = run("bash_runner", cmd='echo "3 JOB-$JIP_ID. INPUT:"; cat -; echo "3 DONE"', output="c.out")

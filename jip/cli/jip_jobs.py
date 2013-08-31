@@ -49,7 +49,7 @@ from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
     NORMAL, get_time, table_string
 from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
     STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
-
+from jip.options import TYPE_OUTPUT
 import sys
 from os import getenv
 from datetime import timedelta, datetime
@@ -173,12 +173,17 @@ def detail_view(job, exclude_times=False):
     max_len = max(map(len, t.split("\n")))
 
     config = "\nConfiguration\n-------------\n"
-    cfg = dict(job.configuration.to_dict())
-
     cfg_rows = []
-    if len(cfg) > 0:
-        for k, v in cfg.iteritems():
-            cfg_rows.append([str(k), str(v)])
+    for opt in job.configuration:
+        if opt.name == "help":
+            continue
+        value = [v if not isinstance(v, file) else "<<STREAM>>"
+                 for v in opt.value]
+        if opt.option_type == TYPE_OUTPUT and opt.streamable:
+            value += job.get_pipe_targets()
+        value = str(value) if len(value) > 1 else value[0] \
+            if len(value) > 0 else ""
+        cfg_rows.append([opt._opt_string(), value])
     if len(cfg_rows) > 0:
         config += render_table(None, cfg_rows, empty="-")
     hl = "#" * max_len

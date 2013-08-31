@@ -3,7 +3,9 @@
 from functools import partial
 from jip.logger import log
 from jip.db import Job
+from jip.utils import flat_list
 import subprocess
+import sys
 
 
 def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
@@ -133,7 +135,6 @@ def _setup_signal_handler(job):
     """Setup signal handlers that catch job termination
     when possible and set the job state to FAILED
     """
-    import sys
     from signal import signal, SIGTERM, SIGINT
     from jip.db import STATE_FAILED, create_session
 
@@ -180,8 +181,8 @@ def _exec(job):
             #cmd += self.interpreter_args
         job._process = subprocess.Popen(
             cmd + [script_file.name],
-            #stdin=stdin,
-            #stdout=stdout
+            stdin=job.stream_in,
+            stdout=job.stream_out
         )
         return job._process
     except OSError, err:
@@ -192,9 +193,8 @@ def _exec(job):
         raise err
 
 
-def _create_jobs_for_group(nodes, keep=False):
+def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
     jobs = []
-    nodes2jobs = {}
     for node in nodes:
         ## first create jobs
         job = _create_job(node)
@@ -204,9 +204,25 @@ def _create_jobs_for_group(nodes, keep=False):
     for node in nodes:
         job = nodes2jobs[node]
         for inedge in node.incoming():
-            job.dependencies.append(nodes2jobs[inedge._source])
+            source_job = nodes2jobs[inedge._source]
+            job.dependencies.append(source_job)
             if inedge.has_streaming_link():
-                job.pipe_to.append(nodes2jobs[inedge._source])
+                job.pipe_from.append(source_job)
+                # also reset the default output of the source
+                # job to a stream and store the current value in
+                # the job. This is done for the pipe fans so we
+                # can emulte a 'tee' and dispatch the output stream
+                # to all targets and the output file(s)
+                out_option = source_job.tool.options.get_default_output()
+                out_values = [v for v in out_option.value
+                              if not isinstance(v, file)]
+                if len(out_values) > 0:
+                    source_job.pipe_targets = out_values
+                    out_option.set(sys.stdout)
+                    # we also have to rerender the command
+                    _, cmd = source_job.tool.get_command()
+                    source_job.command = cmd
+
     return jobs
 
 
@@ -224,7 +240,7 @@ def _create_job(node):
 
 
 def create_jobs(pipeline, persist=True, keep=False, validate=True,
-                session=None):
+                session=None, parent_tool=None):
     """Create a set of jobs from the given pipeline. This expands the pipeline
     and creates a job per pipeline node.
 
@@ -240,11 +256,16 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
     from jip.db import create_session
     pipeline.expand()
     if validate:
+        if parent_tool is not None:
+            parent_tool.validate()
         for node in pipeline.nodes():
             node._tool.validate()
     jobs = []
+    nodes2jobs = {}
     for group in pipeline.groups():
-        jobs.extend(_create_jobs_for_group(group, keep=keep))
+        jobs.extend(_create_jobs_for_group(group, keep=keep,
+                                           nodes2jobs=nodes2jobs))
+
     if persist:
         _session = session
         if session is None:
@@ -254,7 +275,6 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
         _session.commit()
         if session is None:
             _session.close()
-
     return jobs
 
 
@@ -520,16 +540,17 @@ class FanDirect(object):
             raise ValueError("Number of sources != targets!")
 
         processes = []
-        direct_outs = [job.get_file_output() for job in self.sources]
+        direct_outs = flat_list([job.get_pipe_targets()
+                                 for job in self.sources])
         if len(filter(lambda x: x is not None, direct_outs)) == 0:
             # no extra output file dispatching is needed,
             # we can just create the pipes directly
             for source, target in zip(self.sources, self.targets):
-                source.to_script().stdout = PIPE
+                source.stream_out = PIPE
                 set_state(STATE_RUNNING, source, session=session,
                           update_children=False)
                 process = _exec(source)
-                target.to_script().stdin = process.stdout
+                target.stream_in = process.stdout
                 processes.append(process)
             return processes
 
@@ -539,8 +560,8 @@ class FanDirect(object):
             i, o = os.pipe()
             i = os.fdopen(i, 'r')
             o = os.fdopen(o, 'w')
-            source.to_script().stdout = PIPE
-            target.to_script().stdin = i
+            source.stream_out = PIPE
+            target.stream_in = i
             outputs.append(o)
 
         for source, target in zip(self.sources, self.targets):
@@ -551,6 +572,7 @@ class FanDirect(object):
             processes.append(process)
 
         # start the dispatcher
+        direct_outs = [open(f, 'wb') for f in direct_outs]
         dispatch(inputs, outputs, direct_outs)
         return processes
 
@@ -567,18 +589,18 @@ class FanOut(FanDirect):
             raise ValueError("Number of sources != 1 or  targets == 0!")
 
         processes = []
-        direct_outs = [job.get_file_output() for job in self.sources]
+        direct_outs = flat_list([job.get_pipe_targets()
+                                 for job in self.sources])
         inputs = []
         outputs = []
         source = self.sources[0]
-        source.to_script().stdout = PIPE
+        source.stream_out = PIPE
         num_targets = len(self.targets)
-
         for target in self.targets:
             i, o = os.pipe()
             i = os.fdopen(i, 'r')
             o = os.fdopen(o, 'w')
-            target.to_script().stdin = i
+            target.stream_in = i
             outputs.append(o)
 
         set_state(STATE_RUNNING, source, session=session,
@@ -589,6 +611,7 @@ class FanOut(FanDirect):
 
         empty = [None] * (num_targets - 1)
         # start the dispatcher
+        direct_outs = [open(f, 'wb') for f in direct_outs]
         dispatch_fanout(inputs + empty, outputs, direct_outs + empty)
         return processes
 
@@ -604,7 +627,8 @@ class FanIn(FanDirect):
             raise ValueError("Number of sources == 0 or  targets != 1!")
 
         processes = []
-        direct_outs = [job.get_file_output() for job in self.sources]
+        direct_outs = flat_list([job.get_pipe_targets()
+                                 for job in self.sources])
         inputs = []
         target = self.targets[0]
         outputs = []
@@ -612,12 +636,12 @@ class FanIn(FanDirect):
         i = os.fdopen(i, 'r')
         o = os.fdopen(o, 'w')
         outputs.append(o)
-        target.to_script().stdin = i
+        target.stream_in = i
         num_sources = len(self.sources)
         empty = [None] * (num_sources - 1)
 
         for source in self.sources:
-            source.to_script().stdout = PIPE
+            source.strream_out = PIPE
 
         for source in self.sources:
             set_state(STATE_RUNNING, source, session=session,
@@ -627,5 +651,6 @@ class FanIn(FanDirect):
             processes.append(process)
 
         # start the dispatcher
+        direct_outs = [open(f, 'wb') for f in direct_outs]
         dispatch_fanin(inputs, outputs + empty, direct_outs)
         return processes

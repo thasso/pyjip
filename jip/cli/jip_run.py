@@ -57,10 +57,17 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
     # persis the script to in memoru database
     import jip.db
     from jip.db import create_session
+    if not force and script.is_done():
+        sys.stderr.write("Results exist! Skipping "
+                         "(use --force to force execution\n")
+        return
     jip.db.init(in_memory=True)
     # create the jobs
     session = create_session()
-    jobs = create_jobs(script.pipeline(), keep=keep, session=session)
+    jobs = create_jobs(script.pipeline(),
+                       parent_tool=script,
+                       keep=keep,
+                       session=session)
     if dry:
         show_dry_run(jobs)
         return
@@ -73,7 +80,7 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
             continue
         if not force and job.tool.is_done():
             sys.stderr.write("Job (%d) results exist! Skipping "
-                             "(use <script> -- --force to force execution\n" %
+                             "(use --force to force execution\n" %
                              (job.id))
         else:
             session.add(job)
@@ -82,7 +89,9 @@ def run_script(script, keep=False, force=False, dry=False, show=False):
 
 def show_command(jobs, show_children=False):
     for job in jobs:
+        print "#### %s :: %s" % (job, job.interpreter)
         print job.command
+        print "####"
 
 
 def show_dry_run(jobs, show_children=False):
@@ -91,9 +100,7 @@ def show_dry_run(jobs, show_children=False):
         if show_children or len(job.pipe_from) == 0:
             detail_view(job, exclude_times=True)
             if len(job.pipe_to) > 0:
-                print ""
                 show_dry_run(job.pipe_to, True)
-        print ""
 
 if __name__ == "__main__":
     main()

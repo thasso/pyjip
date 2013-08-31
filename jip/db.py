@@ -3,6 +3,8 @@
 Jobs in the database
 """
 import datetime
+import sys
+from os import getcwd
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
@@ -114,7 +116,7 @@ class Job(Base):
     # maximum wall clock time assigned to a job
     max_time = Column(Integer, default=0)
     # the jobs working directory
-    working_directory = Column(String(1024))
+    working_directory = Column(String(1024), default=getcwd())
     # the jobs stdout log file. This can contain
     # place holders like %J that are filled with the
     # job id to create the final path. The cluster implementation
@@ -140,6 +142,10 @@ class Job(Base):
     interpreter = deferred(Column(String(128)))
     # the configuration that is used to populate the command template
     configuration = deferred(Column(PickleType))
+    # output files that were moved out of the configuration in order
+    # to support a dispatcher pipe that writes to the files
+    # in this list as well as to the stdin of pipe_to jobs
+    pipe_targets = deferred(Column(PickleType))
     # extra configuration stores an array of additional parameters
     # passed during job submission
     extra = deferred(Column(PickleType))
@@ -158,11 +164,18 @@ class Job(Base):
     def __init__(self, tool=None):
         self._tool = tool
         self._process = None
+        self.stream_in = sys.stdin
+        self.stream_out = sys.stdout
 
     @orm.reconstructor
     def __reinit__(self):
         self._tool = None
         self._process = None
+        self.stream_in = sys.stdin
+        self.stream_out = sys.stdout
+
+    def get_pipe_targets(self):
+        return self.pipe_targets if self.pipe_targets else []
 
     @property
     def tool(self):

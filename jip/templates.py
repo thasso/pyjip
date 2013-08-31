@@ -21,7 +21,7 @@ class JipUndefined(Undefined):
 
 
 @contextfilter
-def arg_filter(ctx, value, prefix=None):
+def arg_filter(ctx, value, prefix=None, suffix=None):
     try:
         if isinstance(value, JipUndefined):
             value = value._undefined_name
@@ -32,13 +32,13 @@ def arg_filter(ctx, value, prefix=None):
         if not isinstance(value, Option):
             return "${%s}" % value
 
-        if prefix is None:
-            return value.get()
-        else:
-            value = value.get()
-            if value == "":
-                return ""
-            return "%s%s" % (prefix, value)
+
+        value = value.get()
+        if value == "":
+            return ""
+        prefix = prefix if prefix is not None else ""
+        suffix = suffix if suffix is not None else ""
+        return "%s%s%s" % (prefix, value, suffix)
     except:
         raise
         return value
@@ -48,6 +48,27 @@ environment = Environment(undefined=JipUndefined,
                           variable_start_string="${",
                           variable_end_string="}")
 environment.filters['arg'] = arg_filter
+
+
+def render_values(options, ctx):
+    result = {}
+    for option in options:
+        value = option.raw()
+        resolved = None
+        if isinstance(value, (list, tuple)):
+            resolved = []
+            for v in value:
+                if isinstance(v, basestring):
+                    resolved.append(render_template(v, **ctx))
+                else:
+                    resolved.append(v)
+        else:
+            if isinstance(value, basestring):
+                resolved = render_template(value, **ctx)
+            else:
+                resolved = value
+        result[option.name] = resolved
+    return result
 
 
 def render_template(template, **kwargs):

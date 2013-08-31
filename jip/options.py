@@ -72,6 +72,7 @@ class Option(object):
         self.nargs = nargs
         self.source = None
         self.streamable = streamable
+        self.render_context = None
         self.dependency = False
         if self.nargs is None:
             if isinstance(default, bool):
@@ -81,7 +82,7 @@ class Option(object):
                     self.nargs = 1
                 else:
                     self.nargs = "*"
-        self.value = value if value is not None else default
+        self.value = value
         ## we set streamable base on the default value
         if self.streamable is None and self.default is not None \
            and not self.is_list():
@@ -90,11 +91,13 @@ class Option(object):
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['source']
+        del state['render_context']
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.source = ""
+        self.render_context = None
 
     def __repr__(self):
         return "Option[%s:%s]" % (self.name, str(self.source) if self.source
@@ -109,7 +112,20 @@ class Option(object):
 
     @property
     def value(self):
-        return self._value
+        values = self._value
+        set_from_default = False
+        if self.default is not None and len(self._value) == 0:
+            set_from_default = True
+            values = [self.default]
+        if self.render_context:
+            from jip.templates import render_template
+            values = [render_template(v, **self.render_context)
+                      if isinstance(v, basestring) else v
+                      for v in values]
+            self.render_context = None
+            if not set_from_default:
+                self._value = values
+        return values
 
     @value.setter
     def value(self, value):
@@ -117,9 +133,6 @@ class Option(object):
         if value is not None:
             self._value = [value] if not isinstance(value, (list, tuple)) \
                 else value
-        ## check default values
-        self._value = map(lambda v: self.__resolve_default(v),
-                          self._value)
 
     def __resolve_default(self, v):
         """helper function to resolve stdin, stdout and stderr default
@@ -140,6 +153,13 @@ class Option(object):
         """Return the short or long representation of this option"""
         return self.short if self.short else self.long
 
+    def set(self, new_value):
+        self.value = new_value
+
+    def append(self, value):
+        self.value = self._value + \
+            [value] if not isinstance(value, (list, tuple)) else value
+
     def get(self):
         """Get the string representation for the current value
         """
@@ -150,8 +170,6 @@ class Option(object):
             if len(self.value) > 1:
                 raise ValueError("Option '%s' contains more "
                                  "than one value!" % self.name)
-                return self.__resolve(self.value[0])
-
             ## single value
             v = None if len(self.value) == 0 else self.value[0]
             if v is None and self.required:
@@ -168,7 +186,7 @@ class Option(object):
             return False if len(self._value) == 0 else bool(self._value[0])
         if self.nargs == 1 and len(self.value) == 1:
             return self.value[0]
-        return None if len(self._value) == 0 else self._value
+        return None if len(self._value) == 0 else self.value
 
     def __resolve(self, v):
         """Helper to resolve a single value to its string representation
@@ -262,6 +280,10 @@ class Options(object):
         self._usage = ""
         self._help = ""
         self.source = None
+
+    def render_context(self, ctx):
+        for o in self:
+            o.render_context = ctx
 
     def __iter__(self):
         for opt in self.options:
@@ -492,7 +514,8 @@ class Options(object):
 
         usage_sections = docopt.parse_section('usage:', doc)
         if len(usage_sections) == 0:
-            raise ValueError('"usage:" (case-insensitive) not found.')
+            #raise ValueError('"usage:" (case-insensitive) not found.')
+            return opts
         if len(usage_sections) > 1:
             raise ValueError('More than one "usage:" '
                              '(case-insensitive).')
