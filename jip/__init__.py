@@ -4,7 +4,7 @@ from os import getenv
 
 from jip.tools import tool, Scanner, ValidationError
 from jip.logger import log
-from jip.executils import create_jobs, run_job
+from jip.executils import create_jobs, run_job, run
 from jip.options import ParserException
 from jip.pipelines import Pipeline
 

@@ -13,12 +13,19 @@ class Pipeline(object):
         self._nodes = {}
         self._edges = set([])
 
-    def run(self, name, **kwargs):
+    def run(self, name, *args, **kwargs):
         from jip import find
         tool = find(name)
         node = self.add(tool)
         for k, v in kwargs.iteritems():
-            node.set(k, v)
+            node.set(k, v, allow_stream=False)
+        if len(args) > 0:
+            node._name = args[0]
+        # silent validate
+        try:
+            tool.validate()
+        except Exception as e:
+            pass
         return node
 
     def add(self, tool):
@@ -173,6 +180,8 @@ class Pipeline(object):
                 cloned_tool.options[option.name].value = opts[j]
 
             cloned_node = self.add(cloned_tool)
+            if node._name is not None:
+                cloned_node._name = "%s.%s" % (node._name, str(i))
             # reattach the edges and copy the links
             for e in _edges:
                 new_edge = None
@@ -222,8 +231,9 @@ class Node(object):
     are stored on the :class:`.Edge`. If no edge exists, one will be
     created.
     """
-    def __init__(self, tool, graph):
+    def __init__(self, tool, graph, name=None):
         self.__dict__['_tool'] = tool
+        self.__dict__['_name'] = name
         self.__dict__['_graph'] = graph
         self.__dict__['_edges'] = set([])
 
@@ -277,7 +287,11 @@ class Node(object):
             for o in other._nodes:
                 self.__lshift__(o)
         else:
-            out = other._tool.options.get_default_output()
+            if not isinstance(other, Option):
+                out = other._tool.options.get_default_output()
+            else:
+                out = other
+                other = self._graph._nodes[out.source]
             if out is not None and inp is not None:
                 self._set_option_value(inp, out, append=True,
                                        allow_stream=False)
@@ -320,7 +334,7 @@ class Node(object):
     def __hash__(self):
         return self._tool.__hash__()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name):        
         """Resolves tool options"""
         if isinstance(self._tool, Tool):
             opts = self._tool.options
@@ -338,7 +352,10 @@ class Node(object):
                                allow_stream=allow_stream)
 
     def __setattr__(self, name, value):
-        self.set(name, value, allow_stream=False)
+        if name == "_name":
+            self.__dict__['_name'] = value
+        else:
+            self.set(name, value, allow_stream=False)
 
     def _set_option_value(self, option, value, append=False,
                           allow_stream=True, set_dep=True):

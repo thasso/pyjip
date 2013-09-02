@@ -109,8 +109,10 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
                 pass
     elif new_state in STATES_FINISHED:
         job.finish_date = datetime.now()
-    ## add the job to the session
-    session.add(job)
+    
+    if session_created:
+        ## add the job to the session
+        session.add(job)
 
     # if we are in finish state but not DONE,
     # performe a cleanup
@@ -193,14 +195,17 @@ def _exec(job):
             raise Exception("Interpreter %s not found!" % job.interpreter)
         raise err
 
-
-def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
+def _create_all_jobs(nodes, nodes2jobs, keep=False):
     jobs = []
     for node in nodes:
         ## first create jobs
         job = _create_job(node, keep=keep)
         jobs.append(job)
         nodes2jobs[node] = job
+    return jobs
+
+
+def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
     # add dependencies
     for node in nodes:
         job = nodes2jobs[node]
@@ -224,13 +229,11 @@ def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
                     _, cmd = source_job.tool.get_command()
                     source_job.command = cmd
 
-    return jobs
-
 
 def _create_job(node, keep=False):
     job = Job(node._tool)
     tool = node._tool
-    job.name = tool.name
+    job.name = tool.name if node._name is None else node._name
     job.tool_name = tool.name
     job.path = tool.path
     job.configuration = node._tool.options
@@ -244,6 +247,12 @@ def _create_job(node, keep=False):
         "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
         "JIP_LOGLEVEL": str(log.level)
     }
+    # check for special options
+    if node._tool.options['threads'] is not None:
+        try:            
+            job.threads = int(node._tool.options['threads'].raw())
+        except:
+            pass
     return job
 
 
@@ -268,11 +277,11 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
             parent_tool.validate()
         for node in pipeline.nodes():
             node._tool.validate()
-    jobs = []
     nodes2jobs = {}
+    jobs = _create_all_jobs(pipeline.topological_order(), nodes2jobs, keep=keep)
     for group in pipeline.groups():
-        jobs.extend(_create_jobs_for_group(group, keep=keep,
-                                           nodes2jobs=nodes2jobs))
+        _create_jobs_for_group(group, keep=keep,
+                               nodes2jobs=nodes2jobs)
 
     if persist:
         _session = session
@@ -367,6 +376,63 @@ def reload_script(job):
     tool = job.tool
     _, cmd = tool.get_command()
     job.command = cmd
+
+
+def run(tool, keep=False, force=False, dry=False, show=False):
+    # persis the script to in memoru database
+    if not force and tool.is_done() and not dry and not show:
+        sys.stderr.write("Results exist! Skipping "
+                         "(use --force to force execution\n")
+        return
+    import jip.db
+    from jip.db import create_session
+    jip.db.init(in_memory=True)
+    # create the jobs
+    session = create_session()
+    jobs = create_jobs(tool.pipeline(),
+                       parent_tool=tool,
+                       keep=keep,
+                       session=session)
+    if dry:
+        show_dry_run(jobs)
+        return
+    if show:
+        show_command(jobs)
+        return
+    # run all main jobs
+    for job in jobs:
+        if len(job.pipe_from) > 0:
+            continue
+        if not force and job.tool.is_done():
+            sys.stderr.write("Job (%d) results exist! Skipping "
+                             "(use --force to force execution\n" %
+                             (job.id))
+        else:
+            session.add(job)
+            run_job(job.id)
+
+
+def show_command(jobs):
+    for job in jobs:
+        print "#### %s :: %s" % (job, job.interpreter)
+        print job.command
+        print "####"
+
+
+def show_dry_run(jobs,rows=None):
+    from jip.cli.jip_jobs import detail_view
+    if rows is None:
+        rows = []
+    for job in jobs:
+        #detail_view(job, exclude_times=True)
+        rows.append([job.id, job.name, job.tool_name, str(job.threads),
+                        ",".join([str(j.id) for j in job.dependencies]), 
+                        ",".join([str(j.id) for j in job.pipe_from]), 
+                        ",".join([str(j.id) for j in job.pipe_to])
+                    ])
+    from jip.utils import render_table
+    print render_table(["ID", "Name", "Tool", "Threads",
+                        "Dependecies", "Pipe From", "Pipe To"], rows)
 
 
 def run_job(id, session=None, db=None):

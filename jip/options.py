@@ -6,6 +6,8 @@ load options from either a docstring (from_docopt) or from a
 populated argpars parser instance.
 """
 import sys
+import re
+from os.path import exists
 
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
@@ -84,9 +86,11 @@ class Option(object):
                     self.nargs = "*"
         self.value = value
         ## we set streamable base on the default value
-        if self.streamable is None and self.default is not None \
-           and not self.is_list():
-            self.streamable = self.__is_stream(self.default)
+        if self.streamable is None:
+            if self.default is not None and not self.is_list():
+                self.streamable = self.__is_stream(self.default)
+            else:
+                self.streamable = False
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -209,6 +213,16 @@ class Option(object):
             if self.nargs != 0 and len(self.value) == 0:
                 raise ValueError("Option %s is required but not set!" %
                                  self._opt_string())
+    def check_files(self):
+        """Validate this options and check that, if the options is not
+        set through a dependency, all string values represent existing 
+        files
+        """
+        self.validate()
+        if not self.is_dependency():
+            for v in self._value:
+                if isinstance(v, basestring) and not exists(v):
+                    raise ValueError("File not found: %s" % v)
 
     def is_list(self):
         """Return true if this option takes lists of values"""
@@ -280,6 +294,17 @@ class Options(object):
         self._usage = ""
         self._help = ""
         self.source = None
+
+    def add_output(self, name, default=None):
+        """Add additional, hidden, output option"""
+        option = Option(
+            name,
+            option_type=TYPE_OUTPUT,
+            default=default,
+            hidden=True,
+        )
+        option.source = self.source
+        self.options.append(option)
 
     def render_context(self, ctx):
         for o in self:
@@ -359,10 +384,16 @@ class Options(object):
 
     def __setitem__(self, name, option):
         i = self.__index(name)
-        if i >= 0:
-            self.options[i] = option
+        if isinstance(option, Option):
+            if i >= 0:
+                self.options[i] = option
+            else:
+                self.options.append(option)
+        elif i >= 0:
+            self.options[i].set(option)
         else:
-            self.options.append(option)
+            raise AttributeError("Option not found: %s" % option)
+
 
     def __len__(self):
         return len(self.options)
@@ -415,22 +446,40 @@ class Options(object):
             if o.name == "help":
                 continue
             opts = to_opts(o)
-            if o.nargs == 0:
-                ## create boolean
-                parser.add_argument(
-                    *opts,
-                    dest=o.name,
-                    action="store_true" if o.nargs == 0 else None,
-                    default=o.raw()
-                )
+            if not o.name in opts:
+                if o.nargs == 0:
+                    ## create boolean
+                    parser.add_argument(
+                        *opts,
+                        dest=o.name,
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.raw()
+                    )            
+                else:
+                    parser.add_argument(
+                        *opts,
+                        dest=o.name,
+                        type=o.type if o.type else str,
+                        nargs="*",
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.raw()
+                    )
             else:
-                parser.add_argument(
-                    *opts,
-                    dest=o.name,
-                    nargs="*",
-                    action="store_true" if o.nargs == 0 else None,
-                    default=o.raw()
-                )
+                if o.nargs == 0:
+                    ## create boolean
+                    parser.add_argument(
+                        *opts,
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.raw()
+                    )            
+                else:
+                    parser.add_argument(
+                        *opts,
+                        type=o.type if o.type else str,
+                        nargs="*",
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.raw()
+                    )
 
         # Override the argparse error function to
         # raise an exception rather than calling a system.exit
@@ -477,8 +526,8 @@ class Options(object):
         opts._help = buf.getvalue().strip()
         buf.close()
 
-        inputs = inputs if inputs else []
-        outputs = outputs if outputs else []
+        inputs = [re.sub(r'^-*', '', s) for s in inputs] if inputs else []
+        outputs = [re.sub(r'^-*', '', s) for s in outputs] if outputs else []
         for action in parser._optionals._actions:
             long = None
             short = None
@@ -501,7 +550,7 @@ class Options(object):
                 short=short,
                 nargs=action.nargs,
                 required=action.required,
-                value=action.default if action.dest != "help" else False,
+                default=action.default if action.dest != "help" else None,
             ))
         return opts
 
@@ -515,8 +564,8 @@ class Options(object):
         from jip.vendor.docopt import Required, Optional, Argument, \
             OneOrMore, Command
 
-        inputs = inputs if inputs else []
-        outputs = outputs if outputs else []
+        inputs = [re.sub(r'^-*', '', s) for s in inputs] if inputs else []
+        outputs = [re.sub(r'^-*', '', s) for s in outputs] if outputs else []
         opts = cls(source=source)
 
         usage_sections = docopt.parse_section('usage:', doc)

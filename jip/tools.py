@@ -13,7 +13,7 @@ from jip.templates import render_template
 from jip.utils import list_dir
 from jip.logger import log
 
-
+# the pickle template to store a pyton tool
 _pickel_template = """
 python -c '
 import sys;
@@ -85,17 +85,19 @@ class tool(object):
     def __call_delegate(self, fun, wrapper, instance):
         if not callable(fun):
             name = fun
-            fun = getattr(instance, name)
-            if not fun:
+            try:
+                fun = getattr(instance, name)
+            except:
                 # try to get the function frow main Tool implementation
                 fun = getattr(Tool, name)
         if fun:
             # make sure the instance is aware of the options
-            instance.options = wrapper.options
-            if hasattr(fun, "__self__") or hasattr(fun, "im_self"):
+            if (hasattr(fun, "__self__") and fun.__self__ is not None) or \
+               (hasattr(fun, "im_self") and fun.im_self is not None):
+                instance.options = wrapper.options
                 return fun()
             else:
-                return fun(instance)
+                return fun(wrapper)
 
     def validate(self, wrapper, instance):
         return self.__call_delegate(self._validate, wrapper, instance)
@@ -517,7 +519,8 @@ class Tool(object):
         optional counter is profiled, the name of the cloned tool will be
         updated using .counter as a suffix.
         """
-        cloned_tool = copy.deepcopy(self)
+        cloned_tool = copy.copy(self)
+        cloned_tool._options = copy.deepcopy(self._options)
         if cloned_tool.name and counter is not None:
             cloned_tool.name = "%s.%d" % (cloned_tool.name, str(counter))
         cloned_tool.options._help = self.options._help
@@ -594,7 +597,9 @@ class PythonTool(Tool):
         return self._options
 
     def run(self):
-        self.instance(**self.options.to_dict())
+        self.instance.options = self.options
+        self.instance.tool_instance = self
+        self.instance()
 
     def validate(self):
         return self.decorator.validate(self, self.instance)

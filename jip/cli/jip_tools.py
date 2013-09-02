@@ -52,7 +52,6 @@ def main():
         description = "-"
         if help is not None:
             description = help.split("\n")[0]
-        print description
         if len(description) > 60:
             description = "%s ..." % description[:46]
         rows.append((name, description))

@@ -21,7 +21,8 @@ Other Options:
 import sys
 
 from . import parse_args
-from jip import find, create_jobs, run_job, ValidationError, ParserException
+from jip import find, create_jobs, run_job, ValidationError, ParserException, \
+    run
 
 
 def main(argv=None):
@@ -37,10 +38,10 @@ def main(argv=None):
 
     try:
         script.parse_args(script_args)
-        run_script(script, keep=args["--keep"],
-                   force=args["--force"],
-                   dry=args["--dry"],
-                   show=args['--show'])
+        run(script, keep=args["--keep"],
+            force=args["--force"],
+            dry=args["--dry"],
+            show=args['--show'])
     except ValidationError, va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
@@ -52,55 +53,6 @@ def main(argv=None):
     except Exception:
         raise
 
-
-def run_script(script, keep=False, force=False, dry=False, show=False):
-    # persis the script to in memoru database
-    if not force and script.is_done() and not dry and not show:
-        sys.stderr.write("Results exist! Skipping "
-                         "(use --force to force execution\n")
-        return
-    import jip.db
-    from jip.db import create_session
-    jip.db.init(in_memory=True)
-    # create the jobs
-    session = create_session()
-    jobs = create_jobs(script.pipeline(),
-                       parent_tool=script,
-                       keep=keep,
-                       session=session)
-    if dry:
-        show_dry_run(jobs)
-        return
-    if show:
-        show_command(jobs)
-        return
-    # run all main jobs
-    for job in jobs:
-        if len(job.pipe_from) > 0:
-            continue
-        if not force and job.tool.is_done():
-            sys.stderr.write("Job (%d) results exist! Skipping "
-                             "(use --force to force execution\n" %
-                             (job.id))
-        else:
-            session.add(job)
-            run_job(job.id)
-
-
-def show_command(jobs, show_children=False):
-    for job in jobs:
-        print "#### %s :: %s" % (job, job.interpreter)
-        print job.command
-        print "####"
-
-
-def show_dry_run(jobs, show_children=False):
-    from jip_jobs import detail_view
-    for job in jobs:
-        if show_children or len(job.pipe_from) == 0:
-            detail_view(job, exclude_times=True)
-            if len(job.pipe_to) > 0:
-                show_dry_run(job.pipe_to, True)
 
 if __name__ == "__main__":
     main()
