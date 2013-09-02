@@ -13,6 +13,18 @@ from jip.utils import list_dir
 from jip.logger import log
 
 
+_pickel_template = """
+python -c '
+import sys;
+import cPickle;
+import jip;
+jip._disable_module_search = True;
+source="".join([l for l in sys.stdin]).decode("base64");
+cPickle.loads(source).run();
+'<< __EOF__
+%s__EOF__
+"""
+
 #########################################################
 # Exceptions
 #########################################################
@@ -35,22 +47,79 @@ class ValidationError(Exception):
 # decorators
 #########################################################
 class tool(object):
+    """The @jip.tool decorator can be used to turn classes into valid JIP 
+    tools. The only mandatory parameter is the tool name. All other paramters 
+    are optional and allow you to delegate functionality between the actual 
+    :class:`jip.tool.Tool` implementation and the decorated class.
+    """
     def __init__(self, name, inputs=None, outputs=None, argparse=None,
                  get_command=None, validate=None, add_outputs=None,
-                 pipeline=None):
+                 pipeline=None, is_done=None, cleanup=None, help=None):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
         self.argparse = argparse
-        self.get_command = get_command
-        self.validate = validate
         self.add_outputs = add_outputs
-        self.pipeline = pipeline
+
+        ################################################################
+        # tool delegates
+        ################################################################
+        self._validate = validate if validate else "validate"
+        self._is_done = is_done if is_done else "is_done"
+        self._pipeline = pipeline if pipeline else "pipeline"
+        self._get_command = get_command if get_command else "get_command"
+        self._cleanup = cleanup if cleanup else "cleanup"
+        self._help = help if help else "help"
+
 
     def __call__(self, cls):
         Scanner.registry[self.name] = PythonTool(cls, self,
                                                  self.add_outputs)
+        log.debug("Registered tool from module: %s", self.name)
         return cls
+    
+    ################################################################
+    # tool delegates
+    ################################################################
+    def __call_delegate(self, fun, wrapper, instance):
+        if not callable(fun):
+            name = fun
+            fun = getattr(instance, name)
+            if not fun:                
+                # try to get the function frow main Tool implementation
+                fun = getattr(Tool, name)
+        if fun:
+            # make sure the instance is aware of the options
+            instance.options = wrapper.options
+            if hasattr(fun, "__self__") or hasattr(fun, "im_self"):
+                return fun()
+            else:
+                return fun(instance)
+
+    def validate(self, wrapper, instance):
+        return self.__call_delegate(self._validate, wrapper, instance)
+    
+    def is_done(self, wrapper, instance):
+        return self.__call_delegate(self._is_done, wrapper, instance)
+    
+    def pipeline(self, wrapper, instance):
+        return self.__call_delegate(self._pipeline, wrapper, instance)
+    
+    def get_command(self, wrapper, instance):
+        interp, cmd = self.__call_delegate(self._get_command, wrapper, instance)
+        if cmd is not None:
+            block = Block(content=cmd, interpreter=interp)
+            return inter, block.render(self)
+        else:            
+            import cPickle
+            return "bash", _pickel_template % 
+                (cPickle.dumps(self).encode("base64"))
+    
+    def cleanup(self, wrapper, instance):
+        return self.__call_delegate(self._cleanup, wrapper, instance)
+    
+    def help(self, wrapper, instance):
+        return self.__call_delegate(self._help, wrapper, instance)
 
 
 class Scanner():
@@ -143,6 +212,7 @@ class Scanner():
         for module in path.split(":") + self.jip_modules + ['jip.scripts']:
             try:
                 if module:
+                    log.debug("Importing module: %s", module)
                     __import__(module)
             except ImportError, e:
                 log.warn("Error while importing module: %s", str(e))
@@ -199,6 +269,7 @@ class Block(object):
         ctx = dict(tool.options.to_dict(raw=True))
         ctx['tool'] = tool
         ctx['args'] = tool.options.to_dict()
+        ctx['options'] = tool.options.to_cmd
         tool.options.render_context(ctx)
 
         return render_template(content, **ctx)
@@ -292,9 +363,15 @@ class Tool(object):
         """
         self.name = name
         self.path = None
-        self.options = None
-        if options_source is not None:
-            self.options = self._parse_options(options_source)
+        self._options = None
+        self._options_source = options_source
+
+    @property
+    def options(self):
+        if self._options is None:
+            if self._options_source is not None:
+                self._options = self._parse_options(self._options_source)
+        return self._options
 
     def parse_args(self, args):
         """Parses the given argument. An excetion is raised if
@@ -480,50 +557,69 @@ class PythonTool(Tool):
         # specified by name in the decorator or load them from the
         # docstring of the instance
         ################################################################
-        options_source = None
-        if decorator.argparse:
+        self._options_source = None
+        self._add_outputs = add_outputs
+
+    @property
+    def options(self):
+        if self._options is not None:
+            return self._options
+
+        if self.decorator.argparse:
             #initialize the options from argparse
             from argparse import ArgumentParser
-            options_source = ArgumentParser(prog=self.name)
+            self._options_source = ArgumentParser(prog=self.name)
             init_parser = getattr(self.instance, self.decorator.argparse)
-            init_parser(options_source)
+            init_parser(self._options_source)
         else:
             # initialize options from doc string
             import textwrap
-            options_source = textwrap.dedent(self.instance.__doc__)
+            if self.instance.__doc__ is not None:
+                self._options_source = textwrap.dedent(self.instance.__doc__)
+            else:
+                self._options_source = ""
         # create the options
-        self.options = self._parse_options(options_source,
-                                           inputs=decorator.inputs,
-                                           outputs=decorator.outputs)
+        self._options = self._parse_options(self._options_source,
+                                            inputs=self.decorator.inputs,
+                                            outputs=self.decorator.outputs)
         ## add additional output arguments
-        if add_outputs is not None:
-            for arg in add_outputs:
-                self.options.add(Option(
+        if self._add_outputs is not None:
+            for arg in self._add_outputs:
+                self._options.add(Option(
                     arg,
                     option_type=TYPE_OUTPUT,
                     nargs=1,
                     hidden=True
                 ))
-
-    def pipeline(self):
-        if self.decorator.pipeline:
-            pipeline_fun = getattr(self.instance, self.decorator.pipeline)
-            return pipeline_fun(self)
-        return Tool.pipeline(self)
+        return self._options
 
     def run(self):
         self.instance(**self.options.to_dict())
-
+        
     def validate(self):
-        Tool.validate(self)
-        if self.decorator.validate:
-            validate_fun = getattr(self.instance, self.decorator.validate)
-            validate_fun(self)
+        return self.decorator.validate(self, self.instance)
+
+    def is_done(self):
+        return self.decorator.is_done(self, self.instance)
+    
+    def pipeline(self):
+        return self.decorator.pipeline(self, self.instance)
+    
+    def help(self):
+        return self.decorator.help(self, self.instance)
+    
+    def cleanup(self):
+        return self.decorator.cleanup(self, self.instance)
+
+    def get_command(self):
+        return self.decorator.get_command(self, self.instance)
 
     def get_command(self):
         if self.decorator.get_command is not None:
             cmd_fun = getattr(self.instance, self.decorator.get_command)
-            return cmd_fun()
+            inter, cmd = cmd_fun()
+            block = Block(content=cmd, interpreter=inter)
+            return inter, block.render(self)
         import cPickle
         template = """
 python -c '

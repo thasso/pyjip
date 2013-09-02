@@ -6,6 +6,7 @@ from jip.db import Job
 from jip.utils import flat_list
 import subprocess
 import sys
+from os import getenv
 
 
 def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
@@ -197,7 +198,7 @@ def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
     jobs = []
     for node in nodes:
         ## first create jobs
-        job = _create_job(node)
+        job = _create_job(node, keep=keep)
         jobs.append(job)
         nodes2jobs[node] = job
     # add dependencies
@@ -226,16 +227,23 @@ def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
     return jobs
 
 
-def _create_job(node):
+def _create_job(node, keep=False):
     job = Job(node._tool)
     tool = node._tool
     job.name = tool.name
     job.tool_name = tool.name
     job.path = tool.path
     job.configuration = node._tool.options
+    job.keep_on_fail = keep
     interpreter, command = node._tool.get_command()
     job.interpreter = interpreter
     job.command = command
+    job.env = {
+        "PATH": getenv("PATH", ""),
+        "PYTHONPATH": getenv("PYTHONPATH", ""),
+        "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
+        "JIP_LOGLEVEL": str(log.level)
+    }
     return job
 
 
@@ -309,6 +317,7 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
     for job in jobs:
         if reload:
             reload_script(job)
+        job.cluster = cluster_name
         session.add(job)
         if len(job.pipe_from) == 0:
             log.debug("Checking job %d", job.id)

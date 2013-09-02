@@ -261,7 +261,7 @@ def test_left_shift_operator():
     assert list(node_1.children()) == [node_3]
     assert list(node_2.children()) == [node_3]
     assert list(node_3.children()) == []
-    assert len(node_3._tool.options['input']) == 3
+    assert len(node_3._tool.options['input']) == 2
 
 
 def test_right_shift_operator():
@@ -279,7 +279,7 @@ def test_right_shift_operator():
     assert list(node_1.children()) == [node_3]
     assert list(node_2.children()) == [node_3]
     assert list(node_3.children()) == []
-    assert len(node_3._tool.options['input']) == 3
+    assert len(node_3._tool.options['input']) == 2
     for e in node_3._edges:
         for link in e._links:
             assert not link[2]

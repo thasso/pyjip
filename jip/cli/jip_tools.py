@@ -43,7 +43,7 @@ def main():
     print "implementation. These tools might not be found by this scan!"
     print ""
     print "Jip configuration: %s" % jip.configuration.get("jip_modules", "")
-    print "JIP_PATH variable: %s" % getenv("JIP_MODULES", "")
+    print "JIP_MODULES variable: %s" % getenv("JIP_MODULES", "")
     print ""
     rows = []
     jip.scanner.scan_modules()
@@ -52,8 +52,9 @@ def main():
         description = "-"
         if help is not None:
             description = help.split("\n")[0]
+        print description
         if len(description) > 60:
-            description = "%s ..." % description[46]
+            description = "%s ..." % description[:46]
         rows.append((name, description))
     print render_table(["Tool", "Description"], rows)
 

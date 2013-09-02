@@ -32,13 +32,16 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
         if not isinstance(value, Option):
             return "${%s}" % value
 
-
-        value = value.get()
-        if value == "":
+        if value.to_cmd() == "":
             return ""
-        prefix = prefix if prefix is not None else ""
+    
+        v = value.get()
+        prefix = prefix if prefix is not None else value.get_opt()
         suffix = suffix if suffix is not None else ""
-        return "%s%s%s" % (prefix, value, suffix)
+        # we add a spece between the prefix and the value iff the prefix is
+        # not empty and does not end in space abd the value is not empty
+        space = "" if (prefix == "" or v == "" or prefix[-1] == " ") else " "
+        return "%s%s%s%s" % (prefix, space, v, suffix)
     except:
         raise
         return value

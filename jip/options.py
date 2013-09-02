@@ -149,7 +149,7 @@ class Option(object):
             return sys.sterr
         return v
 
-    def _get_opt(self):
+    def get_opt(self):
         """Return the short or long representation of this option"""
         return self.short if self.short else self.long
 
@@ -157,8 +157,8 @@ class Option(object):
         self.value = new_value
 
     def append(self, value):
-        self.value = self._value + \
-            [value] if not isinstance(value, (list, tuple)) else value
+        list_value = [value] if not isinstance(value, (list, tuple)) else value
+        self.value = self._value + list_value
 
     def get(self):
         """Get the string representation for the current value
@@ -235,11 +235,11 @@ class Option(object):
         if self.nargs == 0:
             if len(self.value) == 0:
                 return ""
-            return "" if not self.value[0] else self._get_opt()
+            return "" if not self.value[0] else self.get_opt()
         value = self.get()
         if not value:
             return ""
-        return "%s %s" % (self._get_opt(), value)
+        return "%s %s" % (self.get_opt(), value)
 
     def __str__(self):
         return self.get()
@@ -298,6 +298,13 @@ class Options(object):
             else:
                 r[o.name] = o
         return r
+
+    def to_cmd(self):
+        """Render all non hidden options to a single command line
+        option
+        """
+        return " ".join(filter(lambda x: len(x) > 0,
+                               [o.to_cmd() for o in self if not o.hidden]))
 
     def get_default_output(self):
         """Returns the first output option that is
@@ -506,7 +513,7 @@ class Options(object):
         """
         from jip.vendor import docopt
         from jip.vendor.docopt import Required, Optional, Argument, \
-            OneOrMore
+            OneOrMore, Command
 
         inputs = inputs if inputs else []
         outputs = outputs if outputs else []
@@ -568,7 +575,7 @@ class Options(object):
                     if one_or_more:
                         pattern.argcount = "*"
                     else:
-                        pattern.argcount = 1 if type(pattern) == Argument \
+                        pattern.argcount = 1 if not hasattr(pattern, 'argcount') \
                             else pattern.argcount
                     docopt_options[pattern] = pattern
                     pattern.index = index[0]
@@ -604,6 +611,11 @@ class Options(object):
                     nargs=pattern.argcount,
                     required=pattern.required,
                     default=pattern.value,
+                    option_type=option_type
+                ))
+            elif type(pattern) == Command:
+                opts.add(Option(
+                    name,
                     option_type=option_type
                 ))
             else:

@@ -11,24 +11,30 @@ def test_boolean_option():
     assert not o.default
     assert o.value == [False]
     assert str(o) == ""
+    assert o.to_cmd() == ""
     o.value = True
-    assert str(o) == "-t"
+    assert str(o) == ""
+    assert o.to_cmd() == "-t"
 
 
 def test_single_string_option():
     o = Option("t", short="-t", nargs=1)
     assert str(o) == ""
+    assert o.to_cmd() == ""
     o.value = "test"
-    assert str(o) == "-t test"
+    assert str(o) == "test"
+    assert o.to_cmd() == "-t test"
 
 
 def test_list_string_option():
     o = Option("t", short="-t", nargs="*")
     assert str(o) == ""
     o.value = "test"
-    assert str(o) == "-t test"
+    assert str(o) == "test"
+    assert o.to_cmd() == "-t test"
     o.value = ["t1", "t2"]
-    assert str(o) == "-t t1 t2"
+    assert str(o) == "t1 t2"
+    assert o.to_cmd() == "-t t1 t2"
 
 
 def test_argparse_parser():
