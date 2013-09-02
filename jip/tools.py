@@ -2,6 +2,7 @@
 """The tools moduel contains the base classes
 for executable tools
 """
+import cPickle
 import copy
 from textwrap import dedent
 from os import remove, getcwd, getenv
@@ -25,6 +26,7 @@ cPickle.loads(source).run();
 %s__EOF__
 """
 
+
 #########################################################
 # Exceptions
 #########################################################
@@ -47,9 +49,9 @@ class ValidationError(Exception):
 # decorators
 #########################################################
 class tool(object):
-    """The @jip.tool decorator can be used to turn classes into valid JIP 
-    tools. The only mandatory parameter is the tool name. All other paramters 
-    are optional and allow you to delegate functionality between the actual 
+    """The @jip.tool decorator can be used to turn classes into valid JIP
+    tools. The only mandatory parameter is the tool name. All other paramters
+    are optional and allow you to delegate functionality between the actual
     :class:`jip.tool.Tool` implementation and the decorated class.
     """
     def __init__(self, name, inputs=None, outputs=None, argparse=None,
@@ -71,13 +73,12 @@ class tool(object):
         self._cleanup = cleanup if cleanup else "cleanup"
         self._help = help if help else "help"
 
-
     def __call__(self, cls):
         Scanner.registry[self.name] = PythonTool(cls, self,
                                                  self.add_outputs)
         log.debug("Registered tool from module: %s", self.name)
         return cls
-    
+
     ################################################################
     # tool delegates
     ################################################################
@@ -85,7 +86,7 @@ class tool(object):
         if not callable(fun):
             name = fun
             fun = getattr(instance, name)
-            if not fun:                
+            if not fun:
                 # try to get the function frow main Tool implementation
                 fun = getattr(Tool, name)
         if fun:
@@ -98,26 +99,24 @@ class tool(object):
 
     def validate(self, wrapper, instance):
         return self.__call_delegate(self._validate, wrapper, instance)
-    
+
     def is_done(self, wrapper, instance):
         return self.__call_delegate(self._is_done, wrapper, instance)
-    
+
     def pipeline(self, wrapper, instance):
         return self.__call_delegate(self._pipeline, wrapper, instance)
-    
+
     def get_command(self, wrapper, instance):
-        interp, cmd = self.__call_delegate(self._get_command, wrapper, instance)
-        if cmd is not None:
+        interp, cmd = self.__call_delegate(self._get_command, wrapper,
+                                           instance)
+        if interp and cmd:
             block = Block(content=cmd, interpreter=interp)
-            return inter, block.render(self)
-        else:            
-            import cPickle
-            return "bash", _pickel_template % 
-                (cPickle.dumps(self).encode("base64"))
-    
+            return interp, block.render(wrapper)
+        return None, None
+
     def cleanup(self, wrapper, instance):
         return self.__call_delegate(self._cleanup, wrapper, instance)
-    
+
     def help(self, wrapper, instance):
         return self.__call_delegate(self._help, wrapper, instance)
 
@@ -466,7 +465,8 @@ class Tool(object):
         a string that will be rendered and the interpreter is a name of
         an interpreter that will be used to run the filled template.
         """
-        return None, None
+        return "bash", _pickel_template % \
+            (cPickle.dumps(self).encode("base64"))
 
     def cleanup(self):
         """The celanup method removes all output files for this tool"""
@@ -595,44 +595,24 @@ class PythonTool(Tool):
 
     def run(self):
         self.instance(**self.options.to_dict())
-        
+
     def validate(self):
         return self.decorator.validate(self, self.instance)
 
     def is_done(self):
         return self.decorator.is_done(self, self.instance)
-    
+
     def pipeline(self):
         return self.decorator.pipeline(self, self.instance)
-    
+
     def help(self):
         return self.decorator.help(self, self.instance)
-    
+
     def cleanup(self):
         return self.decorator.cleanup(self, self.instance)
 
     def get_command(self):
         return self.decorator.get_command(self, self.instance)
-
-    def get_command(self):
-        if self.decorator.get_command is not None:
-            cmd_fun = getattr(self.instance, self.decorator.get_command)
-            inter, cmd = cmd_fun()
-            block = Block(content=cmd, interpreter=inter)
-            return inter, block.render(self)
-        import cPickle
-        template = """
-python -c '
-import sys;
-import cPickle;
-import jip;
-jip._disable_module_search = True;
-source="".join([l for l in sys.stdin]).decode("base64");
-cPickle.loads(source).run();
-'<< __EOF__
-%s__EOF__
-"""
-        return "bash", template % (cPickle.dumps(self).encode("base64"))
 
 
 class ScriptTool(Tool):

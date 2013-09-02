@@ -102,18 +102,41 @@ def test_tool_decorator_delegate():
         """
         def validate(self):
             return "delegated_validate:%s" % self.options['i'].get()
+
         def is_done(self):
             return "delegated_is_done:%s" % self.options['i'].get()
+
+        def pipeline(self):
+            return "delegated_pipeline:%s" % self.options['i'].get()
+
+        def cleanup(self):
+            return "delegated_cleanup:%s" % self.options['i'].get()
+
+        def help(self):
+            return "delegated_help:%s" % self.options['i'].get()
+
+        def get_command(self):
+            return 'inter', "delegated_cmd:%s" % self.options['i'].get()
 
     test_tool = find("test_delegates")
     test_tool.parse_args(["-i", "infile.txt"])
     assert test_tool is not None
     assert test_tool.validate() == "delegated_validate:infile.txt"
     assert test_tool.is_done() == "delegated_is_done:infile.txt"
+    assert test_tool.pipeline() == "delegated_pipeline:infile.txt"
+    assert test_tool.cleanup() == "delegated_cleanup:infile.txt"
+    assert test_tool.help() == "delegated_help:infile.txt"
+    assert test_tool.get_command() == ('inter', "delegated_cmd:infile.txt")
 
 
 def test_tool_decorator_delegate_validate_to_other_method():
-    @jip.tool("test_delegates", validate="my_validate")
+    @jip.tool("test_delegates",
+              validate="my_validate",
+              pipeline="my_pipeline",
+              get_command="my_get_command",
+              cleanup="my_cleanup",
+              is_done="my_is_done",
+              help="my_help")
     class MyTool(object):
         """\
         usage: delegate [-i <input>]
@@ -121,24 +144,70 @@ def test_tool_decorator_delegate_validate_to_other_method():
         def my_validate(self):
             return "delegated_validate:%s" % self.options['i'].get()
 
+        def my_is_done(self):
+            return "delegated_is_done:%s" % self.options['i'].get()
+
+        def my_pipeline(self):
+            return "delegated_pipeline:%s" % self.options['i'].get()
+
+        def my_cleanup(self):
+            return "delegated_cleanup:%s" % self.options['i'].get()
+
+        def my_help(self):
+            return "delegated_help:%s" % self.options['i'].get()
+
+        def my_get_command(self):
+            return 'inter', "delegated_cmd:%s" % self.options['i'].get()
+
     test_tool = find("test_delegates")
     test_tool.parse_args(["-i", "infile.txt"])
     assert test_tool is not None
     assert test_tool.validate() == "delegated_validate:infile.txt"
+    assert test_tool.is_done() == "delegated_is_done:infile.txt"
+    assert test_tool.pipeline() == "delegated_pipeline:infile.txt"
+    assert test_tool.cleanup() == "delegated_cleanup:infile.txt"
+    assert test_tool.help() == "delegated_help:infile.txt"
+    assert test_tool.get_command() == ('inter', "delegated_cmd:infile.txt")
 
 
 def test_tool_decorator_delegate_validate_to_external_method():
+
     def my_validate(self):
-        return "delegated_validate_indirect:%s" % self.options['i'].get()
-    
-    @jip.tool("test_delegates", validate=my_validate)
+        return "delegated_validate:%s" % self.options['i'].get()
+
+    def my_is_done(self):
+        return "delegated_is_done:%s" % self.options['i'].get()
+
+    def my_pipeline(self):
+        return "delegated_pipeline:%s" % self.options['i'].get()
+
+    def my_cleanup(self):
+        return "delegated_cleanup:%s" % self.options['i'].get()
+
+    def my_help(self):
+        return "delegated_help:%s" % self.options['i'].get()
+
+    def my_get_command(self):
+        return 'inter', "delegated_cmd:%s" % self.options['i'].get()
+
+    @jip.tool("test_delegates",
+              validate=my_validate,
+              pipeline=my_pipeline,
+              get_command=my_get_command,
+              cleanup=my_cleanup,
+              is_done=my_is_done,
+              help=my_help)
     class MyTool(object):
         """\
         usage: delegate [-i <input>]
         """
 
-
     test_tool = find("test_delegates")
     test_tool.parse_args(["-i", "infile.txt"])
     assert test_tool is not None
-    assert test_tool.validate() == "delegated_validate_indirect:infile.txt"
+    assert test_tool.validate() == "delegated_validate:infile.txt"
+    assert test_tool.is_done() == "delegated_is_done:infile.txt"
+    assert test_tool.pipeline() == "delegated_pipeline:infile.txt"
+    assert test_tool.cleanup() == "delegated_cleanup:infile.txt"
+    assert test_tool.help() == "delegated_help:infile.txt"
+    assert test_tool.get_command() == ('inter', "delegated_cmd:infile.txt")
