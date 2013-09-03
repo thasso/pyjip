@@ -182,7 +182,7 @@ class Job(Base):
         if not self._tool:
             try:
                 from jip import find
-                self._tool = find(self.tool_name if not self.path
+                self._tool = find(self.tool_name if self.path is None
                                   else self.path)
                 for opt in self.configuration:
                     self._tool.options[opt.name]._value = opt._value
@@ -322,9 +322,9 @@ def init(path=None, in_memory=False):
     Session.configure(bind=engine)
 
 
-def create_session():
+def create_session(embedded=False):
     if engine is None:
-        init()
+        init(in_memory=embedded)
     return Session()
 
 

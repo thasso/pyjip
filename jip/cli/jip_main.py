@@ -4,10 +4,11 @@ This is the master and control command for jip. Use it to invoke supported
 sub-command to launch, check, and modify jobs.
 
 Usage:
-    jip [--loglevel <level>] <command> [<args>...]
+    jip [--loglevel <level>] [-p] <command> [<args>...]
     jip [--version] [--help]
 
 Options::
+    -p, --pipeline      the file contains a pipeline (interpreter mode)
     -h --help           Show this help message
     --version           Show the version information
     --loglevel <level>  Set the JIP log level to one of error|warn|info|debug
@@ -63,7 +64,9 @@ def main():
         import os
         if os.path.exists(cmd):
             import runpy
-            argv = ["jip-interpreter"] + [cmd] + args['<args>']
+            argv = ["jip-interpreter"] + \
+                ([] if not args['--pipeline'] else ['--pipeline']) + \
+                [cmd] + args['<args>']
             sys.argv = argv  # reset options
             runpy.run_module("jip.cli.jip_interpreter", run_name="__main__")
         else:

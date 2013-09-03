@@ -29,3 +29,28 @@ class cleanup(object):
                     remove(f)
                 except:
                     print >>sys.stderr, "Error while removing file: %s" % f
+
+
+@jip.tool("bash")
+class bash(object):
+    """\
+    Run a bash command
+
+    Usage:
+        bash_runner.jip [-i <input>] [-o <output>] -c <cmd>...
+        bash_runner.jip [--help]
+
+    Options:
+        --help                    Show this help message
+        -c, --cmd <cmd>...        The command to run
+
+    Inputs:
+        -i, --input <input>       The input file to read
+                                  [default: stdin]
+    Outputs:
+        -o, --output <output>     The output file to write
+                                  [default: stdout]
+    """
+
+    def get_command(self):
+        return "bash", """(${cmd})${output|arg(">")}"""

@@ -9,7 +9,7 @@ from os import remove, getcwd, getenv
 from os.path import exists, basename, dirname
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
-from jip.templates import render_template
+from jip.templates import render_template, set_global_context
 from jip.utils import list_dir
 from jip.logger import log
 
@@ -140,11 +140,11 @@ class Scanner():
         self.jip_modules = jip_modules if jip_modules else []
         self.jip_file_paths = set([])
 
-    def find(self, name, path=None):
+    def find(self, name, path=None, is_pipeline=False):
         if exists(name):
             ## the passed argument is a file. Try to load it at a
             ## script
-            tool = ScriptTool.from_file(name)
+            tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
             self.instances[name] = tool
             self.jip_file_paths.add(dirname(name))
             return tool.clone()
@@ -168,7 +168,7 @@ class Scanner():
         if isinstance(tool, basestring):
             ## the tool is not loaded, load the script,
             ## and add it to the cache
-            tool = ScriptTool.from_file(tool)
+            tool = ScriptTool.from_file(tool, is_pipeline=is_pipeline)
             self.instances[name] = tool
         clone = tool.clone()
         if args:
@@ -297,9 +297,18 @@ class Block(object):
 
 class PythonBlockUtils(object):
 
-    def __init__(self, tool):
+    def __init__(self, tool, local_env):
         self.tool = tool
-        self.pipeline = None
+        self._pipeline = None
+        self._local_env = local_env
+        self._global_env = None
+
+    @property
+    def pipeline(self):
+        from jip import Pipeline
+        if self._pipeline is None:
+            self._pipeline = Pipeline()
+        return self._pipeline
 
     def check_file(self, name):
         opt = self.tool.options[name]
@@ -307,16 +316,37 @@ class PythonBlockUtils(object):
             self.tool.options[name].validate()
 
     def run(self, name, **kwargs):
-        from jip import Pipeline
-        if self.pipeline is None:
-            self.pipeline = Pipeline()
         return self.pipeline.run(name, **kwargs)
 
     def job(self, **kwargs):
-        from jip import Pipeline
-        if self.pipeline is None:
-            self.pipeline = Pipeline()
         return self.pipeline.job(**kwargs)
+
+    def bash(self, command, **kwargs):
+        from jip.pipelines import Node
+
+        bash_node = self.pipeline.run('bash', cmd=command, **kwargs)
+        # create a render context
+        ctx = dict(self._global_env)
+        ctx.update(kwargs)
+        ## update all Nodes with their default output options
+
+        class OptionWrapper(object):
+            def __init__(self, node, option):
+                self.node = node
+                self.option = option
+
+            def __str__(self):
+                bash_node.depends_on(self.node)
+                return str(self.option)
+
+        for k in ctx.keys():
+            v = ctx[k]
+            if isinstance(v, Node):
+                ctx[k] = OptionWrapper(v,
+                                       v._tool.options.get_default_output())
+        cmd = render_template(command, **ctx)
+        bash_node.cmd = cmd
+        return bash_node
 
 
 class PythonBlock(Block):
@@ -333,17 +363,38 @@ class PythonBlock(Block):
         content = self.content
         if isinstance(content, (list, tuple)):
             content = "\n".join(content)
-        utils = PythonBlockUtils(tool)
+        local_env = locals()
+        utils = PythonBlockUtils(tool, local_env)
         env = {
             "tool": tool,
             "args": tool.options.to_dict(),
             "check_file": utils.check_file,
             "run": utils.run,
+            "bash": utils.bash,
             "job": utils.job,
-            'utils': utils
+            'utils': utils,
+            'basename': basename
+
         }
+
+        # link known tools into the context
+        from jip import scanner
+        from functools import partial
+        scanner.scan_modules()
+        for name, cls in scanner.registry.iteritems():
+            if not name in env:
+                env[name] = partial(utils.run, name)
+        for name, path in scanner.scan_files().iteritems():
+            k = name
+            if k.endswith(".jip"):
+                k = k[:-4]
+            if not k in env:
+                env[k] = partial(utils.run, name)
+
+        utils._global_env = env
+        set_global_context(env)
         try:
-            exec content in locals(), env
+            exec content in local_env, env
         except Exception as e:
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
@@ -470,10 +521,7 @@ class Tool(object):
 
     def pipeline(self):
         """Create and return the pipeline that will run this tool"""
-        from jip.pipelines import Pipeline
-        pipeline = Pipeline()
-        pipeline.add(self)
-        return pipeline
+        return None
 
     def get_command(self):
         """Return a tuple of (template, interpreter) where the template is
@@ -654,7 +702,7 @@ class ScriptTool(Tool):
         self.pipeline_block = pipeline_block
         if self.pipeline_block:
             if self.pipeline_block.interpreter is not None and \
-                    self.pipeline_block.interpreter != 'pythons':
+                    self.pipeline_block.interpreter != 'python':
                 raise Exception("Pipeline blocks have to be implemented in "
                                 "python! Sorry about that, but its realy a "
                                 "nice language :)")
@@ -707,6 +755,7 @@ class ScriptTool(Tool):
         return load(content, script_class=cls)
 
     @classmethod
-    def from_file(cls, path):
+    def from_file(cls, path, is_pipeline=False):
         from jip.parser import loads
-        return loads(path, script_class=cls)
+        s = loads(path, script_class=cls, is_pipeline=is_pipeline)
+        return s

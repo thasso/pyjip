@@ -10,6 +10,16 @@ from jinja2 import Environment, Undefined, contextfilter
 from jip.logger import log
 from jip.options import Option
 
+# contains global variable that
+# will be added to any render context
+# if they do not exists in the local contect
+global_context = None
+
+
+def set_global_context(global_ctx):
+    global global_context
+    global_context = global_ctx
+
 
 class JipUndefined(Undefined):
     """Custom undefined implementation that does not modify
@@ -28,13 +38,21 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
         if not isinstance(value, Option):
             script = ctx.get('tool', None)
             if script:
-                value = script.options[value]
+                v = script.options[value]
+                if v is not None:
+                    value = v
+
         if not isinstance(value, Option):
-            return "${%s}" % value
+            if not value:
+                return ""
+            v = str(value)
+            prefix = prefix if prefix is not None else ""
+            suffix = suffix if suffix is not None else ""
+            return "%s%s%s" % (prefix, v, suffix)
 
         if value.to_cmd() == "":
             return ""
-    
+
         v = value.get()
         prefix = prefix if prefix is not None else value.get_opt()
         suffix = suffix if suffix is not None else ""
@@ -81,5 +99,12 @@ def render_template(template, **kwargs):
     :type template: string
     :param kwargs: the context
     """
+    if template is None or not isinstance(template, basestring):
+        return template
     tmpl = environment.from_string(template)
-    return tmpl.render(**kwargs)
+    ctx = dict(kwargs)
+    if global_context is not None:
+        for k, v in global_context.iteritems():
+            if not k in ctx:
+                ctx[k] = v
+    return tmpl.render(**ctx)

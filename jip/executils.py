@@ -4,48 +4,11 @@ from functools import partial
 from jip.logger import log
 from jip.db import Job
 from jip.utils import flat_list
+from jip.tools import ValidationError
+from jip.pipelines import Pipeline
 import subprocess
 import sys
 from os import getenv
-
-
-def load_job_profile(profile_name=None, time=None, queue=None, priority=None,
-                     account=None, cpus=None, max_mem=None, name=None,
-                     load_default=False, err=None, out=None):
-    """Create a profile. If a profile name is specified, the configuration
-    is checked for that profile. In addition you can set load_default
-    to True to load the default profile from the configuration.
-    """
-    import jip
-    profile = {}
-    if profile_name is not None or load_default:
-        cluster_cfg = jip.configuration.get('cluster', {})
-        profiles = cluster_cfg.get('profiles', {})
-        if profile_name is None and load_default:
-            profile_name = cluster_cfg.get("default_profile", None)
-        profile = profiles.get(profile_name, None)
-        if profile is None:
-            raise ValueError("Profile %s not found!" % profile_name)
-    ## update profile
-    if time is not None:
-        profile["max_time"] = time
-    if queue is not None:
-        profile["queue"] = queue
-    if priority is not None:
-        profile['priority'] = priority
-    if account is not None:
-        profile['account'] = account
-    if cpus is not None:
-        profile['threads'] = cpus
-    if max_mem is not None:
-        profile['max_mem'] = max_mem
-    if name is not None:
-        profile['name'] = name
-    if err is not None:
-        profile['err'] = err
-    if out is not None:
-        profile['out'] = out
-    return profile
 
 
 def set_state(new_state, id_or_job, session=None, update_children=True):
@@ -109,7 +72,7 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
                 pass
     elif new_state in STATES_FINISHED:
         job.finish_date = datetime.now()
-    
+
     if session_created:
         ## add the job to the session
         session.add(job)
@@ -195,6 +158,7 @@ def _exec(job):
             raise Exception("Interpreter %s not found!" % job.interpreter)
         raise err
 
+
 def _create_all_jobs(nodes, nodes2jobs, keep=False):
     jobs = []
     for node in nodes:
@@ -233,31 +197,40 @@ def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
 def _create_job(node, keep=False):
     job = Job(node._tool)
     tool = node._tool
-    job.name = tool.name if node._name is None else node._name
+    job.name = tool.name
     job.tool_name = tool.name
     job.path = tool.path
     job.configuration = node._tool.options
     job.keep_on_fail = keep
-    interpreter, command = node._tool.get_command()
-    job.interpreter = interpreter
-    job.command = command
+
     job.env = {
         "PATH": getenv("PATH", ""),
         "PYTHONPATH": getenv("PYTHONPATH", ""),
+        "JIP_PATH": getenv("JIP_PATH", ""),
+        "JIP_MODULES": getenv("JIP_MODULES", ""),
         "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
         "JIP_LOGLEVEL": str(log.level)
     }
+    if node._job is not None:
+        node._job.apply(job)
+
     # check for special options
     if node._tool.options['threads'] is not None:
-        try:            
-            job.threads = int(node._tool.options['threads'].raw())
+        try:
+            options_threads = int(node._too.options['threads'].raw())
+            threads = max(options_threads, job.threads)
+            job.threads = threads
         except:
             pass
+
+    interpreter, command = node._tool.get_command()
+    job.interpreter = interpreter
+    job.command = command
     return job
 
 
 def create_jobs(pipeline, persist=True, keep=False, validate=True,
-                session=None, parent_tool=None):
+                session=None, parent_tool=None, embedded=False):
     """Create a set of jobs from the given pipeline. This expands the pipeline
     and creates a job per pipeline node.
 
@@ -272,13 +245,28 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
     """
     from jip.db import create_session
     pipeline.expand()
-    if validate:
+    try:
         if parent_tool is not None:
             parent_tool.validate()
         for node in pipeline.nodes():
-            node._tool.validate()
+            try:
+                node._tool.validate()
+            except ValidationError:
+                if validate:
+                    raise
+            except Exception as e:
+                if validate:
+                    raise ValidationError(node._tool, str(e))
+    except ValidationError:
+        if validate:
+            raise
+    except Exception as e:
+        if validate:
+            raise ValidationError(None, str(e))
+
     nodes2jobs = {}
-    jobs = _create_all_jobs(pipeline.topological_order(), nodes2jobs, keep=keep)
+    jobs = _create_all_jobs(pipeline.topological_order(), nodes2jobs,
+                            keep=keep)
     for group in pipeline.groups():
         _create_jobs_for_group(group, keep=keep,
                                nodes2jobs=nodes2jobs)
@@ -286,7 +274,7 @@ def create_jobs(pipeline, persist=True, keep=False, validate=True,
     if persist:
         _session = session
         if session is None:
-            _session = create_session()
+            _session = create_session(embedded=embedded)
 
         map(_session.add, jobs)
         _session.commit()
@@ -310,10 +298,6 @@ def submit(jobs, profile=None, cluster_name=None, session=None,
         cluster_name = cluster_cfg.get('engine', None)
         if cluster_name is None:
             raise ValueError("No cluster engine configured!")
-    # load profile
-    if profile is None and update_profile:
-        profile = load_job_profile(load_default=True)
-
     # create the cluster and init the db
     log.info("Cluster engine: %s", cluster_name)
     cluster = jip.cluster.from_name(cluster_name)
@@ -389,15 +373,20 @@ def run(tool, keep=False, force=False, dry=False, show=False):
     jip.db.init(in_memory=True)
     # create the jobs
     session = create_session()
-    jobs = create_jobs(tool.pipeline(),
+    # wrap the tool in a pipeline
+    # to deal with pipelines of pipelines
+    pipeline = Pipeline()
+    pipeline.run(tool)
+    jobs = create_jobs(pipeline,
                        parent_tool=tool,
                        keep=keep,
+                       validate=True,  # not (dry or show),
                        session=session)
     if dry:
         show_dry_run(jobs)
-        return
     if show:
         show_command(jobs)
+    if dry or show:
         return
     # run all main jobs
     for job in jobs:
@@ -419,17 +408,20 @@ def show_command(jobs):
         print "####"
 
 
-def show_dry_run(jobs,rows=None):
-    from jip.cli.jip_jobs import detail_view
+def show_dry_run(jobs, rows=None):
     if rows is None:
         rows = []
+
+    def _to_name(j):
+        return "%s(%s)" % (j.name, j.id)
+
     for job in jobs:
         #detail_view(job, exclude_times=True)
         rows.append([job.id, job.name, job.tool_name, str(job.threads),
-                        ",".join([str(j.id) for j in job.dependencies]), 
-                        ",".join([str(j.id) for j in job.pipe_from]), 
-                        ",".join([str(j.id) for j in job.pipe_to])
-                    ])
+                     ", ".join([_to_name(j) for j in job.dependencies]),
+                     ", ".join([_to_name(j) for j in job.pipe_from]),
+                     ", ".join([_to_name(j) for j in job.pipe_to])
+                     ])
     from jip.utils import render_table
     print render_table(["ID", "Name", "Tool", "Threads",
                         "Dependecies", "Pipe From", "Pipe To"], rows)

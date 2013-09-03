@@ -3,7 +3,7 @@
 # file or in a given input stream.
 #
 # Usage:
-#   line_count.jip [-a] [-i <input>...] [-o <output>]
+#   line_count.jip [-a] [-i <input>] [-o <output>]
 #   line_count.jip [--help]
 #
 # Options:
@@ -11,7 +11,7 @@
 #   --help        Show this help message
 #
 # Inputs:
-#   -i, --input <input>...    The input file to read
+#   -i, --input <input>       The input file to read
 #                             [default: stdin]
 # Outputs:
 #   -o, --output <output>     The output file to write

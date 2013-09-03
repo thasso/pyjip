@@ -3,22 +3,22 @@
 The JIP job interpreter command can be used to execute jobs on the local host
 
 Usage:
-   jip-interpreter <file> [<args>...] [-- [submit] [<jip_args>...]]
-   jip-interpreter <file> [--help|-h]
+   jip-interpreter [-p] <file> [<args>...] [-- [submit] [<jip_args>...]]
+   jip-interpreter [-p] <file> [--help|-h]
    jip-interpreter [--help|-h]
 
 Options:
-    <file>       the jip script
-    <args>       script arguments
-    <jip_args>   additional jip argument that can be passed to
-                 the jip runtime. To see a list of options, take
-                 a look at the 'jip run' command or the 'jip submit'
-                 command.
-    submit       forwards the execution to 'jip submit' and sends the script
-                 to a cluster. By default, the script is executed locally
+    -p,--pipeline   the file contains a pipeline
+    <file>          the jip script
+    <args>          script arguments
+    <jip_args>      additional jip argument that can be passed to
+                    the jip runtime. To see a list of options, take
+                    a look at the 'jip run' command or the 'jip submit'
+                    command.
+    submit          forwards the execution to 'jip submit' and sends the script
+                    to a cluster. By default, the script is executed locally
+    -h,--help       show this help message
 
-Other Options:
-    -h --help             Show this help message
 """
 
 from . import parse_args
@@ -45,6 +45,8 @@ def main():
     script_file = args["<file>"]
     script_args = args["<args>"]
     jip_args = args["<jip_args>"]
+    if args['--pipeline']:
+        jip_args.append('--pipeline')
     if "--" in jip_args:
         jip_args.remove("--")
     # execute locally or submit

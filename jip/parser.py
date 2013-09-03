@@ -152,8 +152,12 @@ def _create_docstring(header):
     return ""
 
 
-def load(content, script_class=None):
+def load(content, script_class=None, is_pipeline=False):
     lines = content.split("\n")
+    if not is_pipeline:
+        if len(lines[0]) > 0:
+            if re.match(r'^#!/usr/bin/env.*jip.*(-p|--pipeline).*$', lines[0]):
+                is_pipeline = True
     header, content = split_header(lines)
     lineno = len(header) + 1
 
@@ -179,18 +183,22 @@ def load(content, script_class=None):
 
     if script_class is None:
         script_class = ScriptTool
+    if is_pipeline:
+        pipeline_block = command_block
+        pipeline_block.interpreter = "python"
+        command_block = None
     return script_class(docstring=docstring,
                         command_block=command_block,
                         validation_block=validate_block,
                         pipeline_block=pipeline_block)
 
 
-def loads(path, script_class=None):
+def loads(path, script_class=None, is_pipeline=False):
     if path is not None and not os.path.exists(path):
         raise Exception("Script file not found : %s" % path)
     with open(path, 'r') as f:
         lines = "\n".join([l.rstrip() for l in f.readlines()])
-        tool = load(lines, script_class=script_class)
+        tool = load(lines, script_class=script_class, is_pipeline=is_pipeline)
         tool.path = os.path.abspath(path)
         return tool
     raise Exception("Error while loading script from %s" % path)

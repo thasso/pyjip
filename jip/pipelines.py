@@ -4,36 +4,20 @@ used to create pipeline graphs
 """
 from jip.options import Option
 from jip.tools import Tool
+from jip.profiles import Profile
 
 
-class Job(object):
+class Job(Profile):
     """Container class that wrapps job meta-data"""
-    def __init__(self, pipeline, name=None, threads=None, max_time=None,
-                 profile=None, queue=None, priority=None, log=None,
-                 account=None):
+    def __init__(self, pipeline=None, **kwargs):
+        Profile.__init__(self, **kwargs)
         self._pipeline = pipeline
-        self.name = name
-        self.threads = threads
-        self.profile = profile
-        self.queue = queue
-        self.max_time = max_time
-        self.priority = priority
-        self.log = log
-        self.account = account
 
-    def __call__(self, name=None, threads=None, max_time=None, profile=None,
-                 queue=None, priority=None, log=None, account=None):
-        return Job(
-            self._pipeline,
-            name=name if name is not None else self.name,
-            threads=threads if threads is not None else self.threads,
-            profile=profile if profile is not None else self.profile,
-            queue=queue if queue is not None else self.queue,
-            max_time=max_time if max_time is not None else self.max_time,
-            priority=priority if priority is not None else self.priority,
-            log=log if log is not None else self.log,
-            account=account if account is not None else self.account,
-        )
+    def __call__(self, *args, **kwargs):
+        clone = Profile.__call__(self, *args, **kwargs)
+        clone._pipeline = self._pipeline
+        self._pipeline._current_job = clone
+        return clone
 
     def run(self, *args, **kwargs):
         if len(args) > 1:
@@ -52,13 +36,18 @@ class Pipeline(object):
         self._nodes = {}
         self._edges = set([])
         self._job = Job(self)
+        self._current_job = self._job
+        self._component_index = {}
 
     def job(self, **kwargs):
         return self._job(**kwargs)
 
     def run(self, name, **kwargs):
-        from jip import find
-        tool = find(name)
+        if not isinstance(name, Tool):
+            from jip import find
+            tool = find(name)
+        else:
+            tool = name
         node = self.add(tool)
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
@@ -134,6 +123,7 @@ class Pipeline(object):
                 count[successor] += 1
 
         ready = [node for node in self.nodes() if count[node] == 0]
+        sorted(ready, key=lambda j: len(list(j.outgoing())))
         while ready:
             node = ready.pop(-1)
             yield node
@@ -176,6 +166,19 @@ class Pipeline(object):
         An exception is raised in case a node has more than one option that
         should be exaned and the number of configured elements is not the same.
         """
+        # add dependency edges between groups
+        # when a node in a group has an incoming edge from a parent
+        # outside of the group, add the edge also to any predecesor
+        # of the node within the group
+        for group in self.groups():
+            gs = set(group)
+            first = group[0]
+            for node in group:
+                for parent in node.parents():
+                    if parent not in gs:
+                        ## add an edge to the first of the group
+                        self.add_edge(parent, first)
+
         for node in self.topological_order():
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
@@ -189,6 +192,30 @@ class Pipeline(object):
                                  "options used for fan out differes: %s" %
                                  (node, ", ".join(option_names)))
             self._fan_out(node, fanout_options)
+        # iterate again to exand on pipeline of pipelines
+        for node in self.topological_order():
+            sub_pipe = node._tool.pipeline()
+            if sub_pipe is None:
+                continue
+            sub_pipe.expand()
+            # find all nodes with no incoming edges and connect
+            # them to the current nodes incoming nodes
+            no_incoming = [n for n in sub_pipe.nodes()
+                           if len(list(n.incoming())) == 0]
+            no_outgoing = [n for n in sub_pipe.nodes()
+                           if len(list(n.outgoing())) == 0]
+            # add the sub_pipe
+            self._nodes.update(sub_pipe._nodes)
+            self._edges = self._edges.union(sub_pipe._edges)
+
+            for inedge in node.incoming():
+                for target in no_incoming:
+                    self.add_edge(inedge._source, target)
+
+            for outedge in node.outgoing():
+                for source in no_outgoing:
+                    self.add_edge(source, outedge._target)
+            self.remove(node)
 
     def _fan_out(self, node, options):
         """Fan-out the given node using the given options
@@ -260,6 +287,32 @@ class Pipeline(object):
                          node._tool.options)
         return fan_out
 
+    def _dfs(self, node, visited=None):
+        if visited is None:
+            visited = set([])
+        if node in visited:
+            return visited
+        else:
+            visited.add(node)
+            for child in node.children():
+                self._dfs(child, visited)
+            for parent in node.parents():
+                self._dfs(parent, visited)
+        return visited
+
+    def _index_components(self):
+        all_nodes = set(self.nodes())
+        self._component_index = {}
+        components = []
+        for n in all_nodes:
+            c = self._dfs(n)
+            if len(c) > 0:
+                components.append(c)
+                idx = len(components)
+                for nc in c:
+                    self._component_index[nc] = idx
+        return components
+
 
 class Node(object):
     """A node in the pipeline graph. If the node is linked
@@ -272,7 +325,7 @@ class Node(object):
     """
     def __init__(self, tool, graph):
         self.__dict__['_tool'] = tool
-        self.__dict__['_job'] = None
+        self.__dict__['_job'] = graph._current_job()
         self.__dict__['_graph'] = graph
         self.__dict__['_edges'] = set([])
 
@@ -296,6 +349,15 @@ class Node(object):
         for edge in [e for e in self._edges if e._target == self]:
             yield edge
 
+    def depends_on(self, other):
+        """Add an explicit dependency between this node and the other
+        node.
+
+        :param other: the parent node
+        :type other: Node
+        """
+        self._graph.add_edge(other, self)
+
     ####################################################################
     # Operators
     ####################################################################
@@ -315,6 +377,26 @@ class Node(object):
             else:
                 # just add an edge
                 self._graph.add_edge(self, other)
+        return other
+
+    def __gt__(self, other):
+        dout = self._tool.options.get_default_output()
+        if dout is not None:
+            self.set(dout.name, other)
+        else:
+            raise ValueError("Unknown default output for %s", self._tool)
+        return self
+
+    def __and__(self, other):
+        """Create an edge from this node to the other node. No
+        options are passed.
+        """
+        if isinstance(other, _NodeProxy):
+            for o in other._nodes:
+                self.__and__(o)
+        else:
+            # just add an edge
+            self._graph.add_edge(self, other)
         return other
 
     def __lshift__(self, other):
@@ -344,11 +426,11 @@ class Node(object):
         set the default output/input options between this node
         and the other but disable any streaming posibilities on the link
         """
-        out = self._tool.options.get_default_output()
         if isinstance(other, _NodeProxy):
             for o in other._nodes:
                 self.__rshift__(o)
-        else:
+        elif isinstance(other, Node):
+            out = self._tool.options.get_default_output()
             inp = other._tool.options.get_default_input()
             if out is not None and inp is not None:
                 other._set_option_value(inp, out, append=True,
@@ -356,6 +438,8 @@ class Node(object):
             else:
                 # just add an edge
                 self._graph.add_edge(self, other)
+        else:
+            return self.__gt__(other)
         return other
 
     def __add__(self, other):
@@ -434,6 +518,7 @@ class Node(object):
             # in case the other value is a node, we try to
             # get the node tools default output option
             value = value._tool.options.get_default_output()
+
         if isinstance(value, Option):
             # the value is an options, we pass on the Options
             # value and create/update the edge
@@ -499,6 +584,11 @@ class _NodeProxy(object):
     def __or__(self, other):
         raise Exception("The | (pipe) operation is currently no supported "
                         "for a set of targets.")
+
+    def __and__(self, other):
+        for node in self._nodes:
+            node.__and__(other)
+        return other
 
     def __lshift__(self, other):
         for node in self._nodes:

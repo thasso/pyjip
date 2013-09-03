@@ -2,9 +2,10 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-f] [-k] [-C <cpus>] [--dry] [--show] <file> [<args>...]
+usage: jip-run [-h] [-p] [-f] [-k] [-C <cpus>] [--dry] [--show] <file> [<args>...]
 
 Options:
+  -p, --pipeline           the file contains a pipeline
   -f, --force              force command execution
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation
@@ -21,17 +22,15 @@ Other Options:
 import sys
 
 from . import parse_args
-from jip import find, create_jobs, run_job, ValidationError, ParserException, \
-    run
+from jip import find, run, ValidationError, ParserException
 
 
 def main(argv=None):
     args = parse_args(__doc__, argv=argv)
     script_file = args["<file>"]
     script_args = args["<args>"]
-
     try:
-        script = find(script_file)
+        script = find(script_file, is_pipeline=args['--pipeline'])
     except LookupError, e:
         print >>sys.stderr, str(e)
         sys.exit(1)
@@ -42,7 +41,7 @@ def main(argv=None):
             force=args["--force"],
             dry=args["--dry"],
             show=args['--show'])
-    except ValidationError, va:
+    except ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
@@ -50,7 +49,7 @@ def main(argv=None):
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(va.status)
-    except Exception:
+    except Exception as va:
         raise
 
 

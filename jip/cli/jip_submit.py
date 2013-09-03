@@ -5,9 +5,10 @@ Submit a jip script to a remote cluster
 usage: jip-submit [-f] [-k] [-P <profile>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
                   [-o <out>] [-e <err]
-                  [-d <db>] [-H] [--dry] <file> [<args>...]
+                  [-d <db>] [-H] [--dry] [--pipeline] <file> [<args>...]
 
 Options:
+  --pipeline               the file contains a pipeline
   -f, --force              force command execution
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation

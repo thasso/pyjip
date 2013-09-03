@@ -7,12 +7,10 @@ def test_set_state_single_job():
     job = jip.db.Job()
     session = set([])
     set_state(jip.db.STATE_RUNNING, job, session=session)
-    assert session == set([job])
     assert job.state == jip.db.STATE_RUNNING
 
-    session = set([])
+    session = set([job])
     set_state(jip.db.STATE_DONE, job, session=session)
-    assert session == set([job])
     assert job.state == jip.db.STATE_DONE
 
 
@@ -24,7 +22,6 @@ def test_set_state_single_job_not_overwrite_hold_with_failed():
 
     session = set([])
     set_state(jip.db.STATE_FAILED, job, session=session)
-    assert session == set([])
     assert job.state == jip.db.STATE_HOLD
 
 
@@ -35,5 +32,4 @@ def test_set_state_pipe_to_children():
     job.pipe_to.append(child)
     session = set([])
     set_state(jip.db.STATE_RUNNING, job, session=session)
-    assert session == set([job, child])
     assert job.state == jip.db.STATE_RUNNING

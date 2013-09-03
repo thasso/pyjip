@@ -142,6 +142,9 @@ class Option(object):
         """helper function to resolve stdin, stdout and stderr default
         values
         """
+        if isinstance(v, (list, tuple)) and len(v) == 1:
+            v = v[0]
+
         if v == 'stdin':
             self.option_type = TYPE_INPUT
             return sys.stdin
@@ -213,9 +216,10 @@ class Option(object):
             if self.nargs != 0 and len(self.value) == 0:
                 raise ValueError("Option %s is required but not set!" %
                                  self._opt_string())
+
     def check_files(self):
         """Validate this options and check that, if the options is not
-        set through a dependency, all string values represent existing 
+        set through a dependency, all string values represent existing
         files
         """
         self.validate()
@@ -454,7 +458,7 @@ class Options(object):
                         dest=o.name,
                         action="store_true" if o.nargs == 0 else None,
                         default=o.raw()
-                    )            
+                    )
                 else:
                     parser.add_argument(
                         *opts,
@@ -471,7 +475,7 @@ class Options(object):
                         *opts,
                         action="store_true" if o.nargs == 0 else None,
                         default=o.raw()
-                    )            
+                    )
                 else:
                     parser.add_argument(
                         *opts,

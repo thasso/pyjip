@@ -22,12 +22,12 @@ configuration = {
     "db": "sqlite:///%s/.jip/jobs.db" % (getenv("HOME", "")),
     "home": "%s/.jip" % (getenv("HOME", "")),
     "jip_path": "",  # search path for scripts
+    "profiles": {
+        "default": {}
+    },
     "cluster": {
         "engine": None,
-        "default_profile": "default",
-        "profiles": {
-            "default": {}
-        }
+        "default_profile": "default"
     }
 }
 
