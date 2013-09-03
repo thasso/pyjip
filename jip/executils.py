@@ -413,7 +413,7 @@ def show_dry_run(jobs, rows=None):
         rows = []
 
     def _to_name(j):
-        return "%s(%s)" % (j.name, j.id)
+        return "%s" % (j.id)
 
     for job in jobs:
         #detail_view(job, exclude_times=True)
