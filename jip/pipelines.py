@@ -6,25 +6,66 @@ from jip.options import Option
 from jip.tools import Tool
 
 
+class Job(object):
+    """Container class that wrapps job meta-data"""
+    def __init__(self, pipeline, name=None, threads=None, max_time=None,
+                 profile=None, queue=None, priority=None, log=None,
+                 account=None):
+        self._pipeline = pipeline
+        self.name = name
+        self.threads = threads
+        self.profile = profile
+        self.queue = queue
+        self.max_time = max_time
+        self.priority = priority
+        self.log = log
+        self.account = account
+
+    def __call__(self, name=None, threads=None, max_time=None, profile=None,
+                 queue=None, priority=None, log=None, account=None):
+        return Job(
+            self._pipeline,
+            name=name if name is not None else self.name,
+            threads=threads if threads is not None else self.threads,
+            profile=profile if profile is not None else self.profile,
+            queue=queue if queue is not None else self.queue,
+            max_time=max_time if max_time is not None else self.max_time,
+            priority=priority if priority is not None else self.priority,
+            log=log if log is not None else self.log,
+            account=account if account is not None else self.account,
+        )
+
+    def run(self, *args, **kwargs):
+        if len(args) > 1:
+            raise ValueError("You can only pass one tool to a job run !")
+        tool = args[0]
+        if isinstance(tool, basestring):
+            tool = self._pipeline.run(tool, **kwargs)
+        tool._job = self
+        return tool
+
+
 class Pipeline(object):
     """A pipeline is a directed acyclic graph of Nodes and edges"""
 
     def __init__(self):
         self._nodes = {}
         self._edges = set([])
+        self._job = Job(self)
 
-    def run(self, name, *args, **kwargs):
+    def job(self, **kwargs):
+        return self._job(**kwargs)
+
+    def run(self, name, **kwargs):
         from jip import find
         tool = find(name)
         node = self.add(tool)
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
-        if len(args) > 0:
-            node._name = args[0]
         # silent validate
         try:
             tool.validate()
-        except Exception as e:
+        except Exception:
             pass
         return node
 
@@ -180,8 +221,6 @@ class Pipeline(object):
                 cloned_tool.options[option.name].value = opts[j]
 
             cloned_node = self.add(cloned_tool)
-            if node._name is not None:
-                cloned_node._name = "%s.%s" % (node._name, str(i))
             # reattach the edges and copy the links
             for e in _edges:
                 new_edge = None
@@ -231,9 +270,9 @@ class Node(object):
     are stored on the :class:`.Edge`. If no edge exists, one will be
     created.
     """
-    def __init__(self, tool, graph, name=None):
+    def __init__(self, tool, graph):
         self.__dict__['_tool'] = tool
-        self.__dict__['_name'] = name
+        self.__dict__['_job'] = None
         self.__dict__['_graph'] = graph
         self.__dict__['_edges'] = set([])
 
@@ -334,7 +373,7 @@ class Node(object):
     def __hash__(self):
         return self._tool.__hash__()
 
-    def __getattr__(self, name):        
+    def __getattr__(self, name):
         """Resolves tool options"""
         if isinstance(self._tool, Tool):
             opts = self._tool.options
@@ -352,8 +391,8 @@ class Node(object):
                                allow_stream=allow_stream)
 
     def __setattr__(self, name, value):
-        if name == "_name":
-            self.__dict__['_name'] = value
+        if name == "_job":
+            self.__dict__['_job'] = value
         else:
             self.set(name, value, allow_stream=False)
 

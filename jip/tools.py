@@ -312,6 +312,12 @@ class PythonBlockUtils(object):
             self.pipeline = Pipeline()
         return self.pipeline.run(name, **kwargs)
 
+    def job(self, **kwargs):
+        from jip import Pipeline
+        if self.pipeline is None:
+            self.pipeline = Pipeline()
+        return self.pipeline.job(**kwargs)
+
 
 class PythonBlock(Block):
     """Extends block and runs the content as embedded python
@@ -333,9 +339,16 @@ class PythonBlock(Block):
             "args": tool.options.to_dict(),
             "check_file": utils.check_file,
             "run": utils.run,
+            "job": utils.job,
             'utils': utils
         }
-        exec content in locals(), env
+        try:
+            exec content in locals(), env
+        except Exception as e:
+            if hasattr(e, 'lineno'):
+                e.lineno += self._lineno
+            raise
+
         return env
 
     def terminate(self):
