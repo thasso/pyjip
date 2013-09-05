@@ -5,6 +5,9 @@ used to create pipeline graphs
 from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
+from jip.logger import getLogger
+
+log = getLogger('jip.pipelines')
 
 
 class Job(Profile):
@@ -38,16 +41,20 @@ class Pipeline(object):
         self._job = Job(self)
         self._current_job = self._job
         self._component_index = {}
+        self._cleanup_nodes = []
 
-    def job(self, **kwargs):
-        return self._job(**kwargs)
+    def __len__(self):
+        return len(self._nodes)
 
-    def run(self, name, **kwargs):
-        if not isinstance(name, Tool):
+    def job(self, *args, **kwargs):
+        return self._job(*args, **kwargs)
+
+    def run(self, _tool_name, **kwargs):
+        if not isinstance(_tool_name, Tool):
             from jip import find
-            tool = find(name)
+            tool = find(_tool_name)
         else:
-            tool = name
+            tool = _tool_name
         node = self.add(tool)
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
@@ -55,7 +62,7 @@ class Pipeline(object):
         try:
             tool.validate()
         except Exception:
-            pass
+            log.debug("Validation error for %s", node, exc_info=True)
         return node
 
     def add(self, tool):
@@ -67,13 +74,17 @@ class Pipeline(object):
         tool, _ = self.__resolve_node_tool(tool)
         node = self._nodes[tool]
         node_edges = list(node._edges)
-        # remove the node
-        del self._nodes[tool]
         # remove edges
         for e in node_edges:
-            self._edges.remove(e)
-            e._source._edges.remove(e)
-            e._target._edges.remove(e)
+            e.remove_links()
+            if e in self._edges:
+                self._edges.remove(e)
+            if e in e._source._edges:
+                e._source._edges.remove(e)
+            if e in e._target._edges:
+                e._target._edges.remove(e)
+        # remove the node
+        del self._nodes[tool]
 
     def nodes(self):
         for node in self._nodes.itervalues():
@@ -86,6 +97,7 @@ class Pipeline(object):
 
     def add_edge(self, source, target):
         source, target = self.__resolve_node_tool(source, target)
+        log.debug("Add edge: %s->%s", source, target)
         source_node = self._nodes[source]
         target_node = self._nodes[target]
         edge = Edge(source_node, target_node)
@@ -159,6 +171,103 @@ class Pipeline(object):
             yield group
             group = []
 
+    def exclude(self, excludes):
+        """Takes a list of node names and removes all nodes and their
+        successors from the graph.
+
+        :param excludes: list of node names
+        :type excludes: list of string
+        """
+        if not excludes:
+            return
+        excludes = set(excludes)
+        # index the nodes by name
+        names2nodes = {}
+        for node in self.nodes():
+            if node._job.name is not None:
+                names2nodes[node._job.name] = node
+
+        def _recursive_remove(node, force=True):
+            parents = list(node.parents())
+            if force or len(parents) <= 1:
+                children = list(node.children())
+                map(lambda n: _recursive_remove(n, False),
+                    children)
+                try:
+                    log.info("Excluding node %s", node)
+                    self.remove(node)
+                    # check the children again, they might have becom invalid
+                    for child in [c for c in children
+                                  if c._tool in self._nodes]:
+                        try:
+                            child._tool.validate()
+                        except:
+                            log.info("Forcing exclude of %s, "
+                                     "node became invalid",
+                                     child)
+                            _recursive_remove(child)
+                except KeyError:
+                    ## ignore errors where the node was already removed
+                    pass
+
+        for name in excludes:
+            if not name in names2nodes:
+                log.warn("Node marked for exclusing not found: %s", name)
+            else:
+                node = names2nodes[name]
+                _recursive_remove(names2nodes[name])
+        map(lambda n: n.update_options(), self.nodes())
+        self._update_cleanup_nodes()
+
+    def skip(self, excludes):
+        """Takes a list of node names and removes the node and tries
+        to connect parent and children of teh node
+
+        :param excludes: list of node names
+        :type excludes: list of string
+        """
+        if not excludes:
+            return
+        excludes = set(excludes)
+        # index the nodes by name
+        names2nodes = {}
+        for node in self.nodes():
+            if node._job.name is not None:
+                names2nodes[node._job.name] = node
+        for name in excludes:
+            if not name in names2nodes:
+                log.warn("Node marked for skip not found: %s", name)
+            else:
+                node = names2nodes[name]
+                parents = list(node.parents())
+                children = list(node.children())
+                if len(parents) > 0 and len(children) > 0:
+                    # propagate all output files of the skip node
+                    # pack to teh parent if the parent does not already
+                    # write a file
+                    out_files = list(node._tool.get_output_files())
+                    if len(out_files) > 0:
+                        for p in parents:
+                            p_files = list(p._tool.get_output_files())
+                            if len(p_files) == 0:
+                                out_opt = p._tool.options.get_default_output()
+                                p.set(out_opt.name, out_files)
+
+                    for outedge in node.outgoing():
+                        for link in outedge._links:
+                            target_option = link[1]
+                            for inedge in node.incoming():
+                                for link in inedge._links:
+                                    source_option, stream = link[0], link[2]
+                                    outedge._target.set(target_option.name,
+                                                        source_option,
+                                                        append=True,
+                                                        allow_stream=stream)
+                self.remove(node)
+                map(lambda n: n.update_options(), parents)
+                map(lambda n: n.update_options(), children)
+        self._update_cleanup_nodes()
+
     def expand(self):
         """This modifies the current graph state and applies fan_out
         oprations on nodes with singleton options that are populated with
@@ -179,7 +288,10 @@ class Pipeline(object):
                         ## add an edge to the first of the group
                         self.add_edge(parent, first)
 
+        temp_nodes = set([])
         for node in self.topological_order():
+            if node._job.temp:
+                temp_nodes.add(node)
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
                 continue
@@ -192,6 +304,33 @@ class Pipeline(object):
                                  "options used for fan out differes: %s" %
                                  (node, ", ".join(option_names)))
             self._fan_out(node, fanout_options)
+
+        # for all temp jobs, find a final non-temp target
+        # if we have targets, create a cleanup job, add
+        # all the temp job's output files and
+        # make it dependant on the temp nodes targets
+        targets = set([])
+        temp_outputs = set([])
+        for temp_node in temp_nodes:
+            for outfile in temp_node._tool.get_output_files():
+                temp_outputs.add(outfile)
+            for child in temp_node.children():
+                if not child._job.temp:
+                    targets.add(child)
+
+        if len(targets) > 0:
+            log.info("Create cleanup node for temp jobs: %s", str(temp_nodes))
+            log.info("Cleanup node files: %s", str(temp_outputs))
+            cleanup_node = self.job('cleanup', threads=1, temp=True).run(
+                'cleanup',
+                files=list(temp_outputs)
+            )
+            cleanup_node.files.dependency = True
+            log.info("Cleanup node dependencies: %s", str(targets))
+            for target in (list(targets) + list(temp_nodes)):
+                cleanup_node.depends_on(target)
+            self._cleanup_nodes.append(cleanup_node)
+
         # iterate again to exand on pipeline of pipelines
         for node in self.topological_order():
             sub_pipe = node._tool.pipeline()
@@ -216,6 +355,15 @@ class Pipeline(object):
                 for source in no_outgoing:
                     self.add_edge(source, outedge._target)
             self.remove(node)
+            self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
+
+    def _update_cleanup_nodes(self):
+        for node in self._cleanup_nodes:
+            temp_outputs = set([])
+            for temp_node in [n for n in node.parents() if n._job.temp]:
+                for outfile in temp_node._tool.get_output_files():
+                    temp_outputs.add(outfile)
+            node.files = list(temp_outputs)
 
     def _fan_out(self, node, options):
         """Fan-out the given node using the given options
@@ -349,6 +497,33 @@ class Node(object):
         for edge in [e for e in self._edges if e._target == self]:
             yield edge
 
+    def get_stream_input(self):
+        """Returns a tuple of  input stream option and the parent or
+        None, None"""
+        for inedge in self.incoming():
+            l = inedge.get_streaming_link()
+            if l is not None:
+                return l[1], inedge._source
+        return None, None
+
+    def get_incoming_link(self, option):
+        """Find a link in the incoming edges where the target option
+        is the given option"""
+        for inedge in self.incoming():
+            for link in inedge._links:
+                if link._target == option:
+                    return link
+        return None
+
+    def get_outgoing_link(self, option):
+        """Find a link in the outgoing edges where the soruce option
+        is the given option"""
+        for edge in self.outgoing():
+            for link in edge._links:
+                if link._source == option:
+                    return link
+        return None
+
     def depends_on(self, other):
         """Add an explicit dependency between this node and the other
         node.
@@ -449,7 +624,7 @@ class Node(object):
         return _NodeProxy([self, other])
 
     def __repr__(self):
-        return "(Node:%s)" % (self._tool)
+        return "%s" % (self._tool if not self._job.name else self._job.name)
 
     def __eq__(self, other):
         return isinstance(other, Node) and other._tool == self._tool
@@ -468,11 +643,12 @@ class Node(object):
             return opt
         raise AttributeError("Attribute not found: %s" % name)
 
-    def set(self, name, value, set_dep=False, allow_stream=True):
+    def set(self, name, value, set_dep=False, allow_stream=True, append=False):
         """Set an option"""
         opt = self.__getattr__(name)
         self._set_option_value(opt, value, set_dep=set_dep,
-                               allow_stream=allow_stream)
+                               allow_stream=allow_stream,
+                               append=append)
 
     def __setattr__(self, name, value):
         if name == "_job":
@@ -638,12 +814,33 @@ class Edge(object):
                 target_option.streamable)
         self._links.add(link)
 
+    def remove_links(self):
+        """Iterate the links associated with this edge and make sure that
+        their values are unset in the target options.
+        """
+        for link in self._links:
+            target_option = link[1]
+            value = link[0].value
+            if not isinstance(value, (list, tuple)):
+                value = [value]
+            for v in value:
+                if v in target_option._value:
+                    i = target_option._value.index(v)
+                    del target_option._value[i]
+            if len(target_option._value) == 0:
+                target_option.dependency = False
+
     def has_streaming_link(self):
         """Returns true if a least one link is set to streaming"""
+        l = self.get_streaming_link()
+        return l is not None
+
+    def get_streaming_link(self):
+        """Returns the the first link that is set to streaming"""
         for l in self._links:
             if l[2]:
-                return True
-        return False
+                return l
+        return None
 
     def __eq__(self, other):
         return isinstance(other, Edge) and other._source == self._source \

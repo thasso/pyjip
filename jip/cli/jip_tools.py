@@ -8,8 +8,8 @@ Usage:
 Other Options:
     -h --help             Show this help message
 """
-
 from os import getcwd, getenv
+
 import jip
 from jip.utils import render_table
 from . import parse_args
@@ -25,7 +25,7 @@ def main():
     print ""
     print "Search paths:"
     print "Current directory: %s" % getcwd()
-    print "Jip configuration: %s" % jip.configuration.get("jip_path", "")
+    print "Jip configuration: %s" % jip.config.get("jip_path", "")
     print "JIP_PATH variable: %s" % getenv("JIP_ENV", "")
     print ""
     rows = []
@@ -42,7 +42,7 @@ def main():
     print "python blocks are allowed to load modules that contain tool"
     print "implementation. These tools might not be found by this scan!"
     print ""
-    print "Jip configuration: %s" % jip.configuration.get("jip_modules", "")
+    print "Jip configuration: %s" % jip.config.get("jip_modules", "")
     print "JIP_MODULES variable: %s" % getenv("JIP_MODULES", "")
     print ""
     rows = []

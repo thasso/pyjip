@@ -5,14 +5,18 @@ Jobs in the database
 import datetime
 import sys
 from os import getcwd
+import subprocess
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.ext.declarative import declarative_base
-from jip import log
-from jip.utils import parse_time
+from jip.utils import parse_time, ignored
+from jip.logger import getLogger
+from jip.tempfiles import create_temp_file
+
+log = getLogger('jip.db')
 
 
 # global instances
@@ -43,10 +47,6 @@ STATES_ACTIVE = STATES_RUNNING + STATES_WAITING
 # all possible states
 STATES = STATES_ACTIVE + STATES_FINISHED
 
-
-class JobError(Exception):
-    """Default error raised by job instances"""
-    pass
 
 job_dependencies = Table("job_dependencies", Base.metadata,
                          Column("source", Integer,
@@ -93,6 +93,8 @@ class Job(Base):
     # a job can be archived to be able to
     # hide finished jobs but keep their information
     archived = Column(Boolean, default=False)
+    # mark a job as temporary
+    temp = Column(Boolean, default=False)
     # get the class name of the cluster
     cluster = Column(String(256))
 
@@ -125,10 +127,6 @@ class Job(Base):
     stdout = Column(String(1024))
     # stderr log file. Same rules as for stdout apply
     stderr = Column(String(1024))
-    # supports streamed input
-    supports_stream_in = Column(Boolean(), default=False)
-    # supports streamed output
-    supports_stream_out = Column(Boolean(), default=False)
     # this holds parts of the job environment
     # to allow clean restarts and moves of a job
     # even though the users current environment setting
@@ -162,6 +160,10 @@ class Job(Base):
                            backref='pipe_from')
 
     def __init__(self, tool=None):
+        """Create a new Job instance.
+
+        :param tool: the tool
+        """
         self._tool = tool
         self._process = None
         self.stream_in = sys.stdin
@@ -175,10 +177,29 @@ class Job(Base):
         self.stream_out = sys.stdout
 
     def get_pipe_targets(self):
+        """Returns a list of output files where the stdout content
+        of this job will be written to if the jobs output stream is also
+        piped to some other process.
+        """
         return self.pipe_targets if self.pipe_targets else []
+
+    def is_stream_source(self):
+        """Returns True if this job has child jobs that receive the
+        output stream of this job"""
+        return len(self.pipe_to) > 0
+
+    def is_stream_target(self):
+        """Returns True if this job takes the output stream of at least
+        one parent as input
+        """
+        return len(self.pipe_from) > 0
 
     @property
     def tool(self):
+        """Get the tool instance that is associated with this job. If
+        the tool is not set, it will be loaded using the :ref:`jip.find()`
+        function
+        """
         if not self._tool:
             try:
                 from jip import find
@@ -192,19 +213,60 @@ class Job(Base):
 
     def terminate(self):
         """
-        Terminate currently running blocks
+        Terminate a currently running process that executes this job
         """
         if self._process is not None:
             if self._process.poll() is None:
                 self._process.terminate()
-                # give it 5 seconds to cleanup and exit
-                import time
-                time.sleep(5)
-                if self.process.poll() is None:
-                    # kill it
-                    import os
-                    import signal
-                    os.kill(self.process._popen.pid, signal.SIGKILL)
+                if self._process.poll() is None:
+                    # give it 5 seconds to cleanup and exit
+                    import time
+                    time.sleep(5)
+                    if self._process.poll() is None:
+                        # kill it
+                        import os
+                        import signal
+                        os.kill(self.process._popen.pid, signal.SIGKILL)
+
+    def _load_job_env(self):
+        """Load the job environment"""
+        import os
+        env = self.env
+        if env is not None:
+            for k, v in env.iteritems():
+                os.environ[k] = v
+        os.environ["JIP_ID"] = str(self.id) if self.id is not None else ""
+        os.environ["JIP_JOB"] = str(self.job_id) if self.job_id else ""
+
+    def run(self):
+        """Execute a single job. Note that no further checks on the
+        job are performed and this method assumed that the jobs stream_in
+        and stream_out are properly connected.
+
+        NOTE that this method does not wait for the job's process to finish!
+        """
+        log.info("%s | start", self)
+        self._load_job_env()
+        # write template to named temp file and run with interpreter
+        script_file = create_temp_file()
+        try:
+            script_file.write(self.command)
+            script_file.close()
+            cmd = [self.interpreter if self.interpreter else "bash"]
+            #if self.interpreter_args:
+                #cmd += self.interpreter_args
+            self._process = subprocess.Popen(
+                cmd + [script_file.name],
+                stdin=self.stream_in,
+                stdout=self.stream_out
+            )
+            return self._process
+        except OSError, err:
+            # catch the errno 2 No such file or directory, which indicates the
+            # interpreter is not available
+            if err.errno == 2:
+                raise Exception("Interpreter %s not found!" % self.interpreter)
+            raise err
 
     def get_cluster_command(self):
         """Returns the commen that should be executed on the
@@ -231,26 +293,67 @@ class Job(Base):
             return True
         return False
 
+    def validate(self):
+        """Delegates to the tools validate method"""
+        return self.tool.validate()
+
+    def is_done(self):
+        """Delegates to the tools validate method but also add
+        an additional check streamed jobs. If there are not direct output
+        files, this delegates to the follow up jobs.
+        """
+        if self.state == STATE_DONE:
+            return True
+        ## in case this is a temp job, with stream out check the children
+        if self.temp and len(self.pipe_to) > 0:
+            for target in self.children:
+                if not target.is_done():
+                    return False
+            return True
+
+        if len(self.pipe_to) == 0 or len(self.get_pipe_targets()) > 0:
+            if self.temp:
+                # check the children first. If they are done, this is
+                # done, else, check the job itself
+                children_done = True
+                for target in self.children:
+                    if not target.is_done():
+                        children_done = False
+                        break
+                if children_done:
+                    return True
+            return self.tool.is_done()
+
+        # this is only a streaming job
+        for target in self.pipe_to:
+            if not target.is_done():
+                return False
+        return True
+
     def clean(self):
-        """Remove the jobs log files"""
+        """Clean the job and remove the jobs stderr and stdout log files
+        """
         from os import remove
         from os.path import exists
         import jip.cluster
         cluster = jip.cluster.from_name(self.cluster)
-        try:
+        with ignored(Exception):
             stderr = cluster.resolve_log(self, self.stderr)
             if exists(stderr):
+                log.info("Removing job stderr log file: %s", stderr)
                 remove(stderr)
-        except:
-            pass
-        try:
+        with ignored(Exception):
             stdout = cluster.resolve_log(self, self.stdout)
             if exists(stdout):
+                log.info("Removing job stdout log file: %s", stderr)
                 remove(stdout)
-        except:
-            pass
 
     def update_profile(self, profile):
+        """Updated the job execution settings from the given profile
+
+        :param profile: the profile
+        :type profile: dict
+        """
         self.extra = profile.get("extra", self.extra)
         self.queue = profile.get("queue", self.queue)
         self.priority = profile.get("priority", self.priority)
@@ -268,7 +371,10 @@ class Job(Base):
             self.priority = None
 
     def __repr__(self):
-        return "JOB-%s" % (str(self.id) if self.id is not None else self.name)
+        if self.name is not None:
+            return self.name
+        else:
+            return "JOB-%s" % (str(self.id) if self.id is not None else "nan")
 
 
 def init(path=None, in_memory=False):

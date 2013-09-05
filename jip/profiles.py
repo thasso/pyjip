@@ -19,7 +19,7 @@ class Profile(object):
     def __init__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, _load=True):
+                 profile=None, prefix=None, temp=False, _load=True):
         if profile is not None and _load:
             self.load(profile)
         self.name = render_template(name)
@@ -33,6 +33,7 @@ class Profile(object):
         self.out = render_template(out)
         self.account = render_template(account)
         self.prefix = render_template(prefix)
+        self.temp = temp
 
     def load(self, profile_name):
         """Set this profiles values to the values loaded from the profile
@@ -80,11 +81,13 @@ class Profile(object):
             job.out = self.out
         if self.account is not None:
             job.account = self.account
+        if self.temp is not None:
+            job.temp = self.temp
 
     def __call__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None):
+                 profile=None, prefix=None, temp=False):
         return self.__class__(
             name=name if name is not None else self.name,
             threads=threads if threads is not None else self.threads,
@@ -97,5 +100,6 @@ class Profile(object):
             account=account if account is not None else self.account,
             mem=mem if mem is not None else self.mem,
             prefix=prefix if prefix is not None else self.prefix,
+            temp=temp if temp is not None else self.temp,
             _load=False
         )

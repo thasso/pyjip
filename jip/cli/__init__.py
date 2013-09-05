@@ -2,7 +2,8 @@
 """The JIP command line package contains utilities and the modules
 that expose command line functions for the JIP command
 """
-
+import jip
+from jip.utils import render_table, colorize, BLUE
 
 def parse_args(docstring, argv=None, options_first=True):
     """Parse the command line options"""
@@ -52,3 +53,40 @@ def _query_jobs(args, init_db=True, session=None, fields=None):
                                       cluster_ids=cluster_ids,
                                       archived=None, query_all=False,
                                       fields=fields)
+
+
+def show_dry(jobs):
+    """Print the dry-run table to stdout
+
+    :param jobs: list of jobs
+    """
+    rows = []
+    for group in jip.group(jobs):
+        job = group[0]
+        name = "|".join(str(j) for j in group)
+        outs = [f for j in group for f in j.tool.get_output_files()]
+        ins = [f for j in group for f in j.tool.get_input_files()]
+        rows.append([name, job.state, ", ".join(ins), ", ".join(outs)])
+    print render_table(["Name", "State", "Inputs", "Outputs"], rows,
+                       widths=[30, 6, 50, 50])
+
+
+def show_commands(jobs):
+    """Print the commands for the given list of jobs
+
+    :param jobs: list of jobs
+    """
+    print ""
+    print "Job commands"
+    print "------------"
+    for group in jip.group(jobs):
+        job = group[0]
+        deps = [str(d) for j in group for d in j.dependencies if d not in group]
+        name = "|".join(str(j) for j in group)
+        print "### %s -- Interpreter: %s Dependencies: %s" % (
+            colorize(name, BLUE),
+            job.interpreter,
+            ",".join(deps)
+        )
+        print " | ".join([j.command for j in group])
+        print "###"

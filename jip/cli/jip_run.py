@@ -2,7 +2,8 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-p] [-f] [-k] [-C <cpus>] [--dry] [--show] <file> [<args>...]
+usage: jip-run [-h] [-p] [-f] [-k] [-C <cpus>] [--dry] [--show]
+               <file> [<args>...]
 
 Options:
   -p, --pipeline           the file contains a pipeline
@@ -21,8 +22,11 @@ Other Options:
 """
 import sys
 
-from . import parse_args
-from jip import find, run, ValidationError, ParserException
+from . import parse_args, show_dry, show_commands
+import jip
+from jip.logger import getLogger
+
+log = getLogger('jip.cli.jip_run')
 
 
 def main(argv=None):
@@ -30,25 +34,40 @@ def main(argv=None):
     script_file = args["<file>"]
     script_args = args["<args>"]
     try:
-        script = find(script_file, is_pipeline=args['--pipeline'])
+        script = jip.find(script_file, is_pipeline=args['--pipeline'])
     except LookupError, e:
         print >>sys.stderr, str(e)
         sys.exit(1)
 
     try:
         script.parse_args(script_args)
-        run(script, keep=args["--keep"],
-            force=args["--force"],
-            dry=args["--dry"],
-            show=args['--show'])
-    except ValidationError as va:
+        jobs = jip.create_jobs(script, keep=args['--keep'])
+        if args['--dry']:
+            show_dry(jobs)
+        if args['--show']:
+            show_commands(jobs)
+
+        if args['--dry'] or args['--show']:
+            return
+
+        for group in jip.group(jobs):
+            job = group[0]
+            name = ", ".join(str(j) for j in group)
+            if job.state == jip.STATE_DONE and not args['--force']:
+                print "Skipping jobs: {name:30} Done".format(name=name)
+            else:
+                print "Running jobs: {name:30} Running".format(name=name)
+                success = jip.run_job(job)
+                if success:
+                    print "Finished jobs: {name:29}" \
+                        .format(name=name)
+                else:
+                    print "Execution failed for:", name
+                    sys.exit(1)
+    except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
-    except ParserException, va:
-        sys.stderr.write(str(va))
-        sys.stderr.write("\n")
-        sys.exit(va.status)
     except Exception as va:
         raise
 

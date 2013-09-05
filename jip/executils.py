@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 """JIP job eecution utilities"""
 from functools import partial
-from jip.logger import log
-from jip.db import Job
+
+from jip.db import Job, STATE_QUEUED, STATE_DONE
+from jip.logger import getLogger
 from jip.utils import flat_list
-from jip.tools import ValidationError
 from jip.pipelines import Pipeline
-import subprocess
+
 import sys
 from os import getenv
 
+log = getLogger('jip.executils')
 
-def set_state(new_state, id_or_job, session=None, update_children=True):
+
+def set_state(new_state, job, session=None, update_children=True):
     """Set the job state during execution. A new sesison is
     created and commited if its not specified as parameter. If a
     session is given as paramter, the modified jobs are added but the session
@@ -33,19 +35,10 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     """
     from datetime import datetime
     from jip.db import STATE_FAILED, STATE_HOLD, STATE_CANCELED, \
-        STATES_WAITING, STATES_FINISHED, STATES_RUNNING, \
-        create_session, find_job_by_id
+        STATES_WAITING, STATES_FINISHED, STATES_RUNNING
     ## create a database session
-    session_created = False
-    if session is None:
-        session = create_session()
-        session_created = True
-
-    job = id_or_job
-    if not isinstance(id_or_job, Job):
-        job = find_job_by_id(session, id_or_job)
-
-    log("JOB-%s | set state [%s]=>[%s]" % (str(job.id), job.state, new_state))
+    log.info("%s | set state [%s]=>[%s]",
+             job, job.state, new_state)
     # we do not overwrite CANCELED or HOLD with FAILED
     if new_state == STATE_FAILED and job.state \
             in [STATE_CANCELED, STATE_HOLD]:
@@ -73,108 +66,65 @@ def set_state(new_state, id_or_job, session=None, update_children=True):
     elif new_state in STATES_FINISHED:
         job.finish_date = datetime.now()
 
-    if session_created:
-        ## add the job to the session
-        session.add(job)
-
     # if we are in finish state but not DONE,
     # performe a cleanup
     script = job.tool
     if script is not None:
         if job.state in [STATE_CANCELED, STATE_HOLD, STATE_FAILED]:
+            log.info("Terminating job: %s", job.state)
             job.terminate()
-            log("Keep job output on failure cleanup ? %s" % (job.keep_on_fail))
             if not job.keep_on_fail:
-                log("Cleaning job %s after failure", str(job.id))
+                log.info("Cleaning job %s after failure", str(job))
                 script.cleanup()
 
     # check embedded children of this job
     if update_children:
         map(partial(set_state, new_state, session=session), job.pipe_to)
-    ## close session
-    if session_created:
+    if session is not None:
         session.commit()
-        session.close()
 
 
-def _setup_signal_handler(job):
+def _setup_signal_handler(job, session=None):
     """Setup signal handlers that catch job termination
     when possible and set the job state to FAILED
     """
     from signal import signal, SIGTERM, SIGINT
-    from jip.db import STATE_FAILED, create_session
+    from jip.db import STATE_FAILED
 
     # signal
     def handle_signal(signum, frame):
         # force process termination
-        session = create_session()
         set_state(STATE_FAILED, job, session=session)
-        session.commit()
-        session.close()
         sys.exit(1)
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
 
 
-def _load_job_env(job):
-    """Load the job environment"""
-    import os
-    env = job.env
-    if env is not None:
-        for k, v in env.iteritems():
-            os.environ[k] = v
-    os.environ["JIP_ID"] = str(job.id)
-    os.environ["JIP_JOB"] = str(job.job_id) if job.job_id else ""
+def _create_job_env():
+    return {
+        "PATH": getenv("PATH", ""),
+        "PYTHONPATH": getenv("PYTHONPATH", ""),
+        "JIP_PATH": getenv("JIP_PATH", ""),
+        "JIP_MODULES": getenv("JIP_MODULES", ""),
+        "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
+        "JIP_LOGLEVEL": str(log.getEffectiveLevel())
+    }
 
 
-def _exec(job):
-    """Execute a single job. This checks for pipe_to children
-    and starts a dispatcher if needed. The method returns
-    the process started and a list of child pipes targes
-    that can be used as stdin streams for pipe_to targets
+def _create_jobs_for_group(nodes, nodes2jobs):
+    """Helper method that takes a group of nodes and the global dict
+    to map nodes to jobs and adds the dependencies. In addition, streaming
+    dependencies are resolved and the jobs are updated accordingly
     """
-    import jip
-    ## handle pipes
-    _load_job_env(job)
-    log("JOB-%d | start", job.id)
-    # write template to named temp file and run with interpreter
-    script_file = jip.create_temp_file()
-    try:
-        script_file.write(job.command)
-        script_file.close()
-        cmd = [job.interpreter if job.interpreter else "bash"]
-        #if self.interpreter_args:
-            #cmd += self.interpreter_args
-        job._process = subprocess.Popen(
-            cmd + [script_file.name],
-            stdin=job.stream_in,
-            stdout=job.stream_out
-        )
-        return job._process
-    except OSError, err:
-        # catch the errno 2 No such file or directory, which indicates the
-        # interpreter is not available
-        if err.errno == 2:
-            raise Exception("Interpreter %s not found!" % job.interpreter)
-        raise err
-
-
-def _create_all_jobs(nodes, nodes2jobs, keep=False):
-    jobs = []
-    for node in nodes:
-        ## first create jobs
-        job = _create_job(node, keep=keep)
-        jobs.append(job)
-        nodes2jobs[node] = job
-    return jobs
-
-
-def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
     # add dependencies
     for node in nodes:
         job = nodes2jobs[node]
         for inedge in node.incoming():
-            source_job = nodes2jobs[inedge._source]
+            try:
+                source_job = nodes2jobs[inedge._source]
+            except:
+                print ">>>DAMN NODE", inedge._source._job.name, "->", node._job.name
+                raise
             job.dependencies.append(source_job)
             if inedge.has_streaming_link():
                 job.pipe_from.append(source_job)
@@ -194,23 +144,27 @@ def _create_jobs_for_group(nodes, keep=False, nodes2jobs=None):
                     source_job.command = cmd
 
 
-def _create_job(node, keep=False):
+def _create_job(node, env=None, keep=False):
+    """Create and return a :class:`jip.db.Job` instance
+    from a given pipeline node. A dict with the jobs environment can
+    be passed here to avoid creating the environment for each job.
+
+    :param node: the node
+    :type node: jip.pipelines.Node
+    :param env: the environment stored for the job. If None, this will be
+                generated.
+    :param keep: keep the jobs output on failuer
+    :type keep: bool
+    """
     job = Job(node._tool)
     tool = node._tool
+    job.state = STATE_QUEUED
     job.name = tool.name
+    job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path
     job.configuration = node._tool.options
-    job.keep_on_fail = keep
-
-    job.env = {
-        "PATH": getenv("PATH", ""),
-        "PYTHONPATH": getenv("PYTHONPATH", ""),
-        "JIP_PATH": getenv("JIP_PATH", ""),
-        "JIP_MODULES": getenv("JIP_MODULES", ""),
-        "LD_LIBRARY_PATH": getenv("LD_LIBRARY_PATH", ""),
-        "JIP_LOGLEVEL": str(log.level)
-    }
+    job.env = env if env is not None else _create_job_env()
     if node._job is not None:
         node._job.apply(job)
 
@@ -229,58 +183,91 @@ def _create_job(node, keep=False):
     return job
 
 
-def create_jobs(pipeline, persist=True, keep=False, validate=True,
-                session=None, parent_tool=None, embedded=False):
-    """Create a set of jobs from the given pipeline. This expands the pipeline
-    and creates a job per pipeline node.
+def create_jobs(pipeline, excludes=None, skip=None, keep=False):
+    """Create a set of jobs from the given tool or pipeline.
+    This expands the pipeline and creates a job per pipeline node.
 
-    If persist is set to True, the jobs are stored in the job database
-    with state Queued.
+    You can specify a list of excludes. The list must contain job names. All
+    jobs with these names will be excluded. This also covered all child jobs
+    of excluded job, effectively disabeling a the full subgraph that contains
+    the excluded node.
 
-    If keep is set to True, failing jobs output will not be deleted.
-
-    Note that here, no profile or cluster is set for the jobs. If the
-    jobs submitted to a cluster, the profile shoudl be applied before
-    submission.
+    :param pipeline: a pipeline or a tool
+    :type pipeline: jip.pipelines.Pipeline or jip.tools.Tool
+    :param excludes: excludes nodes by name. This removed the node and the
+                     full subgraph after the node
+    :param skip: skip the node. This does not touch teh subgraph but tries
+                 to connect the nodes input with the nodes output before the
+                 node is removed
+    :param keep: keep the jobs output on failure
     """
-    from jip.db import create_session
+    if not isinstance(pipeline, Pipeline):
+        log.info("Wrapping tool in pipeline: %s", pipeline)
+        p = Pipeline()
+        p.run(pipeline)
+        pipeline = p
+
+    log.info("Expanding pipeline with %d nodes", len(pipeline))
     pipeline.expand()
-    try:
-        if parent_tool is not None:
-            parent_tool.validate()
-        for node in pipeline.nodes():
-            try:
-                node._tool.validate()
-            except ValidationError:
-                if validate:
-                    raise
-            except Exception as e:
-                if validate:
-                    raise ValidationError(node._tool, str(e))
-    except ValidationError:
-        if validate:
-            raise
-    except Exception as e:
-        if validate:
-            raise ValidationError(None, str(e))
+    log.info("Expanded pipeline has %d nodes", len(pipeline))
+    if excludes is not None:
+        log.info("Excluding jobs: %s", excludes)
+        pipeline.exclude(excludes)
+        log.info("Pipeline has %d nodes after exclusion", len(pipeline))
 
+    if skip is not None:
+        log.info("Skipping jobs: %s", skip)
+        pipeline.skip(skip)
+        log.info("Pipeline has %d nodes after skipping", len(pipeline))
+
+    # create all jobs. We keep the list for the order and
+    # a dict to store the mapping from the node to teh job
+    env = _create_job_env()
     nodes2jobs = {}
-    jobs = _create_all_jobs(pipeline.topological_order(), nodes2jobs,
-                            keep=keep)
+    jobs = []
+    for node in pipeline.topological_order():
+        ## first create jobs
+        job = _create_job(node, env=env, keep=keep)
+        jobs.append(job)
+        nodes2jobs[node] = job
+
     for group in pipeline.groups():
-        _create_jobs_for_group(group, keep=keep,
-                               nodes2jobs=nodes2jobs)
+        _create_jobs_for_group(group, nodes2jobs)
 
-    if persist:
-        _session = session
-        if session is None:
-            _session = create_session(embedded=embedded)
-
-        map(_session.add, jobs)
-        _session.commit()
-        if session is None:
-            _session.close()
+    # infer job state for all nodes with no dependencies
+    for job in jobs:
+        if len(job.dependencies) == 0:
+            _infer_job_state(job)
     return jobs
+
+
+def _infer_job_state(job):
+    """Infer the job state recursively except for final temp jobs.
+    They are always not done and have to be evaluated later
+    """
+    if len(job.children) == 0:
+        if job.temp:
+            # for final temp jobs, we check the parents
+            for parent in job.dependencies:
+                if not parent.is_done():
+                    return False
+            job.state = STATE_DONE
+            return True
+        else:
+            if job.is_done():
+                job.state = STATE_DONE
+                return True
+            else:
+                return False
+    else:
+        done = True
+        for child in job.children:
+            done &= _infer_job_state(child)
+        if not done:
+            done = job.is_done()
+        if done:
+            job.state = STATE_DONE
+        return done
 
 
 def submit(jobs, profile=None, cluster_name=None, session=None,
@@ -363,10 +350,10 @@ def reload_script(job):
 
 
 def run(tool, keep=False, force=False, dry=False, show=False):
+    """Creates a pipeline from the given tool and runs it."""
     # persis the script to in memoru database
     if not force and tool.is_done() and not dry and not show:
-        sys.stderr.write("Results exist! Skipping "
-                         "(use --force to force execution\n")
+        log.info("Results exist! Skipping")
         return
     import jip.db
     from jip.db import create_session
@@ -393,6 +380,7 @@ def run(tool, keep=False, force=False, dry=False, show=False):
         if len(job.pipe_from) > 0:
             continue
         if not force and job.tool.is_done():
+            log.info("Results exist! Skipping")
             sys.stderr.write("Job (%d) results exist! Skipping "
                              "(use --force to force execution\n" %
                              (job.id))
@@ -427,47 +415,64 @@ def show_dry_run(jobs, rows=None):
                         "Dependecies", "Pipe From", "Pipe To"], rows)
 
 
-def run_job(id, session=None, db=None):
+def group(jobs):
+    """Group jobs that will be executed in one step. This returns
+    a list of lists. Each list starts with the 'primary' job. This job is
+    the ONLY job that has to be executed. But note that when you submit jobs
+    to a cluster, all jobs of a group have to be submitted. Note that
+    the list of jobs will not be reordered. The list of groups will reflect
+    the ordering of the input jobs.
+
+    :param jobs: list of jobs
+    :type jobs: list of jobs
+    :returns: the list of groups as a list of lists of jobs
+    """
+
+    def _recursive_add(job, group=None):
+        group = [] if group is None else group
+        group.append(job)
+        map(lambda j: _recursive_add(j, group), job.pipe_to)
+        return group
+
+    groups = []
+    done = set([])
+    for j in jobs:
+        if j in done or j.is_stream_target():
+            continue
+        group = _recursive_add(j)
+        map(done.add, group)
+        groups.append(group)
+    return groups
+
+
+def run_job(job, session=None):
     """Find the job specified by id and execute it. This
     updates the state of the job (and all pipe_to children)
     as long as the job does not fail.
     """
-    from jip.db import STATE_QUEUED, create_session, find_job_by_id, init
-
-    if db is not None:
-        ## reinitialize the database
-        init(path=db)
-
-    ## load the job
-    session_created = False
-    if session is None:
-        session = create_session()
-        job = find_job_by_id(session, id)
-        session_created = True
-    else:
-        job = id
-
-    # check job state
-    if job.state not in [STATE_QUEUED]:
+    if len(job.pipe_from) > 0:
         return
-
     # setup signal handeling
-    _setup_signal_handler(job)
+    _setup_signal_handler(job, session)
 
     # createa the dispatcher graph
     dispatcher_nodes = create_dispatcher_graph(job)
-    log("JOB-%d | Dispatch graph: %s", job.id, dispatcher_nodes)
+    log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
 
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(session)
-    session.commit()
 
-    for dispatcher_node in dispatcher_nodes:
-        dispatcher_node.wait(session)
-
-    if session_created:
+    if session:
         session.commit()
-        session.close()
+
+    success = True
+    for dispatcher_node in dispatcher_nodes:
+        success &= dispatcher_node.wait(session)
+
+    if session:
+        session.commit()
+
+    return success
 
 
 def create_dispatcher_graph(job, nodes=None):
@@ -549,10 +554,10 @@ class DispatcherNode(object):
             self.sources.add(job)
 
     def __repr__(self):
-        return "[%s->%s]" % (",".join([str(j.id) for j in self.sources]),
-                            (",".join([str(j.id) for j in self.targets])))
+        return "[%s->%s]" % (",".join([str(j) for j in self.sources]),
+                            (",".join([str(j) for j in self.targets])))
 
-    def run(self, session):
+    def run(self, session=None):
         from jip.db import STATE_RUNNING
         num_sources = len(self.sources)
         num_targets = len(self.targets)
@@ -562,7 +567,7 @@ class DispatcherNode(object):
             for job in self.sources:
                 set_state(STATE_RUNNING, job,
                           session=session, update_children=False)
-                self.processes.append(_exec(job))
+                self.processes.append(job.run())
             return
         if num_sources == num_targets:
             self.processes.extend(FanDirect(self.sources,
@@ -581,14 +586,18 @@ class DispatcherNode(object):
                          "for %d sources and %d targets"
                          % (num_sources, num_targets))
 
-    def wait(self, session):
+    def wait(self, session=None):
         from jip.db import STATE_DONE, STATE_FAILED
         # check the processes
+        success = True
         for process, job in zip(self.processes, self.sources):
             new_state = STATE_DONE if process.wait() == 0 else STATE_FAILED
-            log("JOB-%d | finished with %d", job.id, process.wait())
+            if process.wait() != 0:
+                success = False
+            log.info("%s | finished with %d", job, process.wait())
             set_state(new_state,
                       job, session=session, update_children=False)
+        return success
 
 
 class FanDirect(object):
@@ -596,7 +605,7 @@ class FanDirect(object):
         self.sources = list(sources)
         self.targets = list(targets)
 
-    def run(self, session):
+    def run(self, session=None):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch
@@ -615,7 +624,7 @@ class FanDirect(object):
                 source.stream_out = PIPE
                 set_state(STATE_RUNNING, source, session=session,
                           update_children=False)
-                process = _exec(source)
+                process = source.run()
                 target.stream_in = process.stdout
                 processes.append(process)
             return processes
@@ -633,7 +642,7 @@ class FanDirect(object):
         for source, target in zip(self.sources, self.targets):
             set_state(STATE_RUNNING, source, session=session,
                       update_children=False)
-            process = _exec(source)
+            process = source.run()
             inputs.append(process.stdout)
             processes.append(process)
 
@@ -645,7 +654,7 @@ class FanDirect(object):
 
 class FanOut(FanDirect):
 
-    def run(self, session):
+    def run(self, session=None):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch_fanout
@@ -671,7 +680,7 @@ class FanOut(FanDirect):
 
         set_state(STATE_RUNNING, source, session=session,
                   update_children=False)
-        process = _exec(source)
+        process = source.run()
         inputs.append(process.stdout)
         processes.append(process)
 
@@ -683,7 +692,7 @@ class FanOut(FanDirect):
 
 
 class FanIn(FanDirect):
-    def run(self, session):
+    def run(self, session=None):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch_fanin
@@ -712,7 +721,7 @@ class FanIn(FanDirect):
         for source in self.sources:
             set_state(STATE_RUNNING, source, session=session,
                       update_children=False)
-            process = _exec(source)
+            process = source.run()
             inputs.append(process.stdout)
             processes.append(process)
 

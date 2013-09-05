@@ -37,14 +37,17 @@ action command. Note that the commands also work standalon:
 """
 import sys
 import jip
+from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
+
+log = getLogger('jip.cli.jip_main')
 
 
 def main():
     args = docopt(__doc__, version=str(jip.__version__),
                   options_first=True, help=True)
     if args['--loglevel']:
-        jip.log.level = args['--loglevel']
+        log_level(args['--loglevel'])
     cmd = args['<command>']
     if not cmd:
         sys.stderr.write("\nNo command specified \n\n")
@@ -52,14 +55,14 @@ def main():
                help=True)
         sys.exit(1)
 
-    # initialize configuration
-    jip.initialize_configuration()
     try:
         import runpy
         argv = ["jip-" + cmd] + args['<args>']
         sys.argv = argv  # reset options
         runpy.run_module("jip.cli.jip_%s" % cmd, run_name="__main__")
     except ImportError:
+        log.debug("Import error, trying command. Here is the exception:",
+                  exc_info=True)
         # check interpreter mode
         import os
         if os.path.exists(cmd):

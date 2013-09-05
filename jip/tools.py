@@ -11,7 +11,9 @@ from os.path import exists, basename, dirname
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template, set_global_context
 from jip.utils import list_dir
-from jip.logger import log
+from jip.logger import getLogger
+
+log = getLogger('jip.tools')
 
 # the pickle template to store a pyton tool
 _pickel_template = """
@@ -25,6 +27,7 @@ cPickle.loads(source).run();
 '<< __EOF__
 %s__EOF__
 """
+
 
 
 #########################################################
@@ -176,6 +179,7 @@ class Scanner():
         return clone
 
     def scan(self, path=None):
+        log.debug("Searching for JIP tools")
         self.instances = {}
         self.scan_files(parent=path)
         self.scan_modules()
@@ -535,6 +539,7 @@ class Tool(object):
         """The celanup method removes all output files for this tool"""
         for outfile in self.get_output_files():
             if exists(outfile):
+                log.warning("Tool cleanup! Removing: %s", outfile)
                 remove(outfile)
 
     def get_output_files(self):
@@ -546,7 +551,10 @@ class Tool(object):
         for opt in self.options.get_by_type(TYPE_OUTPUT):
             if opt.source is not None and opt.source != self:
                 continue
-            for value in opt._value:
+            values = opt.raw()
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+            for value in values:
                 if isinstance(value, basestring):
                     yield value
 
@@ -559,7 +567,10 @@ class Tool(object):
         for opt in self.options.get_by_type(TYPE_INPUT):
             if opt.source is not None and opt.source != self:
                 continue
-            for value in opt._value:
+            values = opt.raw()
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+            for value in values:
                 if isinstance(value, basestring):
                     yield value
 

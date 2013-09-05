@@ -19,11 +19,20 @@ class cleanup(object):
     Inputs:
         -f, --files <files>...  The files that will be deleted
     """
+    def is_done(self):
+        from os.path import exists
+        if self.options['files'].is_dependency():
+            return False
+        for f in self.options["files"].raw():
+            if exists(f):
+                return False
+        return True
+
     def __call__(self, files=[]):
         import sys
         from os.path import exists
         from os import remove
-        for f in files:
+        for f in self.options["files"].raw():
             if exists(f):
                 try:
                     remove(f)
