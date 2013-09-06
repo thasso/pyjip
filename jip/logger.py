@@ -49,7 +49,6 @@ level = _get_level(getenv("JIP_LOGLEVEL", logging.WARN))
 log_level(level)
 
 console = logging.StreamHandler()
-console.setLevel(level)
 fmt = DEFAULT_FMT
 if level == logging.DEBUG:
     fmt = DEBUG_FMT

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """JIP script execution and pipeline system"""
 import jip.logger
+from jip.logger import log_level
 from jip.tools import tool, Scanner, ValidationError
 from jip.executils import create_jobs, run_job, group
 from jip.pipelines import Pipeline

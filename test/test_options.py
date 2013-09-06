@@ -277,3 +277,42 @@ def test_streamable_from_default_no_list():
     opts = Options.from_docopt(help_string)
     assert not opts['output'].streamable
     assert opts['input'].streamable
+
+
+def test_options_equality():
+    string_opt = Option('test')
+    assert string_opt == None
+    string_opt.value = "TEST1"
+    assert string_opt == "TEST1"
+    string_opt.append("TEST2")
+    assert string_opt != "TEST1"
+    assert string_opt == ["TEST1", "TEST2"]
+    assert string_opt
+    string_opt.value = False
+    assert not string_opt
+
+
+def test_user_specified_option_and_default_recovery():
+    from argparse import ArgumentParser
+    p = ArgumentParser()
+    p.add_argument("-t", "--test", action="store_true")
+    p.add_argument("-i", "--input", help="The input")
+    p.add_argument("-o", "--output", nargs="*", help="The output",
+                   required=True)
+    opts = Options.from_argparse(p)
+    opts.parse([])
+    assert not opts['test'].raw()
+    assert opts['input'].raw() is None
+    assert opts['output'].raw() is None
+    assert not opts['output'].user_specified
+    assert not opts['input'].user_specified
+    assert not opts['test'].user_specified
+    opts.parse(['-t', '-i', 'myin', '-o', 'myout'])
+    assert opts['test'].raw()
+    assert opts['input'].raw() == 'myin'
+    assert opts['output'].raw() == ['myout']
+    assert opts['output'].user_specified
+    assert opts['input'].user_specified
+    assert opts['test'].user_specified
+
+

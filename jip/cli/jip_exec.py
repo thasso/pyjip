@@ -13,9 +13,11 @@ Other Options:
     -h --help             Show this help message
 """
 
-from jip import log
+from jip.logger import getLogger
 from jip.executils import run_job
 from . import parse_args
+
+log = getLogger("jip.cli.jip_exec")
 
 
 def main():

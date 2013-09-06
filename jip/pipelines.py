@@ -97,7 +97,6 @@ class Pipeline(object):
 
     def add_edge(self, source, target):
         source, target = self.__resolve_node_tool(source, target)
-        log.debug("Add edge: %s->%s", source, target)
         source_node = self._nodes[source]
         target_node = self._nodes[target]
         edge = Edge(source_node, target_node)
@@ -106,6 +105,7 @@ class Pipeline(object):
                 if edge == known:
                     return known
 
+        log.debug("Add edge: %s->%s", source_node, target_node)
         self._edges.add(edge)
         source_node._edges.add(edge)
         target_node._edges.add(edge)
@@ -275,6 +275,7 @@ class Pipeline(object):
         An exception is raised in case a node has more than one option that
         should be exaned and the number of configured elements is not the same.
         """
+        log.debug("Expand Graph")
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
         # outside of the group, add the edge also to any predecesor
@@ -287,16 +288,17 @@ class Pipeline(object):
                     if parent not in gs:
                         ## add an edge to the first of the group
                         self.add_edge(parent, first)
-
         temp_nodes = set([])
         for node in self.topological_order():
             if node._job.temp:
                 temp_nodes.add(node)
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
+                log.debug("No fanout options found for %s", node)
                 continue
             # check that all fanout options have the same length
             num_values = len(fanout_options[0])
+            log.debug("Prepare fanout for %s with %d values", node, num_values)
             if not all(num_values == len(i) for i in fanout_options):
                 option_names = ["%s(%d)" % (o.name, len(o))
                                 for o in fanout_options]
@@ -371,8 +373,9 @@ class Pipeline(object):
         for each option value and readd the clones
         """
         _edges = list(node._edges)
-        self.remove(node)
         values = [o.value for o in options]
+        log.debug("Fanout %s with %d options %d values",
+                  node, len(options), len(values[0]))
 
         incoming_links = []
         incoming_edges = []
@@ -387,28 +390,42 @@ class Pipeline(object):
                         incoming_links.append(link)
                         incoming_edges.append(e)
                         incoming_links_set.add(link)
+        log.debug("Fanout incoming edges: %s", incoming_edges)
+        log.debug("Fanout incoming values: %s", values)
 
         # clone the tool
+        current_index = node._index + 1
         for i, opts in enumerate(zip(*values)):
             cloned_tool = node._tool.clone()
             ## set the new values
             for j, option in enumerate(options):
                 cloned_tool.options[option.name].value = opts[j]
-
             cloned_node = self.add(cloned_tool)
+            cloned_node._index = current_index
+            current_index += 1
+            log.debug("Fanout add new node: %s :: %s",
+                      cloned_node, cloned_node._tool.options)
             # reattach the edges and copy the links
             for e in _edges:
                 new_edge = None
                 if e._source == node:
                     new_edge = self.add_edge(cloned_node, e._target)
                     for link in e._links:
-                        new_edge.add_link(cloned_tool.options[link[0].name],
-                                          link[1])
+                        link = new_edge.add_link(
+                            cloned_tool.options[link[0].name],
+                            link[1]
+                        )
+                        log.debug("Fanout add link to edge: %s [%s]",
+                                  new_edge, link)
                 elif e._target == node and e not in incoming_edges:
                     new_edge = self.add_edge(e._source, cloned_node)
                     for link in e._links:
-                        new_edge.add_link(link[0],
-                                          cloned_tool.options[link[1].name])
+                        link = new_edge.add_link(
+                            link[0],
+                            cloned_tool.options[link[1].name]
+                        )
+                        log.debug("Fanout add link to edge: %s [%s]",
+                                  link, new_edge)
 
             # now apply the options and create the incoming edges
             for j, option in enumerate(options):
@@ -416,14 +433,24 @@ class Pipeline(object):
                     e = incoming_edges[i]
                     new_edge = self.add_edge(e._source, cloned_node)
                     for link in e._links:
-                        new_edge.add_link(link[0],
-                                          cloned_tool.options[link[1].name])
+                        link = new_edge.add_link(
+                            link[0],
+                            cloned_tool.options[link[1].name]
+                        )
+                        log.debug("Fanout add link from inedge to edge: "
+                                  "%s [%s]",
+                                  link, new_edge)
                 cloned_node.set(option.name, opts[j], set_dep=False)
+                log.debug("Fanout apply value %s: %s=%s", cloned_node,
+                          option.name, opts[j])
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
             # update all children
             for child in cloned_node.children():
                 child.update_options()
+                log.debug("Fanout update child values %s : %s",
+                          child, child._tool.options)
+        self.remove(node)
 
     def _get_fanout_options(self, node):
         """Find a list of options in the tool that take a single value
@@ -461,6 +488,9 @@ class Pipeline(object):
                     self._component_index[nc] = idx
         return components
 
+    def __repr__(self):
+        return "[Nodes: %s, Edges: %s]" % (str(self._nodes), str(self._edges))
+
 
 class Node(object):
     """A node in the pipeline graph. If the node is linked
@@ -471,10 +501,11 @@ class Node(object):
     are stored on the :class:`.Edge`. If no edge exists, one will be
     created.
     """
-    def __init__(self, tool, graph):
+    def __init__(self, tool, graph, index=0):
         self.__dict__['_tool'] = tool
         self.__dict__['_job'] = graph._current_job()
         self.__dict__['_graph'] = graph
+        self.__dict__['_index'] = index
         self.__dict__['_edges'] = set([])
 
     def children(self):
@@ -624,7 +655,8 @@ class Node(object):
         return _NodeProxy([self, other])
 
     def __repr__(self):
-        return "%s" % (self._tool if not self._job.name else self._job.name)
+        return "%s.%d" % (self._tool if not self._job.name else self._job.name,
+                          self._index)
 
     def __eq__(self, other):
         return isinstance(other, Node) and other._tool == self._tool
@@ -651,8 +683,8 @@ class Node(object):
                                append=append)
 
     def __setattr__(self, name, value):
-        if name == "_job":
-            self.__dict__['_job'] = value
+        if name in ["_job", "_index"]:
+            self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)
 
@@ -813,6 +845,7 @@ class Edge(object):
                 allow_stream and source_option.streamable and
                 target_option.streamable)
         self._links.add(link)
+        return link
 
     def remove_links(self):
         """Iterate the links associated with this edge and make sure that

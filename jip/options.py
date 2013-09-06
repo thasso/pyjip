@@ -76,6 +76,7 @@ class Option(object):
         self.streamable = streamable
         self.render_context = None
         self.dependency = False
+        self.user_specified = True
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0
@@ -104,8 +105,9 @@ class Option(object):
         self.render_context = None
 
     def __repr__(self):
-        return "Option[%s:%s]" % (self.name, str(self.source) if self.source
-                                  else "<no-source>")
+        return "{%s(%s)::%s}" % (self.name, str(self.source) if self.source
+                                 else "<no-source>",
+                                 str(self.raw()))
 
     def __len__(self):
         """Return the number of elements currently assigned to this option"""
@@ -264,8 +266,11 @@ class Option(object):
 
     def __eq__(self, other):
         if not isinstance(other, Option):
-            return False
+            return self.raw() == other
         return self.name == other.name
+
+    def __nonzero__(self):
+        return bool(self.raw())
 
     def __hash__(self):
         if self.source is None:
@@ -398,9 +403,12 @@ class Options(object):
         else:
             raise AttributeError("Option not found: %s" % option)
 
-
     def __len__(self):
         return len(self.options)
+
+    def __repr__(self):
+        return "Options:[%s]" % (", ".join("(%s,%s)" % (o.name, o.raw())
+                                           for o in self))
 
     def add(self, option):
         """Adds an options to the options set and raises an
@@ -446,6 +454,7 @@ class Options(object):
                 opts.append(o.name)
             return opts
         parser = ArgumentParser()
+        not_specified_default = "<<<NOT_SPECIFIED>>>"
         for o in self.options:
             if o.name == "help":
                 continue
@@ -457,7 +466,7 @@ class Options(object):
                         *opts,
                         dest=o.name,
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.raw()
+                        default=not_specified_default
                     )
                 else:
                     parser.add_argument(
@@ -466,7 +475,7 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.raw()
+                        default=not_specified_default
                     )
             else:
                 if o.nargs == 0:
@@ -474,7 +483,7 @@ class Options(object):
                     parser.add_argument(
                         *opts,
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.raw()
+                        default=not_specified_default
                     )
                 else:
                     parser.add_argument(
@@ -482,7 +491,7 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.raw()
+                        default=not_specified_default
                     )
 
         # Override the argparse error function to
@@ -508,6 +517,11 @@ class Options(object):
             del parsed['help']
         ## apply the values
         for k, v in parsed.iteritems():
+            opt = self[k]
+            opt.user_specified = True
+            if v == not_specified_default:
+                opt.user_specified = False
+                v = opt.raw()
             self[k].value = v
         return parsed
 
