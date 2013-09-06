@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """JIP utilities and helper functions"""
 
+from jip.vendor.texttable import Texttable
 from contextlib import contextmanager
 from os import walk
 from os.path import abspath, join
@@ -75,10 +76,9 @@ def table_string(value, empty=""):
 
 
 def create_table(header, rows, empty="", to_string=table_to_string,
-                 widths=None):
-    from jip.vendor.texttable import Texttable
+                 widths=None, deco=Texttable.HEADER):
     t = Texttable(0)
-    t.set_deco(Texttable.HEADER)
+    t.set_deco(deco)
     if header is not None:
         t.header(header)
     if widths is not None:
@@ -89,10 +89,10 @@ def create_table(header, rows, empty="", to_string=table_to_string,
 
 
 def render_table(header, rows, empty="", widths=None,
-                 to_string=table_to_string):
+                 to_string=table_to_string, deco=Texttable.HEADER):
     """Create a simple ascii table"""
     return create_table(header, rows, empty=empty,
-                        widths=widths, to_string=to_string).draw()
+                        widths=widths, to_string=to_string, deco=deco).draw()
 
 
 def confirm(msg, default=True):

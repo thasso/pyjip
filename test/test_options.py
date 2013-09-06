@@ -296,6 +296,7 @@ def test_user_specified_option_and_default_recovery():
     from argparse import ArgumentParser
     p = ArgumentParser()
     p.add_argument("-t", "--test", action="store_true")
+    p.add_argument("--int", type=int, default=1)
     p.add_argument("-i", "--input", help="The input")
     p.add_argument("-o", "--output", nargs="*", help="The output",
                    required=True)

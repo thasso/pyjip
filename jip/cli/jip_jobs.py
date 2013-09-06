@@ -55,16 +55,7 @@ from os import getenv
 from datetime import timedelta, datetime
 from functools import partial
 from subprocess import PIPE, Popen
-
-STATE_COLORS = {
-    STATE_DONE: GREEN,
-    STATE_FAILED: RED,
-    STATE_HOLD: YELLOW,
-    STATE_QUEUED: NORMAL,
-    STATE_RUNNING: BLUE,
-    STATE_CANCELED: YELLOW
-}
-
+from . import STATE_COLORS
 
 def resolve(v, job):
     if isinstance(v, basestring):

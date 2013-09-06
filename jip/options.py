@@ -454,7 +454,26 @@ class Options(object):
                 opts.append(o.name)
             return opts
         parser = ArgumentParser()
-        not_specified_default = "<<<NOT_SPECIFIED>>>"
+        ############################################################
+        # We go and modify all default actions in the registry
+        # of the argparser to be able to catch user specified
+        # options
+        ############################################################
+        user_specified = {}
+
+        def _create_action_delegate(action):
+            old_call = action.__call__
+
+            def _action_delegate(self, parser, namespace, values,
+                                 option_string=None):
+                old_call(self, parser, namespace, values, option_string)
+                user_specified[self.dest] = True
+            action.__call__ = _action_delegate
+
+        for k, v in parser._registries['action'].iteritems():
+            if hasattr(v, "__call__"):
+                _create_action_delegate(v)
+
         for o in self.options:
             if o.name == "help":
                 continue
@@ -466,7 +485,7 @@ class Options(object):
                         *opts,
                         dest=o.name,
                         action="store_true" if o.nargs == 0 else None,
-                        default=not_specified_default
+                        default=o.default
                     )
                 else:
                     parser.add_argument(
@@ -475,7 +494,7 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=not_specified_default
+                        default=o.default
                     )
             else:
                 if o.nargs == 0:
@@ -483,7 +502,7 @@ class Options(object):
                     parser.add_argument(
                         *opts,
                         action="store_true" if o.nargs == 0 else None,
-                        default=not_specified_default
+                        default=o.default
                     )
                 else:
                     parser.add_argument(
@@ -491,7 +510,7 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=not_specified_default
+                        default=o.default
                     )
 
         # Override the argparse error function to
@@ -518,11 +537,8 @@ class Options(object):
         ## apply the values
         for k, v in parsed.iteritems():
             opt = self[k]
-            opt.user_specified = True
-            if v == not_specified_default:
-                opt.user_specified = False
-                v = opt.raw()
-            self[k].value = v
+            opt.user_specified = user_specified.get(k, False)
+            opt.value = v
         return parsed
 
     @classmethod

@@ -3,7 +3,20 @@
 that expose command line functions for the JIP command
 """
 import jip
-from jip.utils import render_table, colorize, BLUE
+from jip.utils import render_table, colorize, BLUE, GREEN, YELLOW, RED, \
+    NORMAL, Texttable
+from jip.db import STATE_QUEUED, STATE_DONE, \
+    STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
+
+STATE_COLORS = {
+    STATE_DONE: GREEN,
+    STATE_FAILED: RED,
+    STATE_HOLD: YELLOW,
+    STATE_QUEUED: NORMAL,
+    STATE_RUNNING: BLUE,
+    STATE_CANCELED: YELLOW
+}
+
 
 def parse_args(docstring, argv=None, options_first=True):
     """Parse the command line options"""
@@ -81,7 +94,8 @@ def show_commands(jobs):
     print "------------"
     for group in jip.group(jobs):
         job = group[0]
-        deps = [str(d) for j in group for d in j.dependencies if d not in group]
+        deps = [str(d) for j in group
+                for d in j.dependencies if d not in group]
         name = "|".join(str(j) for j in group)
         print "### %s -- Interpreter: %s Dependencies: %s" % (
             colorize(name, BLUE),
@@ -90,3 +104,116 @@ def show_commands(jobs):
         )
         print " | ".join([j.command for j in group])
         print "###"
+
+
+def _clean_value(v):
+    if isinstance(v, (list, tuple)):
+        v = [x if not isinstance(x, file) else "<<STREAM>>"
+             for x in v]
+    else:
+        v = v if not isinstance(v, file) else "<<STREAM>>"
+    return v
+
+
+def show_options(options, title=None, excludes=None, show_defaults=False):
+    if title is not None:
+        print "#" * 87
+        print "| {name:^91}  |".format(name=colorize(title, BLUE))
+    rows = []
+    excludes = excludes if excludes is not None else ['help']
+    for o in options:
+        if (show_defaults or o.raw() != o.default) and o.name not in excludes:
+            rows.append([o.name, _clean_value(o.raw())])
+    print render_table(["Name", "Value"], rows, widths=[30, 50],
+                       deco=Texttable.VLINES |
+                       Texttable.BORDER |
+                       Texttable.HEADER)
+
+
+def show_job_states(jobs, title="Job states"):
+    if title is not None:
+        print "#" * 149
+        print "| {name:^153}  |".format(name=colorize(title, BLUE))
+    rows = []
+    for group in jip.group(jobs):
+        job = group[0]
+        name = "|".join(str(j) for j in group)
+        outs = [f for j in group for f in j.tool.get_output_files()]
+        ins = [f for j in group for f in j.tool.get_input_files()]
+        state = colorize(job.state, STATE_COLORS[job.state])
+        rows.append([name, state, ", ".join(ins), ", ".join(outs)])
+    print render_table(["Name", "State", "Inputs", "Outputs"], rows,
+                       widths=[30, 6, 50, 50],
+                       deco=Texttable.VLINES |
+                       Texttable.BORDER |
+                       Texttable.HEADER)
+
+
+def show_job_tree(jobs, title="Job hierarchy"):
+    if title is not None:
+        print "#" * 20
+        print "| {name:^24}  |".format(name=colorize(title, BLUE))
+        print "#" * 20
+
+    done = set([])
+    counts = {}
+
+    def draw_node(job, levels=None, parents=None, level=0, last=False):
+        if job in done:
+            return False
+        done.add(job)
+        parents.add(job)
+        ## build the separator based on the levels list and the current
+        ## level
+        sep = "".join([u'\u2502 ' if j > 0 else "  "
+                      for j in levels[:level - 1]]
+                      if level > 0 else [])
+        # reduce the lecel counter
+        if level > 0:
+            levels[level - 1] = levels[level - 1] - 1
+        # build the edge and the label
+        edge = "" if not level else (u'\u2514\u2500' if last
+                                     else u'\u251C\u2500')
+        label = "%s%s" % (edge, job)
+
+        # collect other dependencies that are node covered
+        # by the tree
+        other_deps = ",".join(str(j) for j in job.dependencies
+                              if j not in parents)
+        if len(other_deps) > 0:
+            label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
+        # print the separator and the label
+        print "%s%s" % (sep, label)
+
+        # update levels used by the children
+        # and do the recursive call
+        num = counts[job]
+        levels = levels + [num]
+
+        i = 0
+        for child in job.children:
+            if draw_node(child, levels=levels,
+                         parents=parents, level=level + 1,
+                         last=(i == (num - 1))):
+                i += 1
+        return True
+
+    def count_children(job, counts):
+        if job in counts:
+            return
+        counts[job] = 0
+
+        done.add(job)
+        for child in job.children:
+            if child not in done:
+                counts[job] = counts[job] + 1
+            count_children(child, counts)
+
+    for job in jobs:
+        if len(job.dependencies) == 0:
+            count_children(job, counts)
+    done = set([])
+    for job in jobs:
+        if len(job.dependencies) == 0:
+            draw_node(job, levels=[], parents=set([]), level=0)
+    print "#" * 20
