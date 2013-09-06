@@ -50,7 +50,6 @@ def main():
         log_level(args['--loglevel'])
     cmd = args['<command>']
     if not cmd:
-        sys.stderr.write("\nNo command specified \n\n")
         docopt(__doc__, version='1.0', options_first=True, argv=['--help'],
                help=True)
         sys.exit(1)
