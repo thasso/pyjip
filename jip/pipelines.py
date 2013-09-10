@@ -295,6 +295,7 @@ class Pipeline(object):
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
                 log.debug("No fanout options found for %s", node)
+                _update_node_options(node)
                 continue
             # check that all fanout options have the same length
             num_values = len(fanout_options[0])
@@ -445,6 +446,14 @@ class Pipeline(object):
                           option.name, opts[j])
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
+            # silent validation of the cloned node
+            try:
+                log.debug("Fanout validate cloned node")
+                _update_node_options(cloned_node)
+                cloned_node._tool.validate()
+            except:
+                pass
+            log.debug("Fanout check for children to update values")
             # update all children
             for child in cloned_node.children():
                 child.update_options()
@@ -490,6 +499,17 @@ class Pipeline(object):
 
     def __repr__(self):
         return "[Nodes: %s, Edges: %s]" % (str(self._nodes), str(self._edges))
+
+
+def _update_node_options(cloned_node):
+    """Render out all the options of the given node"""
+    ctx = {}
+    for o in cloned_node._tool.options:
+        ctx[o.name] = o.raw()
+    cloned_node._tool.options.render_context(ctx)
+    for o in cloned_node._tool.options:
+        o.value = o.value
+    cloned_node._tool.options.render_context(None)
 
 
 class Node(object):
