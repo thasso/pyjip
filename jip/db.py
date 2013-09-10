@@ -250,6 +250,7 @@ class Job(Base):
         # write template to named temp file and run with interpreter
         script_file = create_temp_file()
         try:
+            log.debug("Writing command: %s", self.command)
             script_file.write(self.command)
             script_file.close()
             cmd = [self.interpreter if self.interpreter else "bash"]

@@ -39,6 +39,10 @@ def main(argv=None):
         print >>sys.stderr, str(e)
         sys.exit(1)
 
+    run(script, script_args, dry=args['--dry'],
+        keep=['--keep'], show=args['--show'],
+        silent=False)
+
     try:
         script.parse_args(script_args)
         jobs = jip.create_jobs(script, keep=args['--keep'])

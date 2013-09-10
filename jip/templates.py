@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""The JIP templates module wrapps around the tempalte
+"""The JIP templates module wraps around the template
 engine used and allows to render job templates.
 The module exposes a single :ref:`render_template()` function
 that takes the template string and renders it using the given keyword
@@ -7,13 +7,15 @@ arguments.
 """
 
 from jinja2 import Environment, Undefined, contextfilter
-from jip.logger import log
+from jip.logger import getLogger
 from jip.options import Option
 
 # contains global variable that
 # will be added to any render context
-# if they do not exists in the local contect
+# if they do not exists in the local context
 global_context = None
+
+log = getLogger('jip.templates')
 
 
 def set_global_context(global_ctx):
@@ -56,12 +58,55 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
         v = value.get()
         prefix = prefix if prefix is not None else value.get_opt()
         suffix = suffix if suffix is not None else ""
-        # we add a spece between the prefix and the value iff the prefix is
-        # not empty and does not end in space abd the value is not empty
+        # we add a space between the prefix and the value iff the prefix is
+        # not empty and does not end in space and the value is not empty
         space = "" if (prefix == "" or v == "" or prefix[-1] == " ") else " "
         return "%s%s%s%s" % (prefix, space, v, suffix)
     except:
-        raise
+        return value
+
+@contextfilter
+def name_filter(ctx, value):
+    from os.path import basename
+    try:
+        if isinstance(value, JipUndefined):
+            value = value._undefined_name
+        if not isinstance(value, Option):
+            script = ctx.get('tool', None)
+            if script:
+                v = script.options[value]
+                if v is not None:
+                    value = v
+
+        if not isinstance(value, Option):
+            v = str(value)
+        else:
+            v = value.get()
+        return basename(v)
+    except:
+        return value
+
+@contextfilter
+def ext_filter(ctx, value):
+    try:
+        if isinstance(value, JipUndefined):
+            value = value._undefined_name
+        if not isinstance(value, Option):
+            script = ctx.get('tool', None)
+            if script:
+                v = script.options[value]
+                if v is not None:
+                    value = v
+
+        if not isinstance(value, Option):
+            v = str(value)
+        else:
+            v = value.get()
+        i = str(v).rindex(".")
+        if i > 0:
+            return str(v)[:i]
+        return v
+    except:
         return value
 
 # global environment
@@ -69,6 +114,8 @@ environment = Environment(undefined=JipUndefined,
                           variable_start_string="${",
                           variable_end_string="}")
 environment.filters['arg'] = arg_filter
+environment.filters['name'] = name_filter
+environment.filters['ext'] = ext_filter
 
 
 def render_values(options, ctx):

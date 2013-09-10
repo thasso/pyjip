@@ -1,16 +1,30 @@
 #!/usr/bin/env python
 """JIP job eecution utilities"""
+from datetime import datetime, timedelta
 from functools import partial
-
-from jip.db import Job, STATE_QUEUED, STATE_DONE
-from jip.logger import getLogger
-from jip.utils import flat_list
-from jip.pipelines import Pipeline
-
 import sys
 from os import getenv
 
+from jip.db import Job, STATE_QUEUED, STATE_DONE, STATE_FAILED, STATE_HOLD, \
+    STATE_RUNNING, STATE_CANCELED
+from jip.logger import getLogger
+from jip.utils import flat_list, colorize, render_table, BLUE, GREEN, RED,\
+    YELLOW, NORMAL, Texttable
+from jip.pipelines import Pipeline
+from jip.tools import ValidationError
+
+
 log = getLogger('jip.executils')
+
+
+STATE_COLORS = {
+    STATE_DONE: GREEN,
+    STATE_FAILED: RED,
+    STATE_HOLD: YELLOW,
+    STATE_QUEUED: NORMAL,
+    STATE_RUNNING: BLUE,
+    STATE_CANCELED: YELLOW
+}
 
 
 def set_state(new_state, job, session=None, update_children=True):
@@ -123,7 +137,6 @@ def _create_jobs_for_group(nodes, nodes2jobs):
             try:
                 source_job = nodes2jobs[inedge._source]
             except:
-                print ">>>DAMN NODE", inedge._source._job.name, "->", node._job.name
                 raise
             job.dependencies.append(source_job)
             if inedge.has_streaming_link():
@@ -238,7 +251,39 @@ def create_jobs(pipeline, excludes=None, skip=None, keep=False):
     for job in jobs:
         if len(job.dependencies) == 0:
             _infer_job_state(job)
+
+    # now run the validation on all final jobs and
+    # in addition collect output files. An Exception is raised if
+    # an output file occures twice
+    for job in jobs:
+        log.info("Validate %s", job)
+        job.validate()
     return jobs
+
+
+def check_output_files(jobs):
+    """Ensures that there are no output file duplication in the given set
+    of jobs and raises a ValidationError if there are
+
+    :param jobs: list of jobs
+    :raises ValidationError: if duplicated output files are found
+    """
+    outputs = set([])
+    for job in jobs:
+        for of in job.tool.get_output_files():
+            if of in outputs:
+                raise ValidationError(
+                    job.tool,
+                    "Output file duplication: %s\n\n"
+                    "During validation an output file name was found\n"
+                    "twice! This means there are at least two jobs that\n"
+                    "will create the same output. In case you are using the\n"
+                    "auto-expansion feature and specified a list of inputs,\n"
+                    "try to use templates for your output, for example,\n"
+                    "you can use --output '${input}_out.txt' to create\n"
+                    "output files that are created based in the input." % of
+                )
+            outputs.add(of)
 
 
 def _infer_job_state(job):
@@ -349,70 +394,211 @@ def reload_script(job):
     job.command = cmd
 
 
-def run(tool, keep=False, force=False, dry=False, show=False):
-    """Creates a pipeline from the given tool and runs it."""
-    # persis the script to in memoru database
-    if not force and tool.is_done() and not dry and not show:
-        log.info("Results exist! Skipping")
-        return
-    import jip.db
-    from jip.db import create_session
-    jip.db.init(in_memory=True)
-    # create the jobs
-    session = create_session()
-    # wrap the tool in a pipeline
-    # to deal with pipelines of pipelines
-    pipeline = Pipeline()
-    pipeline.run(tool)
-    jobs = create_jobs(pipeline,
-                       parent_tool=tool,
-                       keep=keep,
-                       validate=True,  # not (dry or show),
-                       session=session)
+def run(script, script_args, keep=False, dry=False,
+        show=False, silent=False, force=False):
+    script.parse_args(script_args)
+    try:
+        jobs = create_jobs(script, keep=keep)
+    except ValidationError as err:
+        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+        print >>sys.stderr, str(err)
+        sys.exit(1)
+
     if dry:
-        show_dry_run(jobs)
+        show_dry(jobs, options=script.options)
     if show:
-        show_command(jobs)
+        show_commands(jobs)
+
     if dry or show:
+        try:
+            check_output_files(jobs)
+        except Exception as err:
+            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+            print >>sys.stderr, str(err)
+            sys.exit(1)
         return
-    # run all main jobs
-    for job in jobs:
-        if len(job.pipe_from) > 0:
-            continue
-        if not force and job.tool.is_done():
-            log.info("Results exist! Skipping")
-            sys.stderr.write("Job (%d) results exist! Skipping "
-                             "(use --force to force execution\n" %
-                             (job.id))
+
+    check_output_files(jobs)
+
+    for g in group(jobs):
+        job = g[0]
+        name = "|".join(str(j) for j in g)
+        if job.state == STATE_DONE and not force:
+            if not silent:
+                print "Skipping", name
         else:
-            session.add(job)
-            run_job(job.id)
+            if not silent:
+                sys.stdout.write("Running {name:30} ".format(name=name))
+                sys.stdout.flush()
+            start = datetime.now()
+            success = run_job(job)
+            end = timedelta(seconds=(datetime.now() - start).seconds)
+            if success:
+                if not silent:
+                    print colorize(job.state, GREEN), "[%s]" % (end)
+            else:
+                if not silent:
+                    print colorize(job.state, RED)
+                sys.exit(1)
 
 
-def show_command(jobs):
+def show_dry(jobs, options=None):
+    """Print the dry-run table to stdout
+
+    :param jobs: list of jobs
+    """
+    #############################################################
+    # Print general options
+    #############################################################
+    if options:
+        show_options(options,
+                     "Pipeline Configuration",
+                     ['help', 'dry', 'force'])
+    #############################################################
+    # print job options
+    #############################################################
     for job in jobs:
-        print "#### %s :: %s" % (job, job.interpreter)
-        print job.command
-        print "####"
+        show_options(job.configuration, "Job-%s" % str(job))
+    #############################################################
+    # print job states
+    #############################################################
+    show_job_states(jobs)
+    show_job_tree(jobs)
 
 
-def show_dry_run(jobs, rows=None):
-    if rows is None:
-        rows = []
+def show_commands(jobs):
+    """Print the commands for the given list of jobs
 
-    def _to_name(j):
-        return "%s" % (j.id)
+    :param jobs: list of jobs
+    """
+    print ""
+    print "Job commands"
+    print "------------"
+    for g in group(jobs):
+        job = g[0]
+        deps = [str(d) for j in g
+                for d in j.dependencies if d not in g]
+        name = "|".join(str(j) for j in g)
+        print "### %s -- Interpreter: %s Dependencies: %s" % (
+            colorize(name, BLUE),
+            job.interpreter,
+            ",".join(deps)
+        )
+        print " | ".join([j.command for j in g])
+        print "###"
+
+
+def _clean_value(v):
+    if isinstance(v, (list, tuple)):
+        v = [x if not isinstance(x, file) else "<<STREAM>>"
+             for x in v]
+    else:
+        v = v if not isinstance(v, file) else "<<STREAM>>"
+    return v
+
+
+def show_options(options, title=None, excludes=None, show_defaults=False):
+    if title is not None:
+        print "#" * 87
+        print "| {name:^91}  |".format(name=colorize(title, BLUE))
+    rows = []
+    excludes = excludes if excludes is not None else ['help']
+    for o in options:
+        if (show_defaults or o.raw() != o.default) and o.name not in excludes:
+            rows.append([o.name, _clean_value(o.raw())])
+    print render_table(["Name", "Value"], rows, widths=[30, 50],
+                       deco=Texttable.VLINES |
+                       Texttable.BORDER |
+                       Texttable.HEADER)
+
+
+def show_job_states(jobs, title="Job states"):
+    if title is not None:
+        print "#" * 149
+        print "| {name:^153}  |".format(name=colorize(title, BLUE))
+    rows = []
+    for g in group(jobs):
+        job = g[0]
+        name = "|".join(str(j) for j in g)
+        outs = [f for j in g for f in j.tool.get_output_files()]
+        ins = [f for j in g for f in j.tool.get_input_files()]
+        state = colorize(job.state, STATE_COLORS[job.state])
+        rows.append([name, state, ", ".join(ins), ", ".join(outs)])
+    print render_table(["Name", "State", "Inputs", "Outputs"], rows,
+                       widths=[30, 6, 50, 50],
+                       deco=Texttable.VLINES |
+                       Texttable.BORDER |
+                       Texttable.HEADER)
+
+
+def show_job_tree(jobs, title="Job hierarchy"):
+    if title is not None:
+        print "#" * 20
+        print "| {name:^24}  |".format(name=colorize(title, BLUE))
+        print "#" * 20
+
+    done = set([])
+    counts = {}
+
+    def draw_node(job, levels=None, parents=None, level=0, last=False):
+        if job in done:
+            return False
+        done.add(job)
+        parents.add(job)
+        ## build the separator based on the levels list and the current
+        ## level
+        sep = "".join([u'\u2502 ' if j > 0 else "  "
+                      for j in levels[:level - 1]]
+                      if level > 0 else [])
+        # reduce the lecel counter
+        if level > 0:
+            levels[level - 1] = levels[level - 1] - 1
+        # build the edge and the label
+        edge = "" if not level else (u'\u2514\u2500' if last
+                                     else u'\u251C\u2500')
+        label = "%s%s" % (edge, job)
+
+        # collect other dependencies that are node covered
+        # by the tree
+        other_deps = ",".join(str(j) for j in job.dependencies
+                              if j not in parents)
+        if len(other_deps) > 0:
+            label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
+        # print the separator and the label
+        print "%s%s" % (sep, label)
+
+        # update levels used by the children
+        # and do the recursive call
+        num = counts[job]
+        levels = levels + [num]
+
+        i = 0
+        for child in job.children:
+            if draw_node(child, levels=levels,
+                         parents=parents, level=level + 1,
+                         last=(i == (num - 1))):
+                i += 1
+        return True
+
+    def count_children(job, counts):
+        if job in counts:
+            return
+        counts[job] = 0
+
+        done.add(job)
+        for child in job.children:
+            if child not in done:
+                counts[job] = counts[job] + 1
+            count_children(child, counts)
 
     for job in jobs:
-        #detail_view(job, exclude_times=True)
-        rows.append([job.id, job.name, job.tool_name, str(job.threads),
-                     ", ".join([_to_name(j) for j in job.dependencies]),
-                     ", ".join([_to_name(j) for j in job.pipe_from]),
-                     ", ".join([_to_name(j) for j in job.pipe_to])
-                     ])
-    from jip.utils import render_table
-    print render_table(["ID", "Name", "Tool", "Threads",
-                        "Dependecies", "Pipe From", "Pipe To"], rows)
+        if len(job.dependencies) == 0:
+            count_children(job, counts)
+    done = set([])
+    for job in jobs:
+        if len(job.dependencies) == 0:
+            draw_node(job, levels=[], parents=set([]), level=0)
+    print "#" * 20
 
 
 def group(jobs):

@@ -126,7 +126,7 @@ class Option(object):
         if self.render_context:
             from jip.templates import render_template
             values = [render_template(v, **self.render_context)
-                      if isinstance(v, basestring) else v
+                      if v and isinstance(v, basestring) else v
                       for v in values]
             self.render_context = None
             if not set_from_default:
@@ -313,7 +313,8 @@ class Options(object):
             hidden=True,
         )
         option.source = self.source
-        self.options.append(option)
+        if not option in self.options:
+            self.options.append(option)
 
     def render_context(self, ctx):
         for o in self:
