@@ -1,6 +1,30 @@
 #!/usr/bin/env python
-"""The tools moduel contains the base classes
-for executable tools
+"""Basic pipeline building blocks.
+
+This modules provides the basic building blocks in a JIP pipeline and a way
+to search and find them at run-time. The basic buiding blocks are instances
+of :py:class:`Tool`. The JIP library comes with two sub-classes that can be
+used to create tool implementations:
+
+:py:class:`ScriptTool`
+    This sub-class of `Tool` integrates file or script based tool
+    implementations which can be served from stand-alone script files
+:py:class:`PythonTool`
+    In contrast to the script tool, this `Tool` extension allows to create
+    `Tool` instances from other, possibly non-related, python classes. The
+    easiest way to used this is with the :py:class:`jip.tools.tool` decorator,
+    which allows you to take arbitrary python classes and *make* them jip
+    tools.
+
+In addition to the `Tool` implementations, this module provides the
+:py:class:`Scanner` class, which is used to find tool implementations either
+form disk or from an arbitrary python module. This class is supposed to be
+used as a *singleton* and an configured instance is available in the main
+`jip` module, exposed as `jip.scanner`. The scanner class itself is
+configured either through the :py:mod:`jip.configuration`, or through
+environment variables. The :py:class:`Scanner` documentation covers both
+the environment variables that can be used as well as the configuration
+properties.
 """
 import cPickle
 import copy
@@ -27,7 +51,6 @@ cPickle.loads(source).run();
 '<< __EOF__
 %s__EOF__
 """
-
 
 
 #########################################################
@@ -414,29 +437,60 @@ class PythonBlock(Block):
 
 
 class Tool(object):
-    """This is the base tool class. Create a subclass of this
-    class to implement custom implementation.
+    """The base class for all implementation of executable units.
 
-    The base class is fully functional except for the actual execution.
-    For this, you have to overwrite the get_command() function and return
-    a tuple of a template and an interpreter that will be used to run the
-    command.
+    This class provides all the building block to integrated new tool
+    implementations that can be executed, submitted and integrated in pipelines
+    to construct more complex setups.
+
+    A `Tool` in a JIP setup is considered to be a container for the executions
+    meta-data, i.e. options and files that are needed to the actual run. The
+    main function of the `Tool` class is it :py:meth:`get_command`
+    function, which returns a tuple `(interpreter, command)`, where the
+    `interpreter` is a string like "bash" or "perl" or even a *path* to some
+    interpreter executable that will be used to execute the `command`. The
+    command itself is the string representation of the content of a script that
+    will be passed to the `interpreter` at execution time. Please note that
+    the :py:meth:`get_command` functions command part is supposed to be
+    fully *rendered*, it will not be modified any further. The JIP default
+    tool classes that are used, for example, to provide script to the system,
+    are already integrated with the :py:mod:`jip.templates` system, but you can
+    easily use the rendering function directly to create more dynamic commands
+    that can adopt easily to changed in the configuration of a tool.
+
+    The class exposes a name and a path to a source file as properties. Both
+    are optional and can be omitted in order to implement anonymous tools. In
+    addition to these *meta* data, the tools :py:meth:`__init__` function
+    allows you to provide a *options_source*. This object is used to create the
+    :py:class:`jip.options.Options` that cover the runtime configuration of a
+    tool.  The options are initialize lazily on first access using the
+    `options_source` provided at initialization time. This object can be either
+    a string or an instance of an `argparse.ArgumentParser`. Both styles of
+    providing tool options are described in the :py:mod:`jip.options` module.
     """
 
     def __init__(self, options_source=None, name=None):
-        """Initialize a tool insance. If now options_source is given
-        the class docstring is used.
+        """Initialize a tool instance. If no options_source is given
+        the class docstring is used as a the options source.
 
         :param options_source: either a string or an argparser instance
                                defaults to the class docstring
+        :param name: the name of this tool
         """
+        #: the tools name
         self.name = name
+        #: path to the tools source file
         self.path = None
         self._options = None
         self._options_source = options_source
 
     @property
     def options(self):
+        """Access this tools :py:class:`jip.options.Options` instance.
+
+        The tools options are the main way to interact with and configure a
+        tool instance either from outside or from within a pipeline.
+        """
         if self._options is None:
             if self._options_source is not None:
                 self._options = self._parse_options(self._options_source)
@@ -487,12 +541,12 @@ class Tool(object):
         return opts
 
     def validate(self):
-        """The default implementaiton validates all options that belong to
-        this tool and checks that all options that are of TYPE_INPUT reference
-        existing files.
+        """The default implementation validates all options that belong to
+        this tool and checks that all options that are of `TYPE_INPUT`
+        reference existing files.
 
-        The method raises a ValidationError in case an option could not
-        be validated or an input file does not exist.
+        The method raises a :py:class:`ValidationError` in case an option could
+        not be validated or an input file does not exist.
         """
         try:
             self.options.validate()

@@ -14,3 +14,4 @@ clean:
 	@rm -f *.pyc
 	@rm -rf build/
 	@rm -rf jip.egg-info/
+	$(MAKE) -C docs clean

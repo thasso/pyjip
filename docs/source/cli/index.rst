@@ -1,5 +1,7 @@
-Command line utilities
-======================
+.. _cli:
+
+JIP command line utilities
+==========================
 
 JIP bundles a set of command line utilities.
 
