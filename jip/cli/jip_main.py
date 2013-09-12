@@ -7,7 +7,7 @@ Usage:
     jip [--loglevel <level>] [-p] <command> [<args>...]
     jip [--version] [--help]
 
-Options::
+Options:
     -p, --pipeline      the file contains a pipeline (interpreter mode)
     -h --help           Show this help message
     --version           Show the version information
@@ -25,7 +25,7 @@ jobs:
     jobs    list and update jobs from the job database
 
 The jip jobs command output can be piped into one of the following
-action command. Note that the commands also work standalon:
+action command. Note that the commands also work standalone:
 
     delete   delete the selected jobs
     archive  archive the selected jobs
@@ -34,6 +34,11 @@ action command. Note that the commands also work standalon:
     resume   resume selected jobs that are on hold
     restart  restart selected jobs
     logs     show log files of jobs
+
+Miscellaneous other commands:
+
+    tools     list all tools available through the search paths
+    profiles  list all available profiles
 """
 import sys
 import jip
@@ -50,7 +55,6 @@ def main():
         log_level(args['--loglevel'])
     cmd = args['<command>']
     if not cmd:
-        sys.stderr.write("\nNo command specified \n\n")
         docopt(__doc__, version='1.0', options_first=True, argv=['--help'],
                help=True)
         sys.exit(1)

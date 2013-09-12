@@ -86,6 +86,10 @@ class Job(Base):
     # are used to create stdout and stderr log
     # file for a job.
     name = Column(String(256))
+    # store an optional project name
+    project = Column(String(256))
+    # store an optional pipeline name to group jobs
+    pipeline = Column(String(256))
     # path to the jip script that created this job
     path = Column(String(1024))
     # tool name
@@ -307,9 +311,8 @@ class Job(Base):
             return True
         ## in case this is a temp job, with stream out check the children
         if self.temp and len(self.pipe_to) > 0:
-            for target in self.children:
-                if not target.is_done():
-                    return False
+            for target in [c for c in self.children if not c.is_done()]:
+                return False
             return True
 
         if len(self.pipe_to) == 0 or len(self.get_pipe_targets()) > 0:

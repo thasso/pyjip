@@ -11,7 +11,7 @@ from jip.logger import getLogger
 from jip.utils import flat_list, colorize, render_table, BLUE, GREEN, RED,\
     YELLOW, NORMAL, Texttable
 from jip.pipelines import Pipeline
-from jip.tools import ValidationError
+from jip.tools import ValidationError, Tool
 
 
 log = getLogger('jip.executils')
@@ -396,7 +396,8 @@ def reload_script(job):
 
 def run(script, script_args, keep=False, dry=False,
         show=False, silent=False, force=False):
-    script.parse_args(script_args)
+    if isinstance(script, Tool):
+        script.parse_args(script_args)
     try:
         jobs = create_jobs(script, keep=keep)
     except ValidationError as err:

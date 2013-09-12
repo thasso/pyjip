@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Manage the JIP configuration"""
+import collections
 from os import getenv
 from os.path import join, exists
 
@@ -7,22 +8,18 @@ from os.path import join, exists
 # the default jip configuration
 _configuration = {
     "db": "sqlite:///%s/.jip/jobs.db" % (getenv("HOME", "")),
-    "home": "%s/.jip" % (getenv("HOME", "")),
-    "jip_path": "",  # search path for scripts
+    "jip_path": "",
     "jip_modules": [],
     "profiles": {
         "default": {}
     },
-    "cluster": {
-        "engine": None,
-        "default_profile": "default"
-    }
+    "cluster": None
 }
 
 
 class Config(object):
     """Wrapper around the JIP configuration that allows
-    dotted access to the configuraiton
+    dotted access to the configuration
     """
     def __init__(self):
         self._config = None
@@ -34,13 +31,16 @@ class Config(object):
         home = join(getenv("HOME"), ".jip")
         path = join(home, "jip.json")
         if exists(path):
-            _load(path)
+            self._config = _update(self._config, _load(path))
 
     def get(self, name, default=None):
         try:
             return self.__getattr__(name)
         except:
             return default
+
+    def __getitem__(self, name):
+        return self.__getattr__(name)
 
     @property
     def config(self):
@@ -58,10 +58,12 @@ class Config(object):
 def _update(config, other):
     """Recursively update the given config dict with the other dict"""
     for k, v in other.iteritems():
-        if isinstance(v, dict):
-            config[k] = _update(v, config.get(k, {}))
+        if isinstance(v, collections.Mapping):
+            r = _update(config.get(k, {}), v)
+            config[k] = r
         else:
-            config[k] = v
+            config[k] = other[k]
+    return config
 
 
 def _load(path):
@@ -69,5 +71,3 @@ def _load(path):
     import json
     with open(path) as f:
         return json.load(f)
-
-

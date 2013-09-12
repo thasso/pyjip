@@ -5,8 +5,8 @@ Wrap a bash command in a jip script
 Usage:
     jip-bash [--db <db>] [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
              [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [--hold]
-             [-O <out>] [-E <err>]
-             [-i <input>] [-o <output>] [-s] [--keep] [--force] <cmd>
+             [-O <out>] [-E <err>] [--dry]
+             [-i <input>] [-o <output>] [-s] [--keep] [--force] <cmd>...
     jip-bash [--help|-h]
 
 Options:
@@ -31,36 +31,33 @@ Options:
     -s, --submit             Submit as job to the cluster
     --hold                   Put job on hold after submission
     --keep                   Keep output also in case of failure
+    --dry                    Show a dry run
     --force                  Force execution/submission
-    <cmd>                    The bash command line that will be wrapped
+    <cmd>...                 The bash command line that will be wrapped
     -h --help                Show this help message
 
 """
-
+import jip
 from . import parse_args
-
-import pkgutil
 import sys
-
-from jip.parser import parse_script
 
 
 def main():
     args = parse_args(__doc__, options_first=True)
-    script_lines = pkgutil.get_data("jip.scripts", "bash.jip").split("\n")
-    script = parse_script(lines=script_lines)
-    script.args['input'] = sys.stdin if args['--input'] == 'stdin' else args['--input']
-    script.args['output'] = sys.stdout if args['--output'] == 'stdout' else args['--output']
-    script.args['cmd'] = args['<cmd>']
-    if args["--cpus"]:
-        script.threads = int(args["--cpus"])
+    pipeline = jip.Pipeline()
+    bash = pipeline.job().run('bash')
+
+    bash.input = sys.stdin if args['--input'] == 'stdin' \
+        else args['--input']
+    bash.output = sys.stdout if args['--output'] == 'stdout' \
+        else args['--output']
+    bash.cmd = args['<cmd>']
 
     if not args["--submit"]:
-        from jip.cli.jip_run import run_script
-        run_script(script, keep=args["--keep"], force=args["--force"])
+        jip.run(pipeline, [], dry=args['--dry'], keep=args['--keep'],
+                force=args['--force'], silent=True)
     else:
-        from jip.cli.jip_submit import submit_script
-        submit_script(script, args)
+        pass
 
 
 if __name__ == "__main__":

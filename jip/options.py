@@ -539,7 +539,8 @@ class Options(object):
         for k, v in parsed.iteritems():
             opt = self[k]
             opt.user_specified = user_specified.get(k, False)
-            opt.value = v
+            if opt.user_specified:
+                opt.value = v
         return parsed
 
     @classmethod
