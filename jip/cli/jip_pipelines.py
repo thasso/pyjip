@@ -72,7 +72,7 @@ def _job_row(job):
             canceled_count += 1
         elif j.state == db.STATE_QUEUED:
             queued_count += 1
-        elif j.state == db.STATE_HOLE:
+        elif j.state == db.STATE_HOLD:
             hold_count += 1
 
     # use the job counts it inferr the globally displayed state
@@ -133,12 +133,7 @@ def main():
     ####################################################################
     # limit the jobs too all jobs without a dependency
     ####################################################################
-    #jobs = filter(lambda j: not j.dependencies, jobs.all())
-    #jobs = jobs.filter(db.Job.dependencies == None).all()
-    print ">>>DONE ?!?!", [j.id for j in jobs]
-    jobs = jobs.all()
-    #print jobs[0].children
-    #exit(0)
+    jobs = filter(lambda j: not j.dependencies, jobs.all())
 
     ####################################################################
     # Print full table without header and decorations for

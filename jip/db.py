@@ -10,9 +10,8 @@ import subprocess
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
-from sqlalchemy.orm import relationship, deferred
+from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
-from jip.utils import parse_time, ignored
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
 
@@ -151,16 +150,21 @@ class Job(Base):
     extra = deferred(Column(PickleType))
     # dependencies
     dependencies = relationship("Job",
-                                lazy='subquery',
+                                lazy="joined",
+                                join_depth=1,
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
-                                backref='children')
+                                backref=backref('children', lazy='joined',
+                                                join_depth=1))
     pipe_to = relationship("Job",
+                           lazy="joined",
+                           join_depth=1,
                            secondary=job_pipes,
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
-                           backref='pipe_from')
+                           backref=backref('pipe_from', lazy='joined',
+                                           join_depth=1))
 
     def __init__(self, tool=None):
         """Create a new Job instance.
@@ -367,7 +371,7 @@ def init(path=None, in_memory=False):
     # check before because engine creation will create the file
     create_tables = not exists(folder) and type == "sqlite"
     # create engine
-    engine = slq_create_engine(path, echo=True)
+    engine = slq_create_engine(path)
     # create tables
     if create_tables:
         Base.metadata.create_all(engine)

@@ -101,7 +101,7 @@ class Profile(object):
             job.extra = self.extra
 
         for child in job.pipe_to:
-            self.apply(self)
+            self.apply(child)
 
     def __call__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,

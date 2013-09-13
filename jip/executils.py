@@ -301,6 +301,9 @@ def submit(script, script_args, keep=False, dry=False,
     log.debug("Saving jobs")
     map(_session.add, jobs)
     _session.commit()
+    # TODO: remove me
+    print jobs
+    exit(1)
 
     for g in group(jobs):
         job = g[0]
