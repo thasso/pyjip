@@ -34,9 +34,7 @@ def main():
     session, jobs = _query_jobs(args)
     for job in jobs:
         if len(job.pipe_from) == 0:
-            if job.cluster is None:
-                continue
-            cluster = jip.cluster.from_name(job.cluster)
+            cluster = jip.cluster.get()
             show_log(job, cluster, args)
     session.close()
 

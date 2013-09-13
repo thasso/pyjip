@@ -43,7 +43,7 @@ STATES_WAITING = [STATE_HOLD, STATE_QUEUED]
 STATES_RUNNING = [STATE_RUNNING]
 # job states for active jobs that are running or waiting
 # but are somehow actively queued
-STATES_ACTIVE = STATES_RUNNING + STATES_WAITING
+STATES_ACTIVE = STATES_RUNNING + [STATE_QUEUED]
 # all possible states
 STATES = STATES_ACTIVE + STATES_FINISHED
 
@@ -99,8 +99,6 @@ class Job(Base):
     archived = Column(Boolean, default=False)
     # mark a job as temporary
     temp = Column(Boolean, default=False)
-    # get the class name of the cluster
-    cluster = Column(String(256))
 
     # times, dates and state and execution states
     create_date = Column(DateTime, default=datetime.datetime.now())
@@ -153,6 +151,7 @@ class Job(Base):
     extra = deferred(Column(PickleType))
     # dependencies
     dependencies = relationship("Job",
+                                lazy='subquery',
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
@@ -282,22 +281,6 @@ class Job(Base):
         else:
             return "jip exec --db %s %d" % (db_path, self.id)
 
-    def cancel(self, remove_logs=False):
-        """Initialize the cluster that runs this jobs and cancel it
-        if the job state is Queued or Running.
-        Return true if the job was canceled
-        """
-        if self.state in (STATE_RUNNING, STATE_QUEUED):
-            import jip.cluster
-            cluster = jip.cluster.from_name(self.cluster)
-            if cluster:
-                cluster.cancel(self)
-            self.state = STATE_CANCELED
-            if remove_logs:
-                self.clean()
-            return True
-        return False
-
     def validate(self):
         """Delegates to the tools validate method"""
         return self.tool.validate()
@@ -334,46 +317,6 @@ class Job(Base):
                 return False
         return True
 
-    def clean(self):
-        """Clean the job and remove the jobs stderr and stdout log files
-        """
-        from os import remove
-        from os.path import exists
-        import jip.cluster
-        cluster = jip.cluster.from_name(self.cluster)
-        with ignored(Exception):
-            stderr = cluster.resolve_log(self, self.stderr)
-            if exists(stderr):
-                log.info("Removing job stderr log file: %s", stderr)
-                remove(stderr)
-        with ignored(Exception):
-            stdout = cluster.resolve_log(self, self.stdout)
-            if exists(stdout):
-                log.info("Removing job stdout log file: %s", stderr)
-                remove(stdout)
-
-    def update_profile(self, profile):
-        """Updated the job execution settings from the given profile
-
-        :param profile: the profile
-        :type profile: dict
-        """
-        self.extra = profile.get("extra", self.extra)
-        self.queue = profile.get("queue", self.queue)
-        self.priority = profile.get("priority", self.priority)
-        self.account = profile.get("account", self.account)
-        self.threads = profile.get("threads", self.threads)
-        self.max_memory = profile.get("max_memory", self.max_memory)
-        self.max_time = parse_time(profile.get("max_time", self.max_time))
-        self.name = profile.get("name", self.name)
-        self.stdout = profile.get("out", self.stdout)
-        self.stderr = profile.get("err", self.stderr)
-
-        if self.account == "":
-            self.account = None
-        if self.priority == "":
-            self.priority = None
-
     def __repr__(self):
         if self.name is not None:
             return self.name
@@ -402,7 +345,7 @@ def init(path=None, in_memory=False):
 
     if path is None:
         import jip
-        path = jip.configuration.get("db", None)
+        path = jip.config.get("db", None)
         if path is None:
             raise LookupError("Database engine configuration not found")
 
@@ -424,7 +367,7 @@ def init(path=None, in_memory=False):
     # check before because engine creation will create the file
     create_tables = not exists(folder) and type == "sqlite"
     # create engine
-    engine = slq_create_engine(path)
+    engine = slq_create_engine(path, echo=True)
     # create tables
     if create_tables:
         Base.metadata.create_all(engine)

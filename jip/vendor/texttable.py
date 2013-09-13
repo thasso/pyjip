@@ -557,9 +557,10 @@ class Texttable:
                             lost_color = attr
                 fill = width - len(cell_line)
                 try:
-                    cell_line = get_color_string(
-                        getattr(bcolors, lost_color),cell_line
-                    )
+                    cell_line = original_cell
+                    #cell_line = get_color_string(
+                        #getattr(bcolors, lost_color),cell_line
+                    #)
                 except AttributeError:
                     pass
                 if isheader:
@@ -602,12 +603,14 @@ class Texttable:
                     sys.stderr.write("UnicodeDecodeError exception for string '%s': %s\n" % (c, strerror))
                     c = unicode(c, 'utf', 'replace')
                 try:
-                    array.extend(
-                        [get_color_string(
+                    nl = [get_color_string(
                             getattr(bcolors, lost_color),x
                             ) for x in  textwrap.wrap(c, width)
-                        ]
-                    )
+                    ]
+                    if len(nl) == 1:
+                        array.extend([original_cell])
+                    else:
+                        array.extend(nl)
                 except AttributeError:
                     array.extend(textwrap.wrap(c, width))
             line_wrapped.append(array)

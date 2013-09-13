@@ -17,6 +17,7 @@ Options:
 from . import _query_jobs, parse_args
 from jip.executils import get_pipeline_jobs
 from jip.utils import confirm, flat_list
+import jip.db
 
 
 def main():
@@ -31,10 +32,10 @@ def main():
                False):
         count = 0
         for j in flat_list([get_pipeline_jobs(job) for job in jobs]):
-            if j.cancel(remove_logs=args["--clean"]):
-                print "%s canceled" % str(j)
-                count += 1
-                session.add(j)
+            if j.state in jip.db.STATES_ACTIVE:
+                if j.cancel(remove_logs=args["--clean"]):
+                    count += 1
+                    session.add(j)
         session.commit()
         print "%d jobs canceled" % count
 

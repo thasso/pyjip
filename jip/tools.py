@@ -345,8 +345,8 @@ class PythonBlockUtils(object):
     def run(self, name, **kwargs):
         return self.pipeline.run(name, **kwargs)
 
-    def job(self, **kwargs):
-        return self.pipeline.job(**kwargs)
+    def job(self, *args, **kwargs):
+        return self.pipeline.job(*args, **kwargs)
 
     def bash(self, command, **kwargs):
         from jip.pipelines import Node

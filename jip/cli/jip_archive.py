@@ -3,11 +3,12 @@
 Archive jip jobs
 
 Usage:
-    jip-archive [-j <id>...] [-J <cid>...] [--db <db>]
+    jip-archive [-j <id>...] [-J <cid>...] [--db <db>] [-c]
     jip-archive [--help|-h]
 
 Options:
     --db <db>                Select a path to a specific job database
+    -c, --clean              Remove job logfiles
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -h --help                Show this help message
@@ -44,6 +45,8 @@ def main():
     if len(jobs) == 0:
         return
 
+    clean = args['--clean']
+
     if confirm("Are you sure you want "
                "to archive %d jobs" % len(jobs),
                False):
@@ -51,6 +54,8 @@ def main():
         for j in flat_list([get_pipeline_jobs(job) for job in jobs]):
             if j.state not in STATES_ACTIVE:
                 j.archived = True
+                if clean:
+                    job.clean()
                 session.add(j)
                 count += 1
             else:

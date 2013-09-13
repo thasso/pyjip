@@ -18,11 +18,11 @@ Options:
     -q, --queue <queue>      Job queue
     -p, --priority <prio>    Job priority
     -A, --account <account>  The account to use for submission
-    -C, --cpus <cpus>        Number of CPU's assigned to the job
-    -m, --max-mem <mem>      Max memory assigned to the job
+    -C, --threads <cpus>     Number of CPU's assigned to the job
+    -m, --mem <mem>          Max memory assigned to the job
     -n, --name <name>        Job name
     -R, --reload             Reload and rerender the job command
-    -E, --err <err>          Jobs stderr log file
+    -E, --log <err>          Jobs stderr log file
     -O, --out <out>          Jobs stdout log file
     -i, --input <input>      The scripts input
                              [default: stdin]
@@ -38,8 +38,14 @@ Options:
 
 """
 import jip
+import jip.cluster
+import jip.profiles
+from jip.logger import getLogger
 from . import parse_args
 import sys
+
+
+log = getLogger("jip.cli.jip_bash")
 
 
 def main():
@@ -57,7 +63,18 @@ def main():
         jip.run(pipeline, [], dry=args['--dry'], keep=args['--keep'],
                 force=args['--force'], silent=True)
     else:
-        pass
+        # load the cluster
+        cluster = jip.cluster.get()
+        log.info("Cluster: %s", cluster)
+        # load default profile
+        profile = jip.profiles.get(name='default'
+                                   if not args['--profile']
+                                   else args['--profile'])
+        profile.load_args(args)
+        log.info("Profile: %s", profile)
+        jip.submit(pipeline, [], dry=args['--dry'], keep=args['--keep'],
+                   force=args['--force'], silent=False, profile=profile,
+                   cluster=cluster)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,23 @@ that expose command line functions for the JIP command
 """
 
 
+def resolve_job_range(ids):
+    """Resolve ranges from a list of ids"""
+    r = []
+    for i in ids:
+        s = i.split("-")
+        if len(s) == 1:
+            r.append(i)
+        elif len(s) == 2:
+            start = int(s[0])
+            end = int(s[1])
+            start, end = min(start, end), max(start, end)
+            r.extend(range(start, end + 1))
+        else:
+            raise ValueError("Unable to guess a job range from %s" % i)
+    return r
+
+
 def parse_args(docstring, argv=None, options_first=True):
     """Parse the command line options"""
     from jip.vendor.docopt import docopt
@@ -33,14 +50,16 @@ def _query_jobs(args, init_db=True, session=None, fields=None):
     from jip.db import init, create_session
     from jip.utils import read_ids_from_pipe, query_jobs_by_ids
     if init_db:
-        init(path=args["--db"])
+        init(path=args["--db"] if '--db' in args else None)
     if session is None:
         session = create_session()
     ####################################################################
     # Query jobs from both, job/cluster ids and pipe
     ####################################################################
     job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
+    if not isinstance(job_ids, (list, tuple)):
+        job_ids = [job_ids]
+    cluster_ids = args["--cluster-job"] if '--cluster-job' in args else []
 
     ####################################################################
     # read job id's from pipe

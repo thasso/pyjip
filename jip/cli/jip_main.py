@@ -39,6 +39,7 @@ Miscellaneous other commands:
 
     tools     list all tools available through the search paths
     profiles  list all available profiles
+    edit      edit job commands
 """
 import sys
 import jip

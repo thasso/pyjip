@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """JIP job eecution utilities"""
 from datetime import datetime, timedelta
-from functools import partial
 import sys
-from os import getenv
+from os import getenv, getcwd
 
 from jip.db import Job, STATE_QUEUED, STATE_DONE, STATE_FAILED, STATE_HOLD, \
     STATE_RUNNING, STATE_CANCELED
@@ -12,6 +11,8 @@ from jip.utils import flat_list, colorize, render_table, BLUE, GREEN, RED,\
     YELLOW, NORMAL, Texttable
 from jip.pipelines import Pipeline
 from jip.tools import ValidationError, Tool
+import jip.cluster
+import jip.jobs
 
 
 log = getLogger('jip.executils')
@@ -27,77 +28,6 @@ STATE_COLORS = {
 }
 
 
-def set_state(new_state, job, session=None, update_children=True):
-    """Set the job state during execution. A new sesison is
-    created and commited if its not specified as parameter. If a
-    session is given as paramter, the modified jobs are added but the session
-    is not commited or closed.
-
-    The job can be given either as a job instance or as id. If the id is
-    specified, a query is issued to find the job in the database.
-
-    If the job has pipe_to children, their state is also update as
-    we assume that they are executed in the same run
-
-    :param new_state: the new job state
-    :param id_or_job: the job instance or a job id
-    :param session: the session. If this is specified, modified jobs will
-                    be added but the session will not be commited. If
-                    the sesison is not specified, it is created, commited
-                    and closed
-    :param update_children: if set to False, child jobs are not updated
-    """
-    from datetime import datetime
-    from jip.db import STATE_FAILED, STATE_HOLD, STATE_CANCELED, \
-        STATES_WAITING, STATES_FINISHED, STATES_RUNNING
-    ## create a database session
-    log.info("%s | set state [%s]=>[%s]",
-             job, job.state, new_state)
-    # we do not overwrite CANCELED or HOLD with FAILED
-    if new_state == STATE_FAILED and job.state \
-            in [STATE_CANCELED, STATE_HOLD]:
-        return
-
-    job.state = new_state
-    ## set job times
-    if new_state in STATES_WAITING:
-        # job state is waiting, make sure there
-        # is no start and finish date set
-        job.finish_date = None
-        job.start_date = None
-    elif new_state in STATES_RUNNING:
-        job.start_date = datetime.now()
-        job.finish_date = None
-        # call cluster update if the job state
-        # is running
-        if job.cluster is not None:
-            try:
-                import jip.cluster
-                cluster = jip.cluster.from_name(job.cluster)
-                cluster.update(job)
-            except:
-                pass
-    elif new_state in STATES_FINISHED:
-        job.finish_date = datetime.now()
-
-    # if we are in finish state but not DONE,
-    # performe a cleanup
-    script = job.tool
-    if script is not None:
-        if job.state in [STATE_CANCELED, STATE_HOLD, STATE_FAILED]:
-            log.info("Terminating job: %s", job.state)
-            job.terminate()
-            if not job.keep_on_fail:
-                log.info("Cleaning job %s after failure", str(job))
-                script.cleanup()
-
-    # check embedded children of this job
-    if update_children:
-        map(partial(set_state, new_state, session=session), job.pipe_to)
-    if session is not None:
-        session.commit()
-
-
 def _setup_signal_handler(job, session=None):
     """Setup signal handlers that catch job termination
     when possible and set the job state to FAILED
@@ -107,8 +37,10 @@ def _setup_signal_handler(job, session=None):
 
     # signal
     def handle_signal(signum, frame):
-        # force process termination
-        set_state(STATE_FAILED, job, session=session)
+        jip.jobs.set_state(job, STATE_FAILED)
+        if session:
+            session.commit()
+            session.close()
         sys.exit(1)
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
@@ -171,12 +103,13 @@ def _create_job(node, env=None, keep=False):
     """
     job = Job(node._tool)
     tool = node._tool
-    job.state = STATE_QUEUED
+    job.state = STATE_HOLD
     job.name = tool.name
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path
     job.configuration = node._tool.options
+    job.working_directory = getcwd()
     job.env = env if env is not None else _create_job_env()
     if node._job is not None:
         node._job.apply(job)
@@ -184,7 +117,7 @@ def _create_job(node, env=None, keep=False):
     # check for special options
     if node._tool.options['threads'] is not None:
         try:
-            options_threads = int(node._too.options['threads'].raw())
+            options_threads = int(node._tool.options['threads'].raw())
             threads = max(options_threads, job.threads)
             job.threads = threads
         except:
@@ -196,7 +129,8 @@ def _create_job(node, env=None, keep=False):
     return job
 
 
-def create_jobs(pipeline, excludes=None, skip=None, keep=False):
+def create_jobs(pipeline, excludes=None, skip=None, keep=False,
+                profile=None):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.
 
@@ -213,6 +147,7 @@ def create_jobs(pipeline, excludes=None, skip=None, keep=False):
                  to connect the nodes input with the nodes output before the
                  node is removed
     :param keep: keep the jobs output on failure
+    :param profile: default job profile that will be applied to all jobs
     """
     if not isinstance(pipeline, Pipeline):
         log.info("Wrapping tool in pipeline: %s", pipeline)
@@ -258,6 +193,8 @@ def create_jobs(pipeline, excludes=None, skip=None, keep=False):
     for job in jobs:
         log.info("Validate %s", job)
         job.validate()
+        if profile is not None:
+            profile.apply(job)
     return jobs
 
 
@@ -315,89 +252,87 @@ def _infer_job_state(job):
         return done
 
 
-def submit(jobs, profile=None, cluster_name=None, session=None,
-           reload=False, force=False, update_profile=True):
+def submit(script, script_args, keep=False, dry=False,
+           show=False, silent=False, force=False,
+           session=None, profile=None, cluster=None):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
     """
-    import jip
-    import jip.db
-    import jip.cluster
     # load default cluster engine
-    if cluster_name is None:
-        cluster_cfg = jip.configuration.get('cluster', {})
-        cluster_name = cluster_cfg.get('engine', None)
-        if cluster_name is None:
-            raise ValueError("No cluster engine configured!")
+    cluster = jip.cluster.get() if not cluster else cluster
     # create the cluster and init the db
-    log.info("Cluster engine: %s", cluster_name)
-    cluster = jip.cluster.from_name(cluster_name)
+    log.info("Cluster engine: %s", cluster)
 
+    _is_tool = False
+    if isinstance(script, Tool):
+        script.parse_args(script_args)
+        _is_tool = True
+    try:
+        jobs = create_jobs(script, keep=keep, profile=profile)
+    except ValidationError as err:
+        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+        print >>sys.stderr, str(err)
+        sys.exit(1)
+
+    if dry:
+        show_dry(jobs, options=script.options if _is_tool else None,
+                 profiles=True)
+    if show:
+        show_commands(jobs)
+
+    if dry or show:
+        try:
+            check_output_files(jobs)
+        except Exception as err:
+            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+            print >>sys.stderr, str(err)
+            sys.exit(1)
+        return
+
+    check_output_files(jobs)
+
+    # we reached final submission time. Time to
+    # save the jobs
+    _session = session
     if session is None:
-        session = jip.db.create_session()
-    # update the jobs
-    submitted = []
-    skipped = []
-    for job in jobs:
-        if reload:
-            reload_script(job)
-        job.cluster = cluster_name
-        session.add(job)
-        if len(job.pipe_from) == 0:
-            log.debug("Checking job %d", job.id)
-            if not force and job.is_done():
-                skipped.append(job)
-                log.info("Skipped job %d", job.id)
-            else:
-                log.info("Submitting job %d", job.id)
-                if update_profile:
-                    job.update_profile(profile)
-                job.cluster = cluster_name
-                set_state(jip.db.STATE_QUEUED, job, session=session)
-                cluster.submit(job)
-                submitted.append(job)
+        _session = jip.db.create_session()
+
+    log.debug("Saving jobs")
+    map(_session.add, jobs)
+    _session.commit()
+
+    for g in group(jobs):
+        job = g[0]
+        name = "|".join(str(j) for j in g)
+        if job.state == STATE_DONE and not force:
+            if not silent:
+                print "Skipping", name
+            log.info("Skipping completed job %s", name)
         else:
-            # set the remote id
-            if job.pipe_from[0] not in skipped:
-                job.job_id = job.pipe_from[0].job_id
-    session.commit()
-    return submitted, skipped
-
-
-def get_pipeline_jobs(job, jobs=None):
-    """Check if the job has a pipe_from parent and if so return that"""
-    if len(job.pipe_from) > 0 and jobs is None:
-        ## walk up and add this jobs dependencies
-        j = job
-        while len(j.pipe_from) > 0:
-            j = j.pipe_from[0]
-        return get_pipeline_jobs(j)
-
-    if jobs is None:
-        jobs = []
-    # add this
-    if job not in jobs:
-        jobs.append(job)
-
-    ## add all children of this job
-    for parent in job.parents:
-        get_pipeline_jobs(parent, jobs)
-
-    return jobs
-
-
-def reload_script(job):
-    """Reload the command template from the source script"""
-    tool = job.tool
-    _, cmd = tool.get_command()
-    job.command = cmd
+            log.info("Submitting %s", name)
+            jip.jobs.set_state(job, STATE_QUEUED)
+            cluster.submit(job)
+            if not silent:
+                print "Submitted", job.job_id
+        if len(g) > 1:
+            for other in g[1:]:
+                # we only submit the parent jobs but we set the job
+                # id so dependencies are properly resolved on job
+                # submission to the cluster
+                other.job_id = job.job_id
+    _session.commit()
+    if session is None:
+        # we created the session so we close it
+        _session.close()
 
 
 def run(script, script_args, keep=False, dry=False,
         show=False, silent=False, force=False):
+    _is_tool = False
     if isinstance(script, Tool):
         script.parse_args(script_args)
+        _is_tool = True
     try:
         jobs = create_jobs(script, keep=keep)
     except ValidationError as err:
@@ -406,7 +341,7 @@ def run(script, script_args, keep=False, dry=False,
         sys.exit(1)
 
     if dry:
-        show_dry(jobs, options=script.options)
+        show_dry(jobs, options=script.options if _is_tool else None)
     if show:
         show_commands(jobs)
 
@@ -443,10 +378,12 @@ def run(script, script_args, keep=False, dry=False,
                 sys.exit(1)
 
 
-def show_dry(jobs, options=None):
+def show_dry(jobs, options=None, profiles=False):
     """Print the dry-run table to stdout
 
     :param jobs: list of jobs
+    :param options: the parent script options
+    :param profiles: render job profiles table
     """
     #############################################################
     # Print general options
@@ -464,6 +401,8 @@ def show_dry(jobs, options=None):
     # print job states
     #############################################################
     show_job_states(jobs)
+    if profiles:
+        show_job_profiles(jobs)
     show_job_tree(jobs)
 
 
@@ -530,6 +469,41 @@ def show_job_states(jobs, title="Job states"):
                        deco=Texttable.VLINES |
                        Texttable.BORDER |
                        Texttable.HEADER)
+
+
+def show_job_profiles(jobs, title="Job profiles"):
+    if title is not None:
+        print "#" * 149
+        print "| {name:^153}  |".format(name=colorize(title, BLUE))
+    rows = []
+    for g in group(jobs):
+        job = g[0]
+        name = "|".join(str(j) for j in g)
+        rows.append([
+            name,
+            job.queue,
+            job.priority,
+            job.threads,
+            timedelta(seconds=job.max_time * 60),
+            job.max_memory,
+            job.account,
+            job.working_directory
+        ])
+    print render_table([
+        "Name",
+        "Queue",
+        "Priority",
+        "Threads",
+        "Time",
+        "Memory",
+        "Account",
+        "Directory"],
+        rows,
+        widths=[30, 10, 10, 8, 12, 8, 10, 36],
+        deco=Texttable.VLINES |
+        Texttable.BORDER |
+        Texttable.HEADER
+    )
 
 
 def show_job_tree(jobs, title="Job hierarchy"):
@@ -752,8 +726,7 @@ class DispatcherNode(object):
             # no targets, just run the source jobs
             # as they are
             for job in self.sources:
-                set_state(STATE_RUNNING, job,
-                          session=session, update_children=False)
+                jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
                 self.processes.append(job.run())
             return
         if num_sources == num_targets:
@@ -782,8 +755,7 @@ class DispatcherNode(object):
             if process.wait() != 0:
                 success = False
             log.info("%s | finished with %d", job, process.wait())
-            set_state(new_state,
-                      job, session=session, update_children=False)
+            jip.jobs.set_state(job, new_state, update_children=False)
         return success
 
 
@@ -809,8 +781,7 @@ class FanDirect(object):
             # we can just create the pipes directly
             for source, target in zip(self.sources, self.targets):
                 source.stream_out = PIPE
-                set_state(STATE_RUNNING, source, session=session,
-                          update_children=False)
+                jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
                 process = source.run()
                 target.stream_in = process.stdout
                 processes.append(process)
@@ -827,8 +798,7 @@ class FanDirect(object):
             outputs.append(o)
 
         for source, target in zip(self.sources, self.targets):
-            set_state(STATE_RUNNING, source, session=session,
-                      update_children=False)
+            jip.jobs.set_state(source, STATE_RUNNING, update_children=False)
             process = source.run()
             inputs.append(process.stdout)
             processes.append(process)
@@ -865,8 +835,7 @@ class FanOut(FanDirect):
             target.stream_in = i
             outputs.append(o)
 
-        set_state(STATE_RUNNING, source, session=session,
-                  update_children=False)
+        jip.jobs.set_state(source, STATE_RUNNING, update_children=False)
         process = source.run()
         inputs.append(process.stdout)
         processes.append(process)
@@ -906,8 +875,7 @@ class FanIn(FanDirect):
             source.strream_out = PIPE
 
         for source in self.sources:
-            set_state(STATE_RUNNING, source, session=session,
-                      update_children=False)
+            jip.jobs.set_state(source, STATE_RUNNING, update_children=False)
             process = source.run()
             inputs.append(process.stdout)
             processes.append(process)

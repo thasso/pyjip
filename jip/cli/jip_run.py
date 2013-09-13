@@ -22,7 +22,7 @@ Other Options:
 """
 import sys
 
-from . import parse_args, show_dry, show_commands
+from . import parse_args
 import jip
 from jip.logger import getLogger
 
@@ -39,36 +39,15 @@ def main(argv=None):
         print >>sys.stderr, str(e)
         sys.exit(1)
 
-    run(script, script_args, dry=args['--dry'],
-        keep=['--keep'], show=args['--show'],
-        silent=False)
-
     try:
-        script.parse_args(script_args)
-        jobs = jip.create_jobs(script, keep=args['--keep'])
-        if args['--dry']:
-            show_dry(jobs)
-        if args['--show']:
-            show_commands(jobs)
-
-        if args['--dry'] or args['--show']:
-            return
-
-        for group in jip.group(jobs):
-            job = group[0]
-            name = ", ".join(str(j) for j in group)
-            if job.state == jip.STATE_DONE and not args['--force']:
-                print "Skipping jobs: {name:30} Done".format(name=name)
-            else:
-                print "Running jobs: {name:30} Running".format(name=name)
-                success = jip.run_job(job)
-                if success:
-                    print "Finished jobs: {name:29}" \
-                        .format(name=name)
-                else:
-                    print "Execution failed for:", name
-                    sys.exit(1)
+        jip.run(script, script_args, dry=args['--dry'],
+                keep=['--keep'], show=args['--show'],
+                silent=False)
     except jip.ValidationError as va:
+        sys.stderr.write(str(va))
+        sys.stderr.write("\n")
+        sys.exit(1)
+    except jip.ParserException as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
