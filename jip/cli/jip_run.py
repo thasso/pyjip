@@ -39,6 +39,10 @@ def main(argv=None):
         print >>sys.stderr, str(e)
         sys.exit(1)
 
+    if args['--dry'] or args['--show']:
+        jobs = jip.create_jobs(script, args=script_args)
+
+
     try:
         jip.run(script, script_args, dry=args['--dry'],
                 keep=['--keep'], show=args['--show'],
