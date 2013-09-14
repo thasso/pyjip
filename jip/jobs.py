@@ -94,6 +94,36 @@ def topological_order(self, jobs):
                 ready.append(successor)
 
 
+def group(jobs):
+    """Group jobs that will be executed in one step. This returns
+    a list of lists. Each list starts with the 'primary' job. This job is
+    the ONLY job that has to be executed. But note that when you submit jobs
+    to a cluster, all jobs of a group have to be submitted. Note that
+    the list of jobs will not be reordered. The list of groups will reflect
+    the ordering of the input jobs.
+
+    :param jobs: list of jobs
+    :type jobs: list of jobs
+    :returns: the list of groups as a list of lists of jobs
+    """
+
+    def _recursive_add(job, group=None):
+        group = [] if group is None else group
+        group.append(job)
+        map(lambda j: _recursive_add(j, group), job.pipe_to)
+        return group
+
+    groups = []
+    done = set([])
+    for j in jobs:
+        if j in done or j.is_stream_target():
+            continue
+        group = _recursive_add(j)
+        map(done.add, group)
+        groups.append(group)
+    return groups
+
+
 ################################################################
 # Common actions on single jobs
 ################################################################

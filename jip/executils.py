@@ -129,7 +129,7 @@ def _create_job(node, env=None, keep=False):
     return job
 
 
-def create_jobs(pipeline, excludes=None, skip=None, keep=False,
+def create_jobs(pipeline, args=None, excludes=None, skip=None, keep=False,
                 profile=None):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.
@@ -141,6 +141,8 @@ def create_jobs(pipeline, excludes=None, skip=None, keep=False,
 
     :param pipeline: a pipeline or a tool
     :type pipeline: jip.pipelines.Pipeline or jip.tools.Tool
+    :param args: options dictionary of arguments that is applied
+                 to tool instances
     :param excludes: excludes nodes by name. This removed the node and the
                      full subgraph after the node
     :param skip: skip the node. This does not touch teh subgraph but tries
@@ -149,6 +151,9 @@ def create_jobs(pipeline, excludes=None, skip=None, keep=False,
     :param keep: keep the jobs output on failure
     :param profile: default job profile that will be applied to all jobs
     """
+    if args and isinstance(pipeline, Tool):
+        pipeline.parse_args(args)
+
     if not isinstance(pipeline, Pipeline):
         log.info("Wrapping tool in pipeline: %s", pipeline)
         p = Pipeline()
@@ -301,9 +306,6 @@ def submit(script, script_args, keep=False, dry=False,
     log.debug("Saving jobs")
     map(_session.add, jobs)
     _session.commit()
-    # TODO: remove me
-    print jobs
-    exit(1)
 
     for g in group(jobs):
         job = g[0]
@@ -332,16 +334,7 @@ def submit(script, script_args, keep=False, dry=False,
 
 def run(script, script_args, keep=False, dry=False,
         show=False, silent=False, force=False):
-    _is_tool = False
-    if isinstance(script, Tool):
-        script.parse_args(script_args)
-        _is_tool = True
-    try:
-        jobs = create_jobs(script, keep=keep)
-    except ValidationError as err:
-        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-        print >>sys.stderr, str(err)
-        sys.exit(1)
+    jobs = create_jobs(script, args=script_args, keep=keep)
 
     if dry:
         show_dry(jobs, options=script.options if _is_tool else None)
@@ -379,234 +372,6 @@ def run(script, script_args, keep=False, dry=False,
                 if not silent:
                     print colorize(job.state, RED)
                 sys.exit(1)
-
-
-def show_dry(jobs, options=None, profiles=False):
-    """Print the dry-run table to stdout
-
-    :param jobs: list of jobs
-    :param options: the parent script options
-    :param profiles: render job profiles table
-    """
-    #############################################################
-    # Print general options
-    #############################################################
-    if options:
-        show_options(options,
-                     "Pipeline Configuration",
-                     ['help', 'dry', 'force'])
-    #############################################################
-    # print job options
-    #############################################################
-    for job in jobs:
-        show_options(job.configuration, "Job-%s" % str(job))
-    #############################################################
-    # print job states
-    #############################################################
-    show_job_states(jobs)
-    if profiles:
-        show_job_profiles(jobs)
-    show_job_tree(jobs)
-
-
-def show_commands(jobs):
-    """Print the commands for the given list of jobs
-
-    :param jobs: list of jobs
-    """
-    print ""
-    print "Job commands"
-    print "------------"
-    for g in group(jobs):
-        job = g[0]
-        deps = [str(d) for j in g
-                for d in j.dependencies if d not in g]
-        name = "|".join(str(j) for j in g)
-        print "### %s -- Interpreter: %s Dependencies: %s" % (
-            colorize(name, BLUE),
-            job.interpreter,
-            ",".join(deps)
-        )
-        print " | ".join([j.command for j in g])
-        print "###"
-
-
-def _clean_value(v):
-    if isinstance(v, (list, tuple)):
-        v = [x if not isinstance(x, file) else "<<STREAM>>"
-             for x in v]
-    else:
-        v = v if not isinstance(v, file) else "<<STREAM>>"
-    return v
-
-
-def show_options(options, title=None, excludes=None, show_defaults=False):
-    if title is not None:
-        print "#" * 87
-        print "| {name:^91}  |".format(name=colorize(title, BLUE))
-    rows = []
-    excludes = excludes if excludes is not None else ['help']
-    for o in options:
-        if (show_defaults or o.raw() != o.default) and o.name not in excludes:
-            rows.append([o.name, _clean_value(o.raw())])
-    print render_table(["Name", "Value"], rows, widths=[30, 50],
-                       deco=Texttable.VLINES |
-                       Texttable.BORDER |
-                       Texttable.HEADER)
-
-
-def show_job_states(jobs, title="Job states"):
-    if title is not None:
-        print "#" * 149
-        print "| {name:^153}  |".format(name=colorize(title, BLUE))
-    rows = []
-    for g in group(jobs):
-        job = g[0]
-        name = "|".join(str(j) for j in g)
-        outs = [f for j in g for f in j.tool.get_output_files()]
-        ins = [f for j in g for f in j.tool.get_input_files()]
-        state = colorize(job.state, STATE_COLORS[job.state])
-        rows.append([name, state, ", ".join(ins), ", ".join(outs)])
-    print render_table(["Name", "State", "Inputs", "Outputs"], rows,
-                       widths=[30, 6, 50, 50],
-                       deco=Texttable.VLINES |
-                       Texttable.BORDER |
-                       Texttable.HEADER)
-
-
-def show_job_profiles(jobs, title="Job profiles"):
-    if title is not None:
-        print "#" * 149
-        print "| {name:^153}  |".format(name=colorize(title, BLUE))
-    rows = []
-    for g in group(jobs):
-        job = g[0]
-        name = "|".join(str(j) for j in g)
-        rows.append([
-            name,
-            job.queue,
-            job.priority,
-            job.threads,
-            timedelta(seconds=job.max_time * 60),
-            job.max_memory,
-            job.account,
-            job.working_directory
-        ])
-    print render_table([
-        "Name",
-        "Queue",
-        "Priority",
-        "Threads",
-        "Time",
-        "Memory",
-        "Account",
-        "Directory"],
-        rows,
-        widths=[30, 10, 10, 8, 12, 8, 10, 36],
-        deco=Texttable.VLINES |
-        Texttable.BORDER |
-        Texttable.HEADER
-    )
-
-
-def show_job_tree(jobs, title="Job hierarchy"):
-    if title is not None:
-        print "#" * 20
-        print "| {name:^24}  |".format(name=colorize(title, BLUE))
-        print "#" * 20
-
-    done = set([])
-    counts = {}
-
-    def draw_node(job, levels=None, parents=None, level=0, last=False):
-        if job in done:
-            return False
-        done.add(job)
-        parents.add(job)
-        ## build the separator based on the levels list and the current
-        ## level
-        sep = "".join([u'\u2502 ' if j > 0 else "  "
-                      for j in levels[:level - 1]]
-                      if level > 0 else [])
-        # reduce the lecel counter
-        if level > 0:
-            levels[level - 1] = levels[level - 1] - 1
-        # build the edge and the label
-        edge = "" if not level else (u'\u2514\u2500' if last
-                                     else u'\u251C\u2500')
-        label = "%s%s" % (edge, job)
-
-        # collect other dependencies that are node covered
-        # by the tree
-        other_deps = ",".join(str(j) for j in job.dependencies
-                              if j not in parents)
-        if len(other_deps) > 0:
-            label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
-        # print the separator and the label
-        print "%s%s" % (sep, label)
-
-        # update levels used by the children
-        # and do the recursive call
-        num = counts[job]
-        levels = levels + [num]
-
-        i = 0
-        for child in job.children:
-            if draw_node(child, levels=levels,
-                         parents=parents, level=level + 1,
-                         last=(i == (num - 1))):
-                i += 1
-        return True
-
-    def count_children(job, counts):
-        if job in counts:
-            return
-        counts[job] = 0
-
-        done.add(job)
-        for child in job.children:
-            if child not in done:
-                counts[job] = counts[job] + 1
-            count_children(child, counts)
-
-    for job in jobs:
-        if len(job.dependencies) == 0:
-            count_children(job, counts)
-    done = set([])
-    for job in jobs:
-        if len(job.dependencies) == 0:
-            draw_node(job, levels=[], parents=set([]), level=0)
-    print "#" * 20
-
-
-def group(jobs):
-    """Group jobs that will be executed in one step. This returns
-    a list of lists. Each list starts with the 'primary' job. This job is
-    the ONLY job that has to be executed. But note that when you submit jobs
-    to a cluster, all jobs of a group have to be submitted. Note that
-    the list of jobs will not be reordered. The list of groups will reflect
-    the ordering of the input jobs.
-
-    :param jobs: list of jobs
-    :type jobs: list of jobs
-    :returns: the list of groups as a list of lists of jobs
-    """
-
-    def _recursive_add(job, group=None):
-        group = [] if group is None else group
-        group.append(job)
-        map(lambda j: _recursive_add(j, group), job.pipe_to)
-        return group
-
-    groups = []
-    done = set([])
-    for j in jobs:
-        if j in done or j.is_stream_target():
-            continue
-        group = _recursive_add(j)
-        map(done.add, group)
-        groups.append(group)
-    return groups
 
 
 def run_job(job, session=None):

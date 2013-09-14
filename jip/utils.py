@@ -7,14 +7,6 @@ from os import walk
 from os.path import abspath, join
 
 
-NORMAL = ''
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
-
-
 #################################################################
 # Context manager utilities
 #################################################################
@@ -25,13 +17,6 @@ def ignored(*exceptions):
         yield
     except exceptions:
         pass
-
-
-def colorize(string, color):
-    """Colorize a string using ANSI colors."""
-    if color == NORMAL:
-        return string
-    return "%s%s%s" % (color, string, ENDC)
 
 
 def list_dir(base):
