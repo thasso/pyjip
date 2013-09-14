@@ -31,6 +31,9 @@ class Job(Profile):
         tool._job = self
         return tool
 
+    def bash(self, command, **kwargs):
+        return self.run('bash', cmd=command, **kwargs)
+
 
 class Pipeline(object):
     """A pipeline is a directed acyclic graph of Nodes and edges"""
@@ -357,6 +360,10 @@ class Pipeline(object):
             for outedge in node.outgoing():
                 for source in no_outgoing:
                     self.add_edge(source, outedge._target)
+            # non-silent validation for pipeline node to
+            # make sure the node WAS valid, otherwise the node
+            # and its validation capabilities will be lost
+            node._tool.validate()
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 

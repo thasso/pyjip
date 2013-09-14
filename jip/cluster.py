@@ -3,12 +3,26 @@ from subprocess import Popen, PIPE
 import sys
 import os
 
+import jip
+from jip.logger import getLogger
+
 
 _cluster_cache = {}
+
+log = getLogger('jip.cluster')
 
 
 class SubmissionError(Exception):
     pass
+
+
+def get():
+    """Load the cluster from configuration"""
+    name = jip.config.get("cluster", None)
+    if name is None:
+        raise LookupError("No cluster configuration found! Please your config "
+                          "file")
+    return from_name(name)
 
 
 def from_name(name):
@@ -31,9 +45,10 @@ class Cluster(object):
         pass
 
     def list(self):
-        """A map of all active jobs on the cluster from the job id to the state
+        """A list of all active job id's that are currently queued or
+        running
         """
-        pass
+        raise Exception("Not implemented")
 
     def submit(self, job):
         pass
@@ -91,8 +106,7 @@ class Slurm(Cluster):
         if len(job.dependencies) > 0:
             deps = set([])
             for dep in job.dependencies:
-                if len(dep.pipe_from) == 0 and dep.job_id is not None:
-                    deps.add(dep.job_id)
+                deps.add(str(dep.job_id))
             if len(deps) > 0:
                 cmd.extend(['-d', "afterok:%s" % (":".join(deps))])
 
@@ -106,19 +120,32 @@ class Slurm(Cluster):
 
         cmd.extend(["-o", job.stdout])
         cmd.extend(["-e", job.stderr])
+        log.debug("Submitting job with: %s", cmd)
         out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
         try:
             job.job_id = out.split("\n")[0].strip().split(" ")[-1]
             int(job.job_id)
         except:
             raise SubmissionError("%s\n"
-                                  "Executed command:\n%s\n" % (err,
-                                                              " ".join(cmd)))
+                                  "Executed command:\n%s\n" % (
+                                      err,
+                                      " ".join(cmd)
+                                  ))
+
+    def list(self):
+        cmd = ['squeue', '-h', '-o', '%i']
+        p = Popen(cmd, stdout=PIPE)
+        jobs = []
+        for line in p.stdout:
+            jobs.append(line.strip())
+        return jobs
 
     def update(self, job):
         job.hosts = os.getenv("SLURM_NODELIST", "")
 
     def resolve_log(self, job, path):
+        if path is None:
+            return None
         return path.replace("%j", str(job.job_id))
 
     def cancel(self, job):
@@ -126,6 +153,9 @@ class Slurm(Cluster):
             return
         cmd = ['scancel', str(job.job_id)]
         Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
+    def __repr__(self):
+        return "Slurm"
 
 
 #     def list(self):

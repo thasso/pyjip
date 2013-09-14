@@ -3,9 +3,10 @@
 import jip.logger
 from jip.logger import log_level
 from jip.tools import tool, Scanner, ValidationError
-from jip.executils import create_jobs, run_job, group, run
+from jip.executils import create_jobs, run_job, group, run, submit
 from jip.pipelines import Pipeline
 from jip.configuration import Config
+from jip.options import ParserException
 from jip.db import STATE_DONE, STATE_QUEUED, STATE_CANCELED, STATE_HOLD, \
     STATE_FAILED
 

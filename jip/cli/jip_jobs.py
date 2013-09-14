@@ -3,14 +3,14 @@
 The JIP job lister
 
 Usage:
-    jip-jobs [-ld] [-s <state>...] [-o <out>...]
+    jip-jobs [-ld] [-s <state>...] [-o <out>...] [-e]
              [--show-archived] [-j <id>...] [-J <cid>...]
-             [--db <db>] [-N] [-q <queue>]
+             [-N] [-q <queue>]
     jip-jobs [--help|-h]
 
 Options:
-    --db <db>                Select a path to a specific job database
     --show-archived          Show archived jobs
+    -e, --expand             Do not collapse pipeline jobs
     -d, --detail             Show detail job view instead of the table
     -o, --output <out>       Show only specified columns. See below for a list
                              of supported columns
@@ -44,18 +44,25 @@ Columns supported for output:
 
 """
 
-from jip.vendor.docopt import docopt
-from jip.utils import render_table, colorize, RED, YELLOW, GREEN, BLUE, \
-    NORMAL, get_time, table_string
-from jip.db import init, create_session, Job, STATE_QUEUED, STATE_DONE, \
-    STATE_FAILED, STATE_HOLD, STATE_RUNNING, STATE_CANCELED
-from jip.options import TYPE_OUTPUT
 import sys
 from os import getenv
 from datetime import timedelta, datetime
 from functools import partial
 from subprocess import PIPE, Popen
-from . import STATE_COLORS
+from sqlalchemy.orm import joinedload
+
+import jip.cluster
+from jip.vendor.docopt import docopt
+from jip.utils import render_table, colorize, table_string, get_time, \
+    BLUE, RED, GREEN, NORMAL
+from jip.db import init, create_session, Job, STATE_DONE, STATE_RUNNING, \
+    STATE_FAILED
+from jip.options import TYPE_OUTPUT
+from jip.executils import STATE_COLORS
+
+
+_collapsed = False
+
 
 def resolve(v, job):
     if isinstance(v, basestring):
@@ -88,8 +95,7 @@ def resolve_runtime(job):
 
 
 def resolve_log_files(type, job):
-    import jip.cluster
-    cluster = jip.cluster.from_name(job.cluster)
+    cluster = jip.cluster.get()
     if cluster:
         if type == "stderr":
             return cluster.resolve_log(job, job.stderr)
@@ -101,9 +107,45 @@ def resolve_log_files(type, job):
 
 
 def resolve_dependencies(job):
+    if _collapsed:
+        all_jobs = get_all_jobs(job)
+        count = len(all_jobs)
+        done_count = 0
+        running_count = 0
+        failed_count = 0
+        for j in all_jobs:
+            if j.state == STATE_DONE:
+                done_count += 1
+            elif j.state == STATE_RUNNING:
+                running_count += 1
+            elif j.state == STATE_FAILED:
+                failed_count += 1
+        line = 50.0
+        dc = int(line * (done_count / float(count)))
+        rc = int(line * (running_count / float(count)))
+        fc = int(line * (failed_count / float(count)))
+        return "".join([
+            colorize("#" * dc, NORMAL),
+            colorize("*" * rc, NORMAL),
+            colorize("X" * fc, NORMAL),
+            ("-" * (int(line) - (dc + rc + fc)))
+        ])
+
     if not job.dependencies or len(job.dependencies) == 0:
         return None
     return ",".join([str(j.id) for j in job.dependencies])
+
+
+def get_all_jobs(job, all_jobs=None):
+    if all_jobs is None:
+        all_jobs = set([job])
+    else:
+        all_jobs.add(job)
+
+    for child in job.children:
+        if child not in all_jobs:
+            get_all_jobs(child, all_jobs)
+    return all_jobs
 
 FULL_HEADER = [
     ("ID", partial(resolve, "id"), 10, Job.id),
@@ -127,9 +169,9 @@ FULL_HEADER = [
     ("Finished", partial(resolve_date, "finish_date"), 10, Job.finish_date),
     ("Directory", partial(resolve, "working_directory"), 10,
      Job.working_directory),
-    ("Error-Log", partial(resolve_log_files, "stderr"), 10, Job.cluster,
+    ("Error-Log", partial(resolve_log_files, "stderr"), 10,
      Job.stderr, Job.job_id),
-    ("Log", partial(resolve_log_files, "stdout"), 10, Job.cluster, Job.stdout,
+    ("Log", partial(resolve_log_files, "stdout"), 10, Job.stdout,
      Job.job_id),
 ]
 
@@ -182,13 +224,15 @@ def detail_view(job, exclude_times=False):
 
 
 def main():
+    global _collapsed
     args = docopt(__doc__, options_first=False)
-    init(path=args["--db"])
+    init()
     session = create_session()
+    _collapsed = not args['--expand']
+
     ####################################################################
     # Query jobs
     ####################################################################
-
     list_archived = False if not args["--show-archived"] else True
     list_states = [t.title() for t in args["--state"]]
     job_ids = args["--job"]
@@ -211,10 +255,11 @@ def main():
     for element in [e for e in FULL_HEADER if e[0] in header]:
         for e in filter(lambda x: x is not None, element[3:]):
             fields.add(e)
-    #widths = [v[2] for v in FULL_HEADER if v[0] in header]
 
     #jobs = session.query(*fields).filter(Job.archived == list_archived)
-    jobs = session.query(Job).filter(Job.archived == list_archived)
+    jobs = session.query(Job).filter(Job.archived == list_archived)\
+        .options(joinedload('dependencies'))
+
     if len(list_states) > 0:
         jobs = jobs.filter(Job.state.in_(list_states))
     if len(job_ids) > 0:
@@ -223,6 +268,23 @@ def main():
         jobs = jobs.filter(Job.job_id.in_(resolve_job_range(cluster_ids)))
     if args["--queue"]:
         jobs = jobs.filter(Job.queue.like("%" + args["--queue"] + "%"))
+
+    ####################################################################
+    # limit the jobs too all jobs without a dependency
+    ####################################################################
+    if _collapsed:
+        jobs = filter(lambda j: not j.dependencies, jobs)
+    else:
+        # make sure all chilren are contained
+        jl = set([])
+        for j in jobs:
+            jl.add(j)
+            for c in get_all_jobs(j):
+                if c not in jl:
+                    jl.add(c)
+        jobs = sorted(jl, key=lambda j: j.id)
+
+
     ####################################################################
     # Print full table without header and decorations for
     # pipe mode

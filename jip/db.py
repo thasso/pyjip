@@ -10,9 +10,8 @@ import subprocess
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
-from sqlalchemy.orm import relationship, deferred
+from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
-from jip.utils import parse_time, ignored
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
 
@@ -43,7 +42,7 @@ STATES_WAITING = [STATE_HOLD, STATE_QUEUED]
 STATES_RUNNING = [STATE_RUNNING]
 # job states for active jobs that are running or waiting
 # but are somehow actively queued
-STATES_ACTIVE = STATES_RUNNING + STATES_WAITING
+STATES_ACTIVE = STATES_RUNNING + [STATE_QUEUED]
 # all possible states
 STATES = STATES_ACTIVE + STATES_FINISHED
 
@@ -86,6 +85,10 @@ class Job(Base):
     # are used to create stdout and stderr log
     # file for a job.
     name = Column(String(256))
+    # store an optional project name
+    project = Column(String(256))
+    # store an optional pipeline name to group jobs
+    pipeline = Column(String(256))
     # path to the jip script that created this job
     path = Column(String(1024))
     # tool name
@@ -95,8 +98,6 @@ class Job(Base):
     archived = Column(Boolean, default=False)
     # mark a job as temporary
     temp = Column(Boolean, default=False)
-    # get the class name of the cluster
-    cluster = Column(String(256))
 
     # times, dates and state and execution states
     create_date = Column(DateTime, default=datetime.datetime.now())
@@ -149,15 +150,21 @@ class Job(Base):
     extra = deferred(Column(PickleType))
     # dependencies
     dependencies = relationship("Job",
+                                lazy="joined",
+                                join_depth=1,
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
-                                backref='children')
+                                backref=backref('children', lazy='joined',
+                                                join_depth=1))
     pipe_to = relationship("Job",
+                           lazy="joined",
+                           join_depth=1,
                            secondary=job_pipes,
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
-                           backref='pipe_from')
+                           backref=backref('pipe_from', lazy='joined',
+                                           join_depth=1))
 
     def __init__(self, tool=None):
         """Create a new Job instance.
@@ -278,22 +285,6 @@ class Job(Base):
         else:
             return "jip exec --db %s %d" % (db_path, self.id)
 
-    def cancel(self, remove_logs=False):
-        """Initialize the cluster that runs this jobs and cancel it
-        if the job state is Queued or Running.
-        Return true if the job was canceled
-        """
-        if self.state in (STATE_RUNNING, STATE_QUEUED):
-            import jip.cluster
-            cluster = jip.cluster.from_name(self.cluster)
-            if cluster:
-                cluster.cancel(self)
-            self.state = STATE_CANCELED
-            if remove_logs:
-                self.clean()
-            return True
-        return False
-
     def validate(self):
         """Delegates to the tools validate method"""
         return self.tool.validate()
@@ -307,9 +298,8 @@ class Job(Base):
             return True
         ## in case this is a temp job, with stream out check the children
         if self.temp and len(self.pipe_to) > 0:
-            for target in self.children:
-                if not target.is_done():
-                    return False
+            for target in [c for c in self.children if not c.is_done()]:
+                return False
             return True
 
         if len(self.pipe_to) == 0 or len(self.get_pipe_targets()) > 0:
@@ -330,46 +320,6 @@ class Job(Base):
             if not target.is_done():
                 return False
         return True
-
-    def clean(self):
-        """Clean the job and remove the jobs stderr and stdout log files
-        """
-        from os import remove
-        from os.path import exists
-        import jip.cluster
-        cluster = jip.cluster.from_name(self.cluster)
-        with ignored(Exception):
-            stderr = cluster.resolve_log(self, self.stderr)
-            if exists(stderr):
-                log.info("Removing job stderr log file: %s", stderr)
-                remove(stderr)
-        with ignored(Exception):
-            stdout = cluster.resolve_log(self, self.stdout)
-            if exists(stdout):
-                log.info("Removing job stdout log file: %s", stderr)
-                remove(stdout)
-
-    def update_profile(self, profile):
-        """Updated the job execution settings from the given profile
-
-        :param profile: the profile
-        :type profile: dict
-        """
-        self.extra = profile.get("extra", self.extra)
-        self.queue = profile.get("queue", self.queue)
-        self.priority = profile.get("priority", self.priority)
-        self.account = profile.get("account", self.account)
-        self.threads = profile.get("threads", self.threads)
-        self.max_memory = profile.get("max_memory", self.max_memory)
-        self.max_time = parse_time(profile.get("max_time", self.max_time))
-        self.name = profile.get("name", self.name)
-        self.stdout = profile.get("out", self.stdout)
-        self.stderr = profile.get("err", self.stderr)
-
-        if self.account == "":
-            self.account = None
-        if self.priority == "":
-            self.priority = None
 
     def __repr__(self):
         if self.name is not None:
@@ -399,7 +349,7 @@ def init(path=None, in_memory=False):
 
     if path is None:
         import jip
-        path = jip.configuration.get("db", None)
+        path = jip.config.get("db", None)
         if path is None:
             raise LookupError("Database engine configuration not found")
 

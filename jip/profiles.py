@@ -7,6 +7,9 @@ profiles can be applied. For example, a default profile can be loaded from
 the configuration. This profile can than be refiend by a pipeline script
 or command line options.
 """
+import re
+
+import jip.utils
 from jip.templates import render_template
 
 
@@ -16,12 +19,10 @@ class Profile(object):
     """
 
     """Container class that wrapps job meta-data"""
-    def __init__(self, name=None, threads=None,
+    def __init__(self, name=None, threads=1,
                  time=None, queue=None, priority=None,
-                 log=None, out=None, account=None, mem=None,
+                 log=None, out=None, account=None, mem=0, extra=None,
                  profile=None, prefix=None, temp=False, _load=True):
-        if profile is not None and _load:
-            self.load(profile)
         self.name = render_template(name)
         self.threads = render_template(threads)
         self.profile = render_template(profile)
@@ -34,6 +35,9 @@ class Profile(object):
         self.account = render_template(account)
         self.prefix = render_template(prefix)
         self.temp = temp
+        self.extra = extra
+        if profile is not None and _load:
+            self.load(profile)
 
     def load(self, profile_name):
         """Set this profiles values to the values loaded from the profile
@@ -44,7 +48,7 @@ class Profile(object):
         :type profile_name: string
         """
         import jip
-        profiles = jip.configuration.get('profiles', {})
+        profiles = jip.config.get('profiles', {})
         if profile_name not in profiles:
             raise ValueError("Profile %s not found!" % profile_name)
         profile = profiles[profile_name]
@@ -57,24 +61,34 @@ class Profile(object):
         self.out = profile.get('out', self.out)
         self.account = profile.get('account', self.account)
         self.mem = profile.get('mem', self.mem)
+        self.extra = profile.get('extra', self.extra)
+
+    def load_args(self, args):
+        """Update this profile from the given dictionary of command line
+        arguments. The argument names must match the profile attributes
+        """
+        for k, v in args.iteritems():
+            k = re.sub("^-+", "", k)
+            if v and hasattr(self, k):
+                setattr(self, k, v)
 
     def apply(self, job):
-        """Apply this profile to a given job.
+        """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
         if self.name is not None:
             job.name = "%s%s" % ("" if not self.prefix else self.prefix,
                                  self.name)
         if self.threads is not None:
-            job.threads = int(self.threads)
+            job.threads = max(int(self.threads), job.threads)
         if self.queue is not None:
             job.queue = self.queue
         if self.priority is not None:
             job.priority = self.priority
         if self.time is not None:
-            job.time = self.time
+            job.max_time = jip.utils.parse_time(self.time)
         if self.mem is not None:
-            job.mem = self.mem
+            job.max_memory = self.mem
         if self.log is not None:
             job.err = self.log
         if self.out is not None:
@@ -83,11 +97,16 @@ class Profile(object):
             job.account = self.account
         if self.temp is not None:
             job.temp = self.temp
+        if self.extra is not None:
+            job.extra = self.extra
+
+        for child in job.pipe_to:
+            self.apply(child)
 
     def __call__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=False):
+                 profile=None, prefix=None, temp=False, extra=None):
         return self.__class__(
             name=name if name is not None else self.name,
             threads=threads if threads is not None else self.threads,
@@ -101,5 +120,15 @@ class Profile(object):
             mem=mem if mem is not None else self.mem,
             prefix=prefix if prefix is not None else self.prefix,
             temp=temp if temp is not None else self.temp,
+            extra=extra if extra is not None else self.extra,
             _load=False
         )
+
+    def __repr__(self):
+        return str(vars(self))
+
+
+def get(name='default'):
+    """Load a profile by name"""
+    p = Profile(profile=name)
+    return p

@@ -15,6 +15,7 @@ Other Options:
 
 from jip.logger import getLogger
 from jip.executils import run_job
+import jip.db
 from . import parse_args
 
 log = getLogger("jip.cli.jip_exec")
@@ -23,13 +24,17 @@ log = getLogger("jip.cli.jip_exec")
 def main():
     args = parse_args(__doc__, options_first=True)
     try:
-        log("Starting job with id %s stored in %s", args['<id>'], args['--db'])
-        run_job(args["<id>"], db=args["--db"])
-    except Exception, e:
-        import sys
-        sys.stderr.write(str(e))
-        sys.stderr.write("\n")
-        sys.exit(1)
+        log.info("Starting job with id %s stored in %s",
+                 args['<id>'],
+                 args['--db'])
+        jip.db.init(path=args['--db'])
+        session = jip.db.create_session()
+        job = jip.db.find_job_by_id(session, args['<id>'])
+        run_job(job, session=session)
+        session.close()
+    except Exception as e:
+        log.error("Error executing job %s: %s",
+                  args['<id>'], str(e), exc_info=True)
 
 
 if __name__ == "__main__":
