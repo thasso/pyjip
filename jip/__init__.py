@@ -3,6 +3,7 @@
 import jip.logger
 from jip.logger import log_level
 from jip.tools import tool, Scanner, ValidationError
+from jip.jobs import create
 from jip.pipelines import Pipeline
 from jip.configuration import Config
 from jip.options import ParserException

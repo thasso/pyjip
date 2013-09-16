@@ -3,7 +3,6 @@
 wrappers around common actions.
 """
 from datetime import datetime
-from functools import partial
 import os
 import sys
 from signal import signal, SIGTERM, SIGINT
@@ -35,6 +34,8 @@ def get_parents(jobs, _parents=None):
     """
     if _parents is None:
         _parents = set([])
+    if not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
 
     for job in jobs:
         if len(job.dependencies) == 0:
@@ -82,7 +83,7 @@ def get_subgraph(job, _all_jobs=None):
     return _all_jobs
 
 
-def topological_order(self, jobs):
+def topological_order(jobs):
     """Generator that takes a list of jobs and yields them in topological
     order.  NOTE that you have to go through this (or something similar) when
     you are restarting pipeline!
@@ -233,7 +234,8 @@ def set_state(job, new_state, update_children=True, cleanup=True):
 
     # check embedded children of this job
     if update_children:
-        map(partial(set_state, new_state), job.pipe_to)
+        for child in job.pipe_to:
+            set_state(child, new_state, cleanup=cleanup)
 
 
 def delete(job, session, clean_logs=False, silent=True):
@@ -413,14 +415,14 @@ def run(job, session=None):
     log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
 
     for dispatcher_node in dispatcher_nodes:
-        dispatcher_node.run(session)
+        dispatcher_node.run()
 
     if session:
         session.commit()
 
     success = True
     for dispatcher_node in dispatcher_nodes:
-        success &= dispatcher_node.wait(session)
+        success &= dispatcher_node.wait()
 
     if session:
         session.commit()

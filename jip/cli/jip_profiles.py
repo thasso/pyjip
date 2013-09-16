@@ -10,7 +10,7 @@ Other Options:
 """
 import jip
 from . import parse_args
-from jip.utils import render_table, colorize, BLUE
+from . import render_table, colorize, BLUE
 
 
 def main():

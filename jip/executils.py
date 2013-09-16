@@ -12,13 +12,19 @@ piped between the jobs. We call set of jobs and their dependencies a `dispatch
 graph`. These graphs are created using this module. With such a graph the
 following scenarios can be resolved.
 
-single jobs:
-    a dispatch graph can consist of a single node that wraps a single job
+**Single jobs:**
+    A dispatch graph can consist of a single node that wraps a single job
     without any dependencies. In such case no pipelining and no redirection
     will happen.
 
-direct pipes:
-    given two jobs *A* and *B*
+**Direct pipes**:
+    Given two jobs *A* and *B*, a direct pipe is used between the process for
+    *A* and the process for *B*. In addition, if *A* writes an output file
+    in *addition* to a direct pipe to *B*, this is handled by the dispatcher.
+
+**Fan out**:
+    Given three jobs, *A*, *B*, and *C*, where *A's* output piped to both *B*
+    and *C* in parallel.
 
 
 The pipes are resolved using a `disaptcher graph`, wich
@@ -186,11 +192,17 @@ class DispatcherNode(object):
         # check the processes
         success = True
         for process, job in zip(self.processes, self.sources):
-            new_state = STATE_DONE if process.wait() == 0 else STATE_FAILED
-            if process.wait() != 0:
+            try:
+                ret_state = process.wait()
+                new_state = STATE_DONE if ret_state == 0 else STATE_FAILED
+                if ret_state != 0:
+                    success = False
+                log.info("%s | finished with %d", job, process.wait())
+                jip.jobs.set_state(job, new_state, update_children=False)
+            except OSError as err:
+                if err.errno != 10:
+                    raise
                 success = False
-            log.info("%s | finished with %d", job, process.wait())
-            jip.jobs.set_state(job, new_state, update_children=False)
         return success
 
 

@@ -3,11 +3,15 @@
 that expose command line functions for the JIP command.
 
 """
-from datetime import timedelta
+from datetime import timedelta, datetime
+import sys
 
 from jip.vendor.texttable import Texttable
 import jip.db
 import jip.jobs
+import jip.logger
+
+log = jip.logger.getLogger('job.cli')
 
 
 ##############################################################################
@@ -28,6 +32,15 @@ STATE_COLORS = {
     jip.db.STATE_QUEUED: NORMAL,
     jip.db.STATE_RUNNING: BLUE,
     jip.db.STATE_CANCELED: YELLOW
+}
+
+STATE_CHARS = {
+    jip.db.STATE_DONE: "#",
+    jip.db.STATE_FAILED: "X",
+    jip.db.STATE_HOLD: "H",
+    jip.db.STATE_QUEUED: "#",
+    jip.db.STATE_RUNNING: "*",
+    jip.db.STATE_CANCELED: "C"
 }
 
 
@@ -64,7 +77,6 @@ def parse_args(docstring, argv=None, options_first=True):
     :returns: parsed options as dictionary
     """
     from jip.vendor.docopt import docopt
-    import sys
     argv = sys.argv[1:] if argv is None else argv
     return docopt(docstring, argv=argv, options_first=options_first)
 
@@ -138,7 +150,7 @@ def show_job_states(jobs, title="Job states"):
     if title is not None:
         print "#" * 149
         print "| {name:^153}  |".format(
-            name=colorize(title, jip.utils.BLUE)
+            name=colorize(title, BLUE)
         )
     rows = []
     for g in jip.jobs.group(jobs):
@@ -173,7 +185,7 @@ def show_job_profiles(jobs, title="Job profiles"):
             job.account,
             job.working_directory
         ])
-    print jip.utils.render_table([
+    print render_table([
         "Name",
         "Queue",
         "Priority",
@@ -222,8 +234,7 @@ def show_job_tree(jobs, title="Job hierarchy"):
         other_deps = ",".join(str(j) for j in job.dependencies
                               if j not in parents)
         if len(other_deps) > 0:
-            label = "%s <- %s" % (colorize(label, jip.utils.YELLOW),
-                                  other_deps)
+            label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
         # print the separator and the label
         print "%s%s" % (sep, label)
 
@@ -280,7 +291,6 @@ def colorize(string, color):
 def table_to_string(value, empty=""):
     """Translates the given value to a string
     that can be rendered in a table"""
-    from datetime import datetime, timedelta
     if value is None:
         return empty
     if isinstance(value, datetime):
@@ -319,7 +329,6 @@ def confirm(msg, default=True):
     :param msg: the message
     :param default: Default answer
     """
-    import sys
     valid = {"yes": True, "y": True, "ye": True,
              "no": False, "n": False}
 
@@ -420,45 +429,19 @@ def read_ids_from_pipe():
     return job_ids
 
 
-def submit(script, script_args, keep=False, dry=False,
-           show=False, silent=False, force=False,
-           session=None, profile=None, cluster=None):
+def submit(script, script_args, keep=False, force=False, silent=False,
+           session=None, profile=None):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
     """
     # load default cluster engine
-    cluster = jip.cluster.get() if not cluster else cluster
-    # create the cluster and init the db
+    cluster = jip.cluster.get()
     log.info("Cluster engine: %s", cluster)
 
-    _is_tool = False
-    if isinstance(script, Tool):
-        script.parse_args(script_args)
-        _is_tool = True
-    try:
-        jobs = create_jobs(script, keep=keep, profile=profile)
-    except ValidationError as err:
-        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-        print >>sys.stderr, str(err)
-        sys.exit(1)
-
-    if dry:
-        show_dry(jobs, options=script.options if _is_tool else None,
-                 profiles=True)
-    if show:
-        show_commands(jobs)
-
-    if dry or show:
-        try:
-            check_output_files(jobs)
-        except Exception as err:
-            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-            print >>sys.stderr, str(err)
-            sys.exit(1)
-        return
-
-    check_output_files(jobs)
+    jobs = jip.jobs.create(script, args=script_args, keep=keep,
+                           profile=profile)
+    jip.jobs.check_output_files(jobs)
 
     # we reached final submission time. Time to
     # save the jobs
@@ -473,13 +456,13 @@ def submit(script, script_args, keep=False, dry=False,
     for g in jip.jobs.group(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
-        if job.state == STATE_DONE and not force:
+        if job.state == jip.db.STATE_DONE and not force:
             if not silent:
                 print "Skipping", name
             log.info("Skipping completed job %s", name)
         else:
             log.info("Submitting %s", name)
-            jip.jobs.set_state(job, STATE_QUEUED)
+            jip.jobs.set_state(job, jip.db.STATE_QUEUED)
             cluster.submit(job)
             if not silent:
                 print "Submitted", job.job_id
@@ -489,44 +472,29 @@ def submit(script, script_args, keep=False, dry=False,
                 # id so dependencies are properly resolved on job
                 # submission to the cluster
                 other.job_id = job.job_id
+
     _session.commit()
     if session is None:
         # we created the session so we close it
         _session.close()
 
 
-def run(script, script_args, keep=False, dry=False,
-        show=False, silent=False, force=False):
-    jobs = create_jobs(script, args=script_args, keep=keep)
+def run(script, script_args, keep=False, force=False, silent=False):
+    jobs = jip.jobs.create(script, args=script_args, keep=keep)
+    jip.jobs.check_output_files(jobs)
 
-    if dry:
-        show_dry(jobs, options=script.options if _is_tool else None)
-    if show:
-        show_commands(jobs)
-
-    if dry or show:
-        try:
-            check_output_files(jobs)
-        except Exception as err:
-            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-            print >>sys.stderr, str(err)
-            sys.exit(1)
-        return
-
-    check_output_files(jobs)
-
-    for g in group(jobs):
+    for g in jip.jobs.group(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
-        if job.state == STATE_DONE and not force:
+        if job.state == jip.db.STATE_DONE and not force:
             if not silent:
-                print "Skipping", name
+                print colorize("Skipping", YELLOW), name
         else:
             if not silent:
                 sys.stdout.write("Running {name:30} ".format(name=name))
                 sys.stdout.flush()
             start = datetime.now()
-            success = run_job(job)
+            success = jip.jobs.run(job)
             end = timedelta(seconds=(datetime.now() - start).seconds)
             if success:
                 if not silent:
@@ -535,5 +503,3 @@ def run(script, script_args, keep=False, dry=False,
                 if not silent:
                     print colorize(job.state, RED)
                 sys.exit(1)
-
-

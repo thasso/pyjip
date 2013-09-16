@@ -4,7 +4,8 @@ Submit a jip script to a remote cluster
 
 usage: jip-submit [-f] [-k] [-P <profile>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
-                  [-o <out>] [-e <err>] [-H] [--dry] <file> [<args>...]
+                  [-o <out>] [-e <err>] [-H] [--dry] [--show]
+                  <tool> [<args>...]
 
 Options:
   -f, --force              force command execution
@@ -23,7 +24,9 @@ Options:
   -H, --hold               submit job put put in on hold and don't send
                            it to the queue
   --dry                    Do not submit but show the dry configuration
-  <file>                   the script that will be executed
+  --show                   Do not submit but show to commands that will be
+                           executed
+  <tool>                   the tool that will be executed
   <args>                   optional script argument
 
 Other Options:
@@ -33,18 +36,17 @@ Other Options:
 import sys
 
 import jip
-import jip.cluster
 import jip.profiles
+from . import parse_args, show_dry, show_commands, colorize, RED, submit
+import jip.jobs
 from jip.logger import getLogger
-from . import parse_args
-
 
 log = getLogger("jip.cli.jip_submit")
 
 
 def main(argv=None):
     args = parse_args(__doc__, argv=argv)
-    script_file = args["<file>"]
+    script_file = args["<tool>"]
     script_args = args["<args>"]
     try:
         script = jip.find(script_file)
@@ -52,18 +54,31 @@ def main(argv=None):
         print >>sys.stderr, str(e)
         sys.exit(1)
 
-    # load the cluster
-    cluster = jip.cluster.get()
-    log.info("Cluster: %s", cluster)
-    # load default profile
+    # load profile
     profile = jip.profiles.get(name='default'
                                if not args['--profile']
                                else args['--profile'])
     profile.load_args(args)
     log.info("Profile: %s", profile)
-    jip.submit(script, script_args, dry=args['--dry'], keep=args['--keep'],
-               force=args['--force'], silent=False, profile=profile,
-               cluster=cluster)
+
+    if args['--dry'] or args['--show']:
+        # we handle --dry and --show separatly,
+        # create the jobs and call the show commands
+        jobs = jip.jobs.create(script, args=script_args, profile=profile)
+        if args['--dry']:
+            show_dry(jobs, options=script.options, profiles=True)
+        if args['--show']:
+            show_commands(jobs)
+        try:
+            jip.jobs.check_output_files(jobs)
+        except Exception as err:
+            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+            print >>sys.stderr, str(err)
+            sys.exit(1)
+        return
+
+    submit(script, script_args, keep=args['--keep'], force=args['--force'],
+           silent=False, profile=profile)
 
 
 if __name__ == "__main__":

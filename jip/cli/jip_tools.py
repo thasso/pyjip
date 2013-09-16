@@ -3,7 +3,7 @@
 List all JIP tools/scripts that are available in the search paths.
 
 Usage:
-   jip-tools [--help|-h]
+   jip_tools [--help|-h]
 
 Other Options:
     -h --help             Show this help message
@@ -11,8 +11,7 @@ Other Options:
 from os import getcwd, getenv
 
 import jip
-from jip.utils import render_table
-from . import parse_args
+from . import parse_args, render_table
 
 
 def main():
@@ -36,7 +35,7 @@ def main():
 
     print "Tools implemented in Python modules"
     print "-----------------------------------"
-    print "The modules mus be available in PYTHONPATH and must be specified"
+    print "The modules must be available in PYTHONPATH and must be specified"
     print "in the jip configuration or in the JIP_MODULES environment"
     print "variable. Please note that pipeline scripts that contain"
     print "python blocks are allowed to load modules that contain tool"

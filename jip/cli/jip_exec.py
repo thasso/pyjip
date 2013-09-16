@@ -14,7 +14,7 @@ Other Options:
 """
 
 from jip.logger import getLogger
-from jip.executils import run_job
+import jip.jobs
 import jip.db
 from . import parse_args
 
@@ -30,7 +30,7 @@ def main():
         jip.db.init(path=args['--db'])
         session = jip.db.create_session()
         job = jip.db.find_job_by_id(session, args['<id>'])
-        run_job(job, session=session)
+        jip.jobs.run(job, session=session)
         session.close()
     except Exception as e:
         log.error("Error executing job %s: %s",

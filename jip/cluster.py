@@ -105,7 +105,7 @@ class Slurm(Cluster):
         # dependencies
         if len(job.dependencies) > 0:
             deps = set([])
-            for dep in job.dependencies:
+            for dep in [d for d in job.dependencies if d.job_id]:
                 deps.add(str(dep.job_id))
             if len(deps) > 0:
                 cmd.extend(['-d', "afterok:%s" % (":".join(deps))])

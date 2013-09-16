@@ -216,7 +216,9 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('cli/jip', 'jip', u'JIP Pipeline System', [u'Thasso Griebel'], 1)
+    ('cli/jip', 'jip', u'JIP Pipeline System', [u'Thasso Griebel'], 1),
+    ('cli/jip_tools', 'jip_tools', u'List available tools', [u'Thasso Griebel'], 1),
+    ('cli/jip_profiles', 'jip_profiles', u'List available profiles', [u'Thasso Griebel'], 1),
 ]
 
 # If true, show URL addresses after external links.

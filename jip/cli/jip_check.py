@@ -43,7 +43,9 @@ def main():
     for job in query:
         if not job.job_id in cluster_jobs:
             log.info("Job check for %s failed", job.job_id)
-            jip.executils.set_state(jip.db.STATE_FAILED, job, session=session)
+            jip.jobs.set_state(job, jip.db.STATE_FAILED)
+    session.commit()
+    session.close()
 
 
 if __name__ == "__main__":
