@@ -8,6 +8,10 @@ In a lot of cases it will not be neccessary to read and undestand the full API r
 .. toctree::
    :maxdepth: 2
           
+   jobs
    tools
    options
+   utils
+   executils
+   cli
 

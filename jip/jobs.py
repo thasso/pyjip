@@ -2,14 +2,19 @@
 """Job utilities that cover basic pipeline graph traversals and
 wrappers around common actions.
 """
+from datetime import datetime
 from functools import partial
 import os
-from datetime import datetime
+import sys
+from signal import signal, SIGTERM, SIGINT
 
 import jip.logger
 import jip.cluster
 import jip.db as db
 import jip.utils as utils
+import jip.pipelines
+import jip.tools
+import jip.executils
 
 log = jip.logger.getLogger("jip.jobs")
 
@@ -22,7 +27,11 @@ def get_parents(jobs, _parents=None):
     to find all jobs connected to a job in the given job list but
     without any incoming dependencies.
 
+    NOTE that the returned list is not sorted.
+
+
     :param jobs: list of jobs
+    :returns: list of all parent jobs
     """
     if _parents is None:
         _parents = set([])
@@ -36,9 +45,12 @@ def get_parents(jobs, _parents=None):
 
 
 def get_pipe_parent(job):
-    """Check if the job has a pipe_from parent and if so return that
+    """Check if the job has a pipe_from parent and if so return that. If
+    the does does not have any pipe targets, the job itself is returned.
 
     :param job: the job
+    :type job: `jip.db.Job`
+    :returns: parent job
     """
     if len(job.pipe_from) > 0:
         ## walk up and add this jobs dependencies
@@ -56,6 +68,9 @@ def get_subgraph(job, _all_jobs=None):
     given job belongs to.
 
     :param job: the job
+    :type job: `jip.db.Job`
+    :returns: all jobs including the given one that form a subgraph in the
+              execution graph where the given job is the root
     """
     if _all_jobs is None:
         _all_jobs = set([job])
@@ -68,9 +83,12 @@ def get_subgraph(job, _all_jobs=None):
 
 
 def topological_order(self, jobs):
-    """Generator that akes a list of jobs and yields them in topological order.
-    NOTE that you have to goe through this (or something similar) when you are
-    restarting pipeline!
+    """Generator that takes a list of jobs and yields them in topological
+    order.  NOTE that you have to go through this (or something similar) when
+    you are restarting pipeline!
+
+    :param jobs: list of jobs
+    :type jobs: list of `jip.db.Job`
     """
     count = {}
     children = {}
@@ -163,35 +181,42 @@ def _update_from_cluster_state(job):
                  exc_info=True)
 
 
+def _setup_signal_handler(job, session=None):
+    """Setup signal handlers that catch job termination
+    when possible and set the job state to `FAILED`.
+
+    :param job: the job
+    :type job: jip.db.Job
+    :param session: optional database session
+    """
+    def handle_signal(signum, frame):
+        jip.jobs.set_state(job, jip.db.STATE_FAILED)
+        if session:
+            session.commit()
+            session.close()
+    signal(SIGTERM, handle_signal)
+    signal(SIGINT, handle_signal)
+
+
 def set_state(job, new_state, update_children=True, cleanup=True):
-    """Set the job state during execution. A new sesison is
-    created and commited if its not specified as parameter. If a
-    session is given as paramter, the modified jobs are added but the session
-    is not commited or closed.
+    """Transition a job to a new state.
 
-    The job can be given either as a job instance or as id. If the id is
-    specified, a query is issued to find the job in the database.
+    The new job state is applied to the job and its embedded
+    children. In case the job state became `CANCELED`, `FAILED`,
+    or `HOLD`, and `cleanup` is not set to False, the jobs
+    tool is loaded and the job cleanup is performed.
 
-    If the job has pipe_to children, their state is also update as
-    we assume that they are executed in the same run
+    The job transition takes also care of the start and finish
+    dates on the job and set them according to the new state.
 
     :param new_state: the new job state
     :param id_or_job: the job instance or a job id
-    :param session: the session. If this is specified, modified jobs will
-                    be added but the session will not be commited. If
-                    the sesison is not specified, it is created, commited
-                    and closed
     :param update_children: if set to False, child jobs are not updated
-    :param cleanup: if True the tool cleanup is performed for canceled, failed
-                    or hold jobs
+    :param cleanup: if True the tool cleanup is performed for canceled or
+                    failed
     """
     ## create a database session
-    log.info("%s | set state [%s]=>[%s]",
-             job, job.state, new_state)
-    # we do not overwrite CANCELED or HOLD with FAILED
-    if new_state == db.STATE_FAILED and job.state \
-            in [db.STATE_CANCELED, db.STATE_HOLD]:
-        return
+    log.info("%s | set state [%s]=>[%s]", job, job.state, new_state)
 
     job.state = new_state
     _update_times(job)
@@ -216,9 +241,12 @@ def delete(job, session, clean_logs=False, silent=True):
     no longer on the cluster.
 
     :param job: the job to be deleted
+    :type job: `jip.db.Job`
     :param session: the database session
     :param clean: if True, the job log files will be deleted
+    :type clean: boolean
     :param silent: if False, the method will print status messages
+    :type: boolean
     """
     # Check if the jobs on the cluster and
     # cancel it if thats the case
@@ -237,6 +265,7 @@ def clean(job):
     """Remove job log files.
 
     :param job: the job to be cleaned
+    :type job: `jip.db.Job`
     """
     if len(job.pipe_from) != 0:
         return
@@ -255,12 +284,13 @@ def clean(job):
 
 
 def cancel(job, clean_job=False, clean_logs=False, silent=True):
-    """Cancel the given job make sure its no longer on the cluster.
+    """Cancel the given job and make sure its no longer on the cluster.
+
     The function takes only jobs that are in active state and takes
     care of the cancellation of any children.
 
     :param job: the job
-    :param session: the database session
+    :type job: `jip.db.Job`
     :param clean_logs: if True, the job log files will be deleted
     :param clean_job: if True, the job results will be removed
     :param silent: if False, the method will print status messages
@@ -289,7 +319,6 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
     care of the cancellation of any children.
 
     :param job: the job
-    :param session: the database session
     :param clean_logs: if True, the job log files will be deleted
     :param clean_job: if True, the job results will be removed
     :param silent: if False, the method will print status messages
@@ -313,7 +342,7 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
              clean_logs=clean_logs, silent=silent)
 
 
-def submit(job, session, silent=False, clean=False, force=False):
+def submit(job, silent=False, clean=False, force=False):
     """Submit the given job to the cluster. This only submits jobs
     that are NOT in active state. The job has to be in `canceled`,
     `failed` or `hold` state to be submitted, unless `force` is set to
@@ -325,7 +354,6 @@ def submit(job, session, silent=False, clean=False, force=False):
     job on the cluster.
 
     :param job: the job to be deleted
-    :param session: the database session
     :param clean: if True, the job log files will be deleted
     :param silent: if False, the method will print status messages
     """
@@ -355,3 +383,274 @@ def submit(job, session, silent=False, clean=False, force=False):
             _set_id(c)
     for child in job.pipe_to:
         _set_id(child)
+
+
+def run(job, session=None):
+    """Execute the given job. This method returns immediately in case the
+    job has a pipe source. Otherwise the job and all its dispatch jobs are
+    executed.
+
+    In contrast to most action methods, this method takes a session to
+    actively store update the database. This is important as this will store
+    the job state before and after execution.
+
+    NOTE that the run method creates a signal handler that sets the given
+    job state to failed in case the jobs process is terminated by a signal.
+
+    :param job: the job to run. Note the jobs with pipe sources are ignored
+    :type job: `jip.db.Job`
+    :param session: a database session in order to update the job state
+    :returns: True if the job was executed successfully
+    :rtype: boolean
+    """
+    if len(job.pipe_from) > 0:
+        return
+    # setup signal handeling
+    _setup_signal_handler(job, session)
+
+    # createa the dispatcher graph
+    dispatcher_nodes = jip.executils.create_dispatcher_graph(job)
+    log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
+
+    for dispatcher_node in dispatcher_nodes:
+        dispatcher_node.run(session)
+
+    if session:
+        session.commit()
+
+    success = True
+    for dispatcher_node in dispatcher_nodes:
+        success &= dispatcher_node.wait(session)
+
+    if session:
+        session.commit()
+
+    return success
+
+
+################################################################
+# Job creation
+################################################################
+def _create_job_env():
+    """Create a dictionary that will contain the job environment
+
+    :returns: dictionary that contains the job environmnt
+    :rtype: dict
+    """
+    return {
+        "PATH": os.getenv("PATH", ""),
+        "PYTHONPATH": os.getenv("PYTHONPATH", ""),
+        "JIP_PATH": os.getenv("JIP_PATH", ""),
+        "JIP_MODULES": os.getenv("JIP_MODULES", ""),
+        "LD_LIBRARY_PATH": os.getenv("LD_LIBRARY_PATH", ""),
+        "JIP_LOGLEVEL": str(log.getEffectiveLevel())
+    }
+
+
+def _infer_job_state(job):
+    """Infer the job state recursively except for final temp jobs.
+    They are always not done and have to be evaluated later
+    """
+    if len(job.children) == 0:
+        if job.temp:
+            # for final temp jobs, we check the parents
+            for parent in job.dependencies:
+                if not parent.is_done():
+                    return False
+            job.state = jip.db.STATE_DONE
+            return True
+        if job.is_done():
+            job.state = jip.db.STATE_DONE
+            return True
+        else:
+            return False
+    else:
+        done = True
+        for child in job.children:
+            done &= _infer_job_state(child)
+        if not done:
+            done = job.is_done()
+        if done:
+            job.state = jip.db.STATE_DONE
+        return done
+
+
+def _create_jobs_for_group(nodes, nodes2jobs):
+    """Helper method that takes a group of nodes and the global dict
+    to map nodes to jobs and adds the dependencies. In addition, streaming
+    dependencies are resolved and the jobs are updated accordingly
+    """
+    # add dependencies
+    for node in nodes:
+        job = nodes2jobs[node]
+        for inedge in node.incoming():
+            try:
+                source_job = nodes2jobs[inedge._source]
+            except:
+                raise
+            job.dependencies.append(source_job)
+            if inedge.has_streaming_link():
+                job.pipe_from.append(source_job)
+                # also reset the default output of the source
+                # job to a stream and store the current value in
+                # the job. This is done for the pipe fans so we
+                # can emulte a 'tee' and dispatch the output stream
+                # to all targets and the output file(s)
+                out_option = source_job.tool.options.get_default_output()
+                out_values = [v for v in out_option.value
+                              if not isinstance(v, file)]
+                if len(out_values) > 0:
+                    source_job.pipe_targets = out_values
+                    out_option.set(sys.stdout)
+                    # we also have to rerender the command
+                    _, cmd = source_job.tool.get_command()
+                    source_job.command = cmd
+
+
+def from_node(node, env=None, keep=False):
+    """Create and return a :class:`jip.db.Job` instance
+    from a given pipeline node. A dictinary with the jobs environment can
+    be passed here to avoid creating the environment for each job.
+
+    :param node: the node
+    :type node: `jip.pipelines.Node`
+    :param env: the environment stored for the job. If None, this will be
+                generated.
+    :param keep: keep the jobs output on failuer
+    :type keep: bool
+    :returns: the created job
+    :rtype: `jip.db.Job`
+    """
+    job = jip.db.Job(node._tool)
+    tool = node._tool
+    job.state = jip.db.STATE_HOLD
+    job.name = tool.name
+    job.keep_on_fail = keep
+    job.tool_name = tool.name
+    job.path = tool.path
+    job.configuration = node._tool.options
+    job.working_directory = os.getcwd()
+    job.env = env if env is not None else _create_job_env()
+    if node._job is not None:
+        node._job.apply(job)
+
+    # check for special options
+    if node._tool.options['threads'] is not None:
+        try:
+            options_threads = int(node._tool.options['threads'].raw())
+            threads = max(options_threads, job.threads)
+            job.threads = threads
+        except:
+            pass
+
+    interpreter, command = node._tool.get_command()
+    job.interpreter = interpreter
+    job.command = command
+    return job
+
+
+def create(source, args=None, excludes=None, skip=None, keep=False,
+           profile=None):
+    """Create a set of jobs from the given tool or pipeline.
+    This expands the pipeline and creates a job per pipeline node.
+
+    You can specify a list of excludes. The list must contain job names. All
+    jobs with these names will be excluded. This also covered all child jobs
+    of excluded job, effectively disabeling a the full subgraph that contains
+    the excluded node.
+
+    After all jobs are created, they are validated and a `ValidationError` is
+    raised if a job is not valid.
+    Please not that the output files of the jobs are not checked automatically.
+    You might want to call :py:func:`~jip.jobs.check_output_files` after
+    you created all your jobs.
+
+    :param source: a pipeline or a tool
+    :type source: jip.pipelines.Pipeline or jip.tools.Tool
+    :param args: options dictionary of arguments that is applied
+                 to tool instances
+    :param excludes: excludes nodes by name. This removed the node and the
+                     full subgraph after the node
+    :param skip: skip the node. This does not touch teh subgraph but tries
+                 to connect the nodes input with the nodes output before the
+                 node is removed
+    :param keep: keep the jobs output on failure
+    :param profile: default job profile that will be applied to all jobs
+    :raises: `jip.tools.ValueError` if a job is invalid
+    """
+    if args and isinstance(source, jip.tools.Tool):
+        source.parse_args(args)
+
+    pipeline = source
+    if not isinstance(source, jip.pipelines.Pipeline):
+        log.info("Wrapping tool in pipeline: %s", source)
+        p = jip.pipelines.Pipeline()
+        p.run(source)
+        pipeline = p
+
+    log.info("Expanding pipeline with %d nodes", len(pipeline))
+    pipeline.expand()
+    log.info("Expanded pipeline has %d nodes", len(pipeline))
+    if excludes is not None:
+        log.info("Excluding jobs: %s", excludes)
+        pipeline.exclude(excludes)
+        log.info("Pipeline has %d nodes after exclusion", len(pipeline))
+
+    if skip is not None:
+        log.info("Skipping jobs: %s", skip)
+        pipeline.skip(skip)
+        log.info("Pipeline has %d nodes after skipping", len(pipeline))
+
+    # create all jobs. We keep the list for the order and
+    # a dict to store the mapping from the node to teh job
+    env = _create_job_env()
+    nodes2jobs = {}
+    jobs = []
+    for node in pipeline.topological_order():
+        ## first create jobs
+        job = from_node(node, env=env, keep=keep)
+        jobs.append(job)
+        nodes2jobs[node] = job
+
+    for group in pipeline.groups():
+        _create_jobs_for_group(group, nodes2jobs)
+
+    # infer job state for all nodes with no dependencies
+    for job in jobs:
+        if len(job.dependencies) == 0:
+            _infer_job_state(job)
+
+    # now run the validation on all final jobs and
+    # in addition collect output files. An Exception is raised if
+    # an output file occures twice
+    for job in jobs:
+        log.info("Validate %s", job)
+        job.validate()
+        if profile is not None:
+            profile.apply(job)
+    return jobs
+
+
+def check_output_files(jobs):
+    """Ensures that there are no output file duplication in the given set
+    of jobs and raises a ValidationError if there are.
+
+    :param jobs: list of jobs
+    :raises ValidationError: if duplicated output files are found
+    """
+    outputs = set([])
+    for job in jobs:
+        for of in job.tool.get_output_files():
+            if of in outputs:
+                raise jip.tools.ValidationError(
+                    job.tool,
+                    "Output file duplication: %s\n\n"
+                    "During validation an output file name was found\n"
+                    "twice! This means there are at least two jobs that\n"
+                    "will create the same output. In case you are using the\n"
+                    "auto-expansion feature and specified a list of inputs,\n"
+                    "try to use templates for your output, for example,\n"
+                    "you can use --output '${input}_out.txt' to create\n"
+                    "output files that are created based in the input." % of
+                )
+            outputs.add(of)
