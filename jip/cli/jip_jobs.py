@@ -24,6 +24,7 @@ Columns supported for output:
     ID          The internal job id
     C-ID        The job id assigned by the clsuter
     Name        The jobs name
+    Pipeline    The name of the pipeline
     State       The jobs current state
     Queue       The jobs queue
     Priority    The jobs priority
@@ -66,6 +67,42 @@ def _runtime(job):
     return None
 
 
+def _cap(s, l=30):
+    return s if len(s) <= l else s[0:l - 3] + '...'
+
+
+def _pipeline_runtime(jobs):
+    """Compute the runtim of the pipeline"""
+    times = []
+    now = datetime.now()
+    # collect the times
+    for j in jobs:
+        if j.start_date:
+            s = j.start_date
+            e = j.finish_date if j.finish_date else now
+            times.append((s, e))
+    times = sorted(times, key=lambda t: t[0])
+    ranges = []
+    start = None
+    end = None
+    for t in times:
+        if start and (end and end < t[0]):
+            ranges.append((start, end))
+            start = None
+            end = None
+        start = t[0] if not start else start
+        end = t[1] if not end or t[1] > end else end
+    # last
+    if start and end:
+        ranges.append((start, end))
+
+    if not ranges:
+        return None
+    else:
+        t = timedelta(seconds=sum((r[1] - r[0]).seconds for r in ranges))
+        return t
+
+
 def _date(value):
     return value.strftime('%H:%M %d/%m/%y') if value is not None else None
 
@@ -78,11 +115,20 @@ def _min_date(d1, d2):
     return min(d1, d2)
 
 
+def _max_date(d1, d2):
+    if d1 is None:
+        return None
+    if d2 is None:
+        return None
+    return max(d1, d2)
+
+
 def _pipeline_job(job):
     all_jobs = jip.jobs.get_subgraph(job)
     count = float(len(all_jobs))
     counts = defaultdict(int)
     queues = set([job.queue])
+    hosts = set([])
     max_time = job.max_time
     max_memory = job.max_memory
     create_date = job.create_date
@@ -95,8 +141,10 @@ def _pipeline_job(job):
         max_memory = max(max_memory, j.max_memory)
         create_date = _min_date(create_date, j.create_date)
         start_date = _min_date(start_date, j.start_date)
-        finish_date = _min_date(finish_date, j.finish_date)
+        finish_date = _max_date(finish_date, j.finish_date)
         queues.add(j.queue)
+        if j.hosts:
+            hosts.add(j.hosts)
         counts[j.state] = counts[j.state] + 1
 
     # use the job counts it inferr the globally displayed state
@@ -114,14 +162,25 @@ def _pipeline_job(job):
     #progress bar
     line = 30.0
     progress = []
-    for s in [jip.db.STATE_DONE, jip.db.STATE_CANCELED, jip.db.STATE_HOLD,
-              jip.db.STATE_FAILED, jip.db.STATE_RUNNING, jip.db.STATE_QUEUED]:
+    line_sum = 0
+    last_with_value = 0
+    for i, s in enumerate([jip.db.STATE_DONE, jip.db.STATE_CANCELED,
+                           jip.db.STATE_HOLD, jip.db.STATE_FAILED,
+                           jip.db.STATE_RUNNING, jip.db.STATE_QUEUED]):
+        last_with_value = i if counts[s] > 0 else last_with_value
+    for i, s in enumerate([jip.db.STATE_DONE, jip.db.STATE_CANCELED,
+                           jip.db.STATE_HOLD, jip.db.STATE_FAILED,
+                           jip.db.STATE_RUNNING, jip.db.STATE_QUEUED]):
+        length = int(round(line * (counts[s] / count)))
+        line_sum += length
+        if i == last_with_value and line_sum < line:
+            length += int(line - line_sum)
         progress.append("".join(
-            [colorize(STATE_CHARS[s], STATE_COLORS[s])
-             * int(round(line * (counts[s] / count)))]
+            [colorize(STATE_CHARS[s], STATE_COLORS[s]) * length]
         ))
 
     progress = "".join(progress)
+    job.runtime = _pipeline_runtime(all_jobs)
     job.queue = ", ".join(queues)
     job.progress = progress
     job.state = state
@@ -130,6 +189,7 @@ def _pipeline_job(job):
     job.create_date = create_date
     job.start_date = start_date
     job.finish_date = finish_date
+    job.hosts = ", ".join(hosts)
     return state
 
 
@@ -137,10 +197,12 @@ JOB_HEADER = [
     ("Id", lambda j: j.id),
     ("C-Id", lambda j: j.job_id),
     ("Name", lambda j: j.name),
+    ("Pipeline", lambda j: j.pipeline),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
-    ("Dependencies", lambda j: ",".join(str(c.id) for c in j.children)),
+    ("Dependencies", lambda j: _cap(",".join(str(c.id)
+                                             for c in j.dependencies))),
     ("Threads", lambda j: j.threads),
     ("Hosts", lambda j: j.hosts),
     ("Account", lambda j: j.account),
@@ -156,7 +218,8 @@ JOB_HEADER = [
 PIPE_HEADER = [
     ("Id", lambda j: j.id),
     ("C-Id", lambda j: "-"),
-    ("Name", lambda j: j.pipeline),
+    ("Name", lambda j: "-"),
+    ("Pipeline", lambda j: j.pipeline if j.pipeline else j.name),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
@@ -166,29 +229,35 @@ PIPE_HEADER = [
     ("Account", lambda j: j.account),
     ("Memory", lambda j: j.max_memory),
     ("Timelimit", lambda j: _time(j.max_time)),
-    ("Runtime", lambda j: _runtime(j)),
+    ("Runtime", lambda j: j.runtime),
     ("Created", lambda j: _date(j.create_date)),
     ("Started", lambda j: _date(j.start_date)),
     ("Finished", lambda j: _date(j.finish_date)),
     ("Directory", lambda j: j.working_directory),
 ]
 
-DEFAULT_COLUMNS = [
+DEFAULT_JOB_COLUMNS = [
     "Id",
     "C-Id",
     "Name",
+    "Pipeline",
     "State",
     "Queue",
-    "Priority",
     "Dependencies",
     "Threads",
     "Hosts",
-    "Account",
     "Timelimit",
     "Runtime",
-    "Created",
-    "Started",
-    "Finished",
+]
+
+DEFAULT_PIPE_COLUMNS = [
+    "Id",
+    "Pipeline",
+    "State",
+    "Queue",
+    "Dependencies",
+    "Threads",
+    "Runtime",
 ]
 
 
@@ -198,7 +267,7 @@ def main():
     # create the header
     header = JOB_HEADER if expand else PIPE_HEADER
     headers = dict([(n[0], n[1]) for n in header])
-    columns = DEFAULT_COLUMNS
+    columns = DEFAULT_JOB_COLUMNS if expand else DEFAULT_PIPE_COLUMNS
     if args['--output']:
         columns = [c.title() for c in args['--output']]
     # check the columns
@@ -235,27 +304,45 @@ def main():
                 all_jobs.extend(jip.jobs.get_parents(j))
             jobs = all_jobs
         # reduce to pipeline main jobs
-        jobs = [j for j in jobs if len(j.dependencies) == 0]
-    else:
-        # in expand mode, we have to get all the jobs of a pipeline
-        covered = set([])
         all_jobs = []
+        stored = set([])
         for j in jobs:
-            parents = jip.jobs.get_parents(j)
-            for p in parents:
-                if not p in covered:
-                    all_for_j = jip.jobs.get_subgraph(p)
-                    all_jobs.extend(jip.jobs.topological_order(all_for_j))
-                    for cj in all_for_j:
-                        covered.add(cj)
+            if len(j.dependencies) == 0 and j not in stored:
+                stored.add(j)
+                all_jobs.append(j)
         jobs = all_jobs
+        #jobs = [j for j in jobs if len(j.dependencies) == 0]
+    else:
+        if len(job_ids) > 0 or len(cluster_ids) > 0:
+            # in expand mode, we have to get all the jobs of a pipeline
+            covered = set([])
+            all_jobs = []
+            for j in jobs:
+                parents = jip.jobs.get_parents(j)
+                for p in parents:
+                    if not p in covered:
+                        all_for_j = jip.jobs.get_subgraph(p)
+                        all_jobs.extend(jip.jobs.topological_order(all_for_j))
+                        for cj in all_for_j:
+                            covered.add(cj)
+            jobs = all_jobs
 
     rows = []
+    state = args['--state']
+    if state:
+        state = [s.title() for s in state]
+    direct = not sys.stdout.isatty()
     for job in jobs:
         if not expand:
             _pipeline_job(job)
-        rows.append([headers[column](job) for column in columns])
-    print render_table(columns, rows)
+        if not state or job.state in state:
+            if not direct:
+                rows.append([headers[column](job) for column in columns])
+            else:
+                print "\t".join([str(headers[column](job))
+                                 for column in columns])
+    if not direct:
+        print render_table(columns, rows)
 
 
 if __name__ == "__main__":

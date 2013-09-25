@@ -3,27 +3,25 @@
 Clean jip jobs
 
 Usage:
-    jip-clean [-j <id>...] [-J <cid>...] [--db <db>]
+    jip-clean [-j <id>...] [-J <cid>...]
     jip-clean [--help|-h]
 
 Options:
-    --db <db>                Select a path to a specific job database
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -h --help                Show this help message
 """
+import os
 
-from jip.db import init, create_session, STATES_RUNNING
-from jip.utils import query_jobs_by_ids, read_ids_from_pipe, confirm
+import jip.db
+import jip.jobs
+import jip.cluster
+from . import query_jobs_by_ids, read_ids_from_pipe, confirm
 from . import parse_args
-
-import sys
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    init(path=args["--db"])
-    session = create_session()
     ####################################################################
     # Query jobs
     ####################################################################
@@ -36,28 +34,31 @@ def main():
     job_ids = [] if job_ids is None else job_ids
     job_ids += read_ids_from_pipe()
 
+    jip.db.init()
+    session = jip.db.create_session()
     jobs = query_jobs_by_ids(session, job_ids=job_ids,
                              cluster_ids=cluster_ids,
                              archived=None, query_all=False)
     jobs = list(jobs)
     if len(jobs) == 0:
         return
+
+    jobs = jip.jobs.resolve_jobs(jobs)
+
     if confirm("Are you sure you want "
-               "to clean %d jobs" % len(jobs),
+               "to delete %d jobs" % len(jobs),
                False):
-        count = 0
-        for j in jobs:
-            if j.state not in STATES_RUNNING:
-                j.clean()
-                count += 1
-                if not sys.stdout.isatty():
-                    print j.id
-            else:
-                print >>sys.stderr, "Unable to clean active job %s " \
-                                    "with state '%s'" % (j.job_id, j.state)
-        if sys.stdout.isatty():
-            print "%d jobs cleaned" % count
-        session.commit()
+        cluster = jip.cluster.get()
+        for job in jobs:
+            print "Removing logs for", job
+            stdout = cluster.resolve_log(job, job.stdout)
+            if stdout and os.path.exists(stdout):
+                os.remove(stdout)
+            stderr = cluster.resolve_log(job, job.stderr)
+            if stderr and os.path.exists(stderr):
+                os.remove(stderr)
+    session.close()
+
 
 if __name__ == "__main__":
     main()

@@ -78,7 +78,7 @@ def main(argv=None):
         return
 
     submit(script, script_args, keep=args['--keep'], force=args['--force'],
-           silent=False, profile=profile)
+           silent=False, profile=profile, hold=args['--hold'])
 
 
 if __name__ == "__main__":

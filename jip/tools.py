@@ -348,6 +348,9 @@ class PythonBlockUtils(object):
     def job(self, *args, **kwargs):
         return self.pipeline.job(*args, **kwargs)
 
+    def name(self, name):
+        self._pipeline.name(name)
+
     def bash(self, command, **kwargs):
         from jip.pipelines import Node
 
@@ -399,6 +402,7 @@ class PythonBlock(Block):
             "run": utils.run,
             "bash": utils.bash,
             "job": utils.job,
+            "name": utils.name,
             'utils': utils,
             'basename': basename
 
@@ -548,6 +552,7 @@ class Tool(object):
         The method raises a :py:class:`ValidationError` in case an option could
         not be validated or an input file does not exist.
         """
+        log.debug("Default options validation for %s", self)
         try:
             self.options.validate()
         except Exception, e:

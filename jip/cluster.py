@@ -89,18 +89,26 @@ class Slurm(Cluster):
             cmd.extend(["-c", str(job.threads)])
         if job.max_time > 0:
             cmd.extend(["-t", str(job.max_time)])
-        if job.account is not None:
+        if job.account:
             cmd.extend(["-A", str(job.account)])
-        if job.priority is not None:
+        if job.priority:
             cmd.extend(["--qos", str(job.priority)])
-        if job.queue is not None:
+        if job.queue:
             cmd.extend(["-p", str(job.queue)])
-        if job.working_directory is not None:
+        if job.working_directory:
             cmd.extend(["-D", job.working_directory])
         if job.max_memory > 0:
             cmd.extend(["--mem-per-cpu", str(job.max_memory)])
         if job.extra is not None:
             cmd.extend(job.extra)
+        if job.name or job.pipeline:
+            name = job.name if job.name else ""
+            if job.pipeline:
+                if name:
+                    name = name + "-" + job.pipeline
+                else:
+                    name = job.pipeline
+            cmd.extend(["-J", name])
 
         # dependencies
         if len(job.dependencies) > 0:

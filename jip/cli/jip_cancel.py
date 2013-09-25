@@ -13,31 +13,46 @@ Options:
     -J, --cluster-job <cid>...  List jobs with specified cluster id
     -h --help                   Show this help message
 """
-
-from . import _query_jobs, parse_args
-from jip.executils import get_pipeline_jobs
-from jip.utils import confirm, flat_list
 import jip.db
+import jip.jobs
+from . import query_jobs_by_ids, read_ids_from_pipe, confirm
+from . import parse_args
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    session, jobs = _query_jobs(args)
-    count = jobs.count()
-    if count == 0:
+    ####################################################################
+    # Query jobs
+    ####################################################################
+    job_ids = args["--job"]
+    cluster_ids = args["--cluster-job"]
+
+    ####################################################################
+    # read job id's from pipe
+    ####################################################################
+    job_ids = [] if job_ids is None else job_ids
+    job_ids += read_ids_from_pipe()
+
+    jip.db.init()
+    session = jip.db.create_session()
+    jobs = query_jobs_by_ids(session, job_ids=job_ids,
+                             cluster_ids=cluster_ids,
+                             archived=None, query_all=False)
+    jobs = list(jobs)
+    if len(jobs) == 0:
         return
 
+    jobs = jip.jobs.resolve_jobs(jobs)
+
     if confirm("Are you sure you want "
-               "to cancel %d jobs" % count,
+               "to cancel %d jobs" % len(jobs),
                False):
-        count = 0
-        for j in flat_list([get_pipeline_jobs(job) for job in jobs]):
-            if j.state in jip.db.STATES_ACTIVE:
-                if j.cancel(remove_logs=args["--clean"]):
-                    count += 1
-                    session.add(j)
+        for job in jobs:
+            jip.jobs.cancel(job,
+                            clean_logs=args['--clean'],
+                            silent=False)
         session.commit()
-        print "%d jobs canceled" % count
+        session.close()
 
 
 if __name__ == "__main__":

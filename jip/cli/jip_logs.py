@@ -20,10 +20,9 @@ Options:
     -h --help                Show this help message
 """
 
-from jip.utils import colorize, GREEN, RED, BLUE
-from jip.cli.jip_jobs import STATE_COLORS
+from . import colorize, GREEN, RED, BLUE, STATE_COLORS, _query_jobs
 import jip.cluster
-from . import parse_args, _query_jobs
+from . import parse_args
 
 from subprocess import Popen
 from os.path import exists

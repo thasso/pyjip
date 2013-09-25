@@ -13,16 +13,14 @@ Options:
     -h --help                Show this help message
 """
 
-from jip.db import init, create_session
-from jip.executils import delete
-from jip.utils import query_jobs_by_ids, read_ids_from_pipe, confirm
+import jip.db
+import jip.jobs
+from . import query_jobs_by_ids, read_ids_from_pipe, confirm
 from . import parse_args
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    init()
-    session = create_session()
     ####################################################################
     # Query jobs
     ####################################################################
@@ -35,6 +33,8 @@ def main():
     job_ids = [] if job_ids is None else job_ids
     job_ids += read_ids_from_pipe()
 
+    jip.db.init()
+    session = jip.db.create_session()
     jobs = query_jobs_by_ids(session, job_ids=job_ids,
                              cluster_ids=cluster_ids,
                              archived=None, query_all=False)
@@ -42,12 +42,18 @@ def main():
     if len(jobs) == 0:
         return
 
+    jobs = jip.jobs.resolve_jobs(jobs)
+
     if confirm("Are you sure you want "
                "to delete %d jobs" % len(jobs),
                False):
-        delete(jobs, session=session, clean=args['--clean'])
-    session.commit()
-    session.close()
+        for job in jobs:
+            jip.jobs.delete(job,
+                            session=session,
+                            clean_logs=args['--clean'],
+                            silent=False)
+        session.commit()
+        session.close()
 
 
 if __name__ == "__main__":

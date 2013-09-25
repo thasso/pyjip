@@ -28,20 +28,11 @@ class cleanup(object):
                 return False
         return True
 
+    def validate(self):
+        return True
+
     def get_command(self):
         return "bash", "for file in ${files}; do rm -f $file; done"
-
-
-    #def __call__(self, files=[]):
-        #import sys
-        #from os.path import exists
-        #from os import remove
-        #for f in self.options["files"].raw():
-            #if exists(f):
-                #try:
-                    #remove(f)
-                #except:
-                    #print >>sys.stderr, "Error while removing file: %s" % f
 
 
 @jip.tool("bash")

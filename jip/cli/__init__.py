@@ -4,6 +4,7 @@ that expose command line functions for the JIP command.
 
 """
 from datetime import timedelta, datetime
+import os
 import sys
 
 from jip.vendor.texttable import Texttable
@@ -430,7 +431,7 @@ def read_ids_from_pipe():
 
 
 def submit(script, script_args, keep=False, force=False, silent=False,
-           session=None, profile=None):
+           session=None, profile=None, hold=False):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -448,10 +449,76 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     _session = session
     if session is None:
         _session = jip.db.create_session()
+    # we have to check if there is anything we need
+    # to submit, otherwise we can skip commiting the jobs
+    # We have to do this for all connected components
+    if not force:
+        parents = jip.jobs.get_parents(jobs)
+        unfinished_jobs = set([])
+
+        # create a dict for all output files
+        files = {}
+        if _session is not None:
+            query = _session.query(jip.db.Job).filter(
+                jip.db.Job.state.in_(
+                    jip.db.STATES_ACTIVE + [jip.db.STATE_HOLD]
+                )
+            )
+            for j in query:
+                for of in j.get_output_files():
+                    if not of.startswith("/"):
+                        files[os.path.join(j.working_directory, of)] = j
+                    else:
+                        files[of] = j
+        already_running = {}
+        for parent in parents:
+            log.info("Checking state for graph at %s", parent)
+            parent_jobs = jip.jobs.get_subgraph(parent)
+            for g in jip.jobs.group(parent_jobs):
+                job = g[0]
+                if job.state != jip.db.STATE_DONE:
+                    if not parent in unfinished_jobs:
+                        unfinished_jobs.add(parent)
+                for gj in g:
+                    for of in gj.get_output_files():
+                        if not of.startswith("/"):
+                            of = os.path.join(gj.working_directory, of)
+                        if of in files:
+                            already_running[parent] = files[of]
+                            break
+
+        if len(unfinished_jobs) > 0:
+            # get all jobs for the parents
+            all_jobs = set([])
+            for p in unfinished_jobs:
+                if p in already_running:
+                    if not silent:
+                        other = already_running[p]
+                        print "Skipping %s[%s], job %s[%s] in the queue " \
+                              "creates the same output!" % (p,
+                                                            p.pipeline,
+                                                            other,
+                                                            str(other.id))
+                    continue
+                for c in jip.jobs.get_subgraph(p):
+                    all_jobs.add(c)
+            jobs = list(jip.jobs.topological_order(all_jobs))
+        else:
+            # all finished
+            if not silent:
+                print "Skipping all jobs, all finished!"
+            return
+
+    if len(jobs) == 0:
+        return
 
     log.debug("Saving jobs")
     map(_session.add, jobs)
     _session.commit()
+    if hold:
+        if not silent:
+            print "%d jobs stored but not submitted" % (len(jobs))
+        return
 
     for g in jip.jobs.group(jobs):
         job = g[0]
@@ -472,6 +539,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
                 # id so dependencies are properly resolved on job
                 # submission to the cluster
                 other.job_id = job.job_id
+        _session.commit()
 
     _session.commit()
     if session is None:

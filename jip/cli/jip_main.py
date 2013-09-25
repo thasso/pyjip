@@ -31,7 +31,6 @@ action command. Note that the commands also work standalone:
     archive  archive the selected jobs
     cancel   cancel selected and running jobs
     hold     put selected jobs on hold
-    resume   resume selected jobs that are on hold
     restart  restart selected jobs
     logs     show log files of jobs
 
@@ -39,7 +38,9 @@ Miscellaneous other commands:
 
     tools     list all tools available through the search paths
     profiles  list all available profiles
-    edit      edit job commands
+    edit      edit job commands for a given job
+    clean     remove job logs
+    check     check job status
 """
 import sys
 import jip

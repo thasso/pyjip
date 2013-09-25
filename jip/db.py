@@ -213,9 +213,13 @@ class Job(Base):
                 self._tool = find(self.tool_name if self.path is None
                                   else self.path)
                 for opt in self.configuration:
-                    self._tool.options[opt.name]._value = opt._value
+                    if opt.name in self._tool.options:
+                        self._tool.options[opt.name]._value = opt._value
+                    else:
+                        self._tool.options[opt.name] = opt
             except:
-                log.error("Unable to reload tool: %s", self.tool_name)
+                log.error("Unable to reload tool: %s", self.tool_name,
+                          exc_info=True)
         return self._tool
 
     def terminate(self):
@@ -289,12 +293,15 @@ class Job(Base):
         """Delegates to the tools validate method"""
         return self.tool.validate()
 
-    def is_done(self):
+    def is_done(self, force=False):
         """Delegates to the tools validate method but also add
         an additional check streamed jobs. If there are not direct output
         files, this delegates to the follow up jobs.
+
+        :param force: if True, current state is ignored and a file check is
+                      forced
         """
-        if self.state == STATE_DONE:
+        if not force and self.state == STATE_DONE:
             return True
         ## in case this is a temp job, with stream out check the children
         if self.temp and len(self.pipe_to) > 0:
@@ -320,6 +327,21 @@ class Job(Base):
             if not target.is_done():
                 return False
         return True
+
+    def get_output_files(self):
+        """Yields a list of all output files for the configuraiton
+        of this job. Only TYPE_OUTPUT options are considered
+        whose values are strings. If a source for the option
+        is not None, it has to be equal to this tool.
+        """
+        import jip.options
+        for opt in self.configuration.get_by_type(jip.options.TYPE_OUTPUT):
+            values = opt.raw()
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+            for value in values:
+                if isinstance(value, basestring):
+                    yield value
 
     def __repr__(self):
         if self.name is not None:
@@ -376,6 +398,7 @@ def init(path=None, in_memory=False):
     if create_tables:
         Base.metadata.create_all(engine)
     Session = sessionmaker(autoflush=False, expire_on_commit=False)
+    #Session = sessionmaker(expire_on_commit=False)
     Session.configure(bind=engine)
 
 

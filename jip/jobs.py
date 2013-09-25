@@ -19,15 +19,30 @@ log = jip.logger.getLogger("jip.jobs")
 
 
 ################################################################
-# Graph traversals and sorting
+# Graph traversals and sorting and pipeline operations
 ################################################################
+def resolve_jobs(jobs):
+    """Takes a list of jobs and returns all jobs of all pipeline
+    graphs involved, sorted in topological order
+
+    :param jobs: list of input jobs
+    :returns: list of all jobs of all pipeline that are touched by the jobs
+    """
+    parents = get_parents(jobs)
+    all_jobs = set([])
+    for p in parents:
+        for c in get_subgraph(p):
+            if c not in all_jobs:
+                all_jobs.add(c)
+    return list(topological_order(all_jobs))
+
+
 def get_parents(jobs, _parents=None):
     """Takes a list of jobs and walks up the graph for all job
     to find all jobs connected to a job in the given job list but
     without any incoming dependencies.
 
     NOTE that the returned list is not sorted.
-
 
     :param jobs: list of jobs
     :returns: list of all parent jobs
@@ -66,7 +81,8 @@ def get_subgraph(job, _all_jobs=None):
     """Returns a set of all jobs that are children
     of the given job, plus the given job itself. In
     otherswords, this resolves the full subgraph of jobs that the
-    given job belongs to.
+    given job belongs to. If the given job receives piped input, the
+    pipe parent is used as root for the subgraph.
 
     :param job: the job
     :type job: `jip.db.Job`
@@ -74,6 +90,8 @@ def get_subgraph(job, _all_jobs=None):
               execution graph where the given job is the root
     """
     if _all_jobs is None:
+        if len(job.pipe_from) != 0:
+            job = get_pipe_parent(job)
         _all_jobs = set([job])
     else:
         _all_jobs.add(job)
@@ -143,6 +161,33 @@ def group(jobs):
     return groups
 
 
+def submit_pipeline(job, silent=False, clean=False, force=False, session=None):
+    """Checks the pipeline rooted at the given job and resubmits all
+    jobs in the pipeline that are not in DONE state. Jobs that are
+    in active state (queued, running) are skipped if `force` is not
+    specified.
+
+    If job submission is forced and a job is in active state, the job
+    is canceled first to ensure there is only a single instance of the
+    job on the cluster.
+
+    :param job: the job to be deleted
+    :param clean: if True, the job log files will be deleted
+    :param silent: if False, the method will print status messages
+    :returns: set of all jobs that where checked for submission
+    """
+    jobs = list(topological_order(get_subgraph(job)))
+    send = set([])
+    #for j in jobs:
+        #log.info("Validating %s", j)
+        #j.validate()
+    for g in group(jobs):
+        j = g[0]
+        submit(j, silent=silent, clean=clean, force=force, session=session)
+        map(send.add, g)
+    return send
+
+
 ################################################################
 # Common actions on single jobs
 ################################################################
@@ -162,6 +207,9 @@ def _update_times(job):
         job.finish_date = None
     elif job.state in db.STATES_FINISHED:
         job.finish_date = datetime.now()
+    elif job.state == db.STATE_QUEUED:
+        job.finish_date = None
+        job.start_date = None
 
 
 def _update_from_cluster_state(job):
@@ -227,7 +275,10 @@ def set_state(job, new_state, update_children=True, cleanup=True):
     if cleanup and job.state in [db.STATE_CANCELED, db.STATE_HOLD,
                                  db.STATE_FAILED]:
         log.info("Terminating job %s with state %s", job, job.state)
-        job.terminate()
+        try:
+            job.terminate()
+        except:
+            pass
         if not job.keep_on_fail and job.tool:
             log.info("Cleaning job %s after failure", str(job))
             job.tool.cleanup()
@@ -344,12 +395,12 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
              clean_logs=clean_logs, silent=silent)
 
 
-def submit(job, silent=False, clean=False, force=False):
-    """Submit the given job to the cluster. This only submits jobs
-    that are NOT in active state. The job has to be in `canceled`,
-    `failed` or `hold` state to be submitted, unless `force` is set to
-    True. This will NOT submit the children of the job. You have to submit
-    the children yourself and ensure you do that in proper order.
+def submit(job, silent=False, clean=False, force=False, session=None):
+    """Submit the given job to the cluster. This only submits jobs that are not
+    `DONE`. The job has to be in `canceled`, `failed`, `queued`,
+    or `hold` state to be submitted, unless `force` is set to True. This will
+    NOT submit the children of the job. You have to submit the children
+    yourself and ensure you do that in proper order.
 
     If job submission is forced and a job is in active state, the job
     is canceled first to ensure there is only a single instance of the
@@ -358,17 +409,19 @@ def submit(job, silent=False, clean=False, force=False):
     :param job: the job to be deleted
     :param clean: if True, the job log files will be deleted
     :param silent: if False, the method will print status messages
+    :returns: True if the jobs was submitted
     """
+    log.info("(Re)submitting %s")
+    if not force and job.state == db.STATE_DONE:
+        return False
     if len(job.pipe_from) != 0:
-        return
-    if not force and job.state in db.STATES_ACTIVE:
-        return
+        return False
 
     # cancel or clean the job
     if job.state in db.STATES_ACTIVE:
-        cancel(job, clean=True)
+        cancel(job, clean_logs=True)
     elif clean:
-        clean(job)
+        jip.jobs.clean(job)
 
     # set state queued and submit
     cluster = jip.cluster.get()
@@ -385,6 +438,9 @@ def submit(job, silent=False, clean=False, force=False):
             _set_id(c)
     for child in job.pipe_to:
         _set_id(child)
+    if session is not None:
+        session.commit()
+    return True
 
 
 def run(job, session=None):
@@ -525,6 +581,7 @@ def from_node(node, env=None, keep=False):
     """
     job = jip.db.Job(node._tool)
     tool = node._tool
+    job.pipeline = node._name
     job.state = jip.db.STATE_HOLD
     job.name = tool.name
     job.keep_on_fail = keep
@@ -593,6 +650,10 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     log.info("Expanding pipeline with %d nodes", len(pipeline))
     pipeline.expand()
     log.info("Expanded pipeline has %d nodes", len(pipeline))
+    if pipeline.excludes:
+        if not excludes:
+            excludes = []
+        excludes.extend(pipeline.excludes)
     if excludes is not None:
         log.info("Excluding jobs: %s", excludes)
         pipeline.exclude(excludes)

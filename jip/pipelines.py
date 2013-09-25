@@ -45,9 +45,14 @@ class Pipeline(object):
         self._current_job = self._job
         self._component_index = {}
         self._cleanup_nodes = []
+        self._name = None
+        self.excludes = []
 
     def __len__(self):
         return len(self._nodes)
+
+    def name(self, name):
+        self._name = name
 
     def job(self, *args, **kwargs):
         return self._job(*args, **kwargs)
@@ -183,6 +188,9 @@ class Pipeline(object):
         """
         if not excludes:
             return
+        if not isinstance(excludes, (list, tuple)):
+            excludes = [excludes]
+
         excludes = set(excludes)
         # index the nodes by name
         names2nodes = {}
@@ -342,6 +350,8 @@ class Pipeline(object):
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
+            if sub_pipe.excludes:
+                self.excludes.extend(sub_pipe.excludes)
             sub_pipe.expand()
             # find all nodes with no incoming edges and connect
             # them to the current nodes incoming nodes
@@ -532,6 +542,7 @@ class Node(object):
         self.__dict__['_tool'] = tool
         self.__dict__['_job'] = graph._current_job()
         self.__dict__['_graph'] = graph
+        self.__dict__['_name'] = graph._name
         self.__dict__['_index'] = index
         self.__dict__['_edges'] = set([])
 
