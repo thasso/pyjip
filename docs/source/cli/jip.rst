@@ -22,11 +22,11 @@ Commands
 --------
 The following commands are available to run and submit jobs.
 
-run
+:ref:`run <jip_run>`
     Locally run a jip script
-submit
+:ref:`submit <jip_submit>`
     submit a jip script to a remote cluster
-bash
+:ref:`bash <jip_bash>`
     Run or submit a bash command
 
 The following command can be used to show and filter a list of

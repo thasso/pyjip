@@ -13,19 +13,14 @@ Options:
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -h --help                Show this help message
 """
-
-from jip.db import init, create_session, STATES_ACTIVE
-from jip.executils import get_pipeline_jobs
-from jip.utils import query_jobs_by_ids, read_ids_from_pipe, confirm, flat_list
+import jip.db
+import jip.jobs
+from . import query_jobs_by_ids, read_ids_from_pipe, confirm
 from . import parse_args
-
-import sys
 
 
 def main():
     args = parse_args(__doc__, options_first=True)
-    init(path=args["--db"])
-    session = create_session()
     ####################################################################
     # Query jobs
     ####################################################################
@@ -38,6 +33,8 @@ def main():
     job_ids = [] if job_ids is None else job_ids
     job_ids += read_ids_from_pipe()
 
+    jip.db.init()
+    session = jip.db.create_session()
     jobs = query_jobs_by_ids(session, job_ids=job_ids,
                              cluster_ids=cluster_ids,
                              archived=None, query_all=False)
@@ -45,24 +42,21 @@ def main():
     if len(jobs) == 0:
         return
 
+    jobs = jip.jobs.resolve_jobs(jobs)
+
     clean = args['--clean']
 
     if confirm("Are you sure you want "
                "to archive %d jobs" % len(jobs),
                False):
-        count = 0
-        for j in flat_list([get_pipeline_jobs(job) for job in jobs]):
-            if j.state not in STATES_ACTIVE:
-                j.archived = True
+        for job in jobs:
+            if job.state not in jip.db.STATES_ACTIVE:
                 if clean:
                     job.clean()
-                session.add(j)
-                count += 1
-            else:
-                print >>sys.stderr, "Unable to archive active job %s " \
-                                    "with state '%s'" % (j.job_id, j.state)
+                job.archived = True
+                print "%d archived" % job.id
         session.commit()
-        print "%d jobs archived" % count
+        session.close()
 
 
 if __name__ == "__main__":

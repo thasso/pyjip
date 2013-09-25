@@ -414,6 +414,7 @@ class Pipeline(object):
         # clone the tool
         current_index = node._index + 1
         for i, opts in enumerate(zip(*values)):
+            log.debug("Fanout clone node: %s", node)
             cloned_tool = node._tool.clone()
             ## set the new values
             for j, option in enumerate(options):
@@ -468,7 +469,9 @@ class Pipeline(object):
                 log.debug("Fanout validate cloned node")
                 _update_node_options(cloned_node)
                 cloned_node._tool.validate()
-            except:
+            except KeyboardInterrupt:
+                raise
+            except Exception:
                 pass
             log.debug("Fanout check for children to update values")
             # update all children

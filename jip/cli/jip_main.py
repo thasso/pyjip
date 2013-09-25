@@ -44,6 +44,7 @@ Miscellaneous other commands:
 """
 import sys
 import jip
+import jip.options
 from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
 
@@ -51,6 +52,14 @@ log = getLogger('jip.cli.jip_main')
 
 
 def main():
+    try:
+        _main()
+    except jip.options.ParserException as err:
+        sys.stderr.write(str(err))
+        sys.exit(1)
+
+
+def _main():
     args = docopt(__doc__, version=str(jip.__version__),
                   options_first=True, help=True)
     if args['--loglevel']:

@@ -165,6 +165,8 @@ class Scanner():
         self.jip_path = jip_path if jip_path else ""
         self.jip_modules = jip_modules if jip_modules else []
         self.jip_file_paths = set([])
+        self.__scanned = False
+        self.__scanned_files = None
 
     def find(self, name, path=None, is_pipeline=False):
         if exists(name):
@@ -210,6 +212,8 @@ class Scanner():
             self.instances[n] = m
 
     def scan_files(self, parent=None):
+        if parent is None and self.__scanned_files is not None:
+            return self.__scanned_files
         import re
         pattern = re.compile(r'^.*(.jip)$')
         files = {}
@@ -228,6 +232,8 @@ class Scanner():
             for path in self.__search(folder, pattern):
                 self.instances[basename(path)] = path
                 files[basename(path)] = path
+        if parent is None:
+            self.__scanned_files = files
         return files
 
     def __search(self, folder, pattern):
@@ -236,7 +242,10 @@ class Scanner():
                 yield path
 
     def scan_modules(self):
+        if self.__scanned:
+            return
         path = getenv("JIP_MODULES", "")
+        log.debug("Scanning modules")
         for module in path.split(":") + self.jip_modules + ['jip.scripts']:
             try:
                 if module:
@@ -244,6 +253,7 @@ class Scanner():
                     __import__(module)
             except ImportError, e:
                 log.warn("Error while importing module: %s", str(e))
+        self.__scanned = True
 
 
 class Block(object):
@@ -349,7 +359,20 @@ class PythonBlockUtils(object):
         return self.pipeline.job(*args, **kwargs)
 
     def name(self, name):
-        self._pipeline.name(name)
+        if self._pipeline is not None:
+            self._pipeline.name(name)
+        else:
+            self.tool.name = name
+
+    def add_output(self, name, value=None):
+        self.tool.options.add(Option(
+            name,
+            option_type=TYPE_OUTPUT,
+            nargs=1,
+            hidden=True
+        ))
+        if value is not None:
+            self.tool.options[name].value = value
 
     def bash(self, command, **kwargs):
         from jip.pipelines import Node
@@ -389,6 +412,7 @@ class PythonBlock(Block):
     def run(self, tool, stdin=None, stdout=None):
         """Execute this block as an embedded python script
         """
+        log.debug("Block: run python block for: %s", tool)
         #tmpl = self.render(tool)
         content = self.content
         if isinstance(content, (list, tuple)):
@@ -403,6 +427,7 @@ class PythonBlock(Block):
             "bash": utils.bash,
             "job": utils.job,
             "name": utils.name,
+            "add_output": utils.add_output,
             'utils': utils,
             'basename': basename
 
@@ -430,6 +455,7 @@ class PythonBlock(Block):
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
             raise
+        log.debug("Block: block for: %s executed", tool)
 
         return env
 

@@ -41,7 +41,7 @@ command::
 This will install into you home folder.
 
 .. note::
-    You might have to update your :envvar:PATH variable to include
+    You might have to update your `PATH` variable to include
     `$HOME/.local/bin`. This is the default install location for `--user` mode.
 
 Install from pypi

@@ -571,3 +571,21 @@ def run(script, script_args, keep=False, force=False, silent=False):
                 if not silent:
                     print colorize(job.state, RED)
                 sys.exit(1)
+
+
+def dry(script, script_args, dry=True, show=False):
+    # we handle --dry and --show separatly,
+    # create the jobs and call the show commands
+    jobs = jip.jobs.create(script, args=script_args)
+    if dry:
+        show_dry(jobs, options=script.options
+                 if isinstance(script, jip.tools.Tool) else None)
+    if show:
+        show_commands(jobs)
+    try:
+        jip.jobs.check_output_files(jobs)
+    except Exception as err:
+        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
+        print >>sys.stderr, str(err)
+        sys.exit(1)
+

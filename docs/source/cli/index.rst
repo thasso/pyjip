@@ -11,4 +11,7 @@ JIP bundles a set of command line utilities.
    jip
    jip_tools
    jip_profiles
+   jip_bash
+   jip_run
+   jip_submit
 

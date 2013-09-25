@@ -21,7 +21,7 @@ Other Options:
 """
 import sys
 
-from . import parse_args, show_dry, show_commands, colorize, RED, run
+from . import parse_args, run, dry
 import jip
 import jip.jobs
 from jip.logger import getLogger
@@ -40,19 +40,7 @@ def main(argv=None):
         sys.exit(1)
 
     if args['--dry'] or args['--show']:
-        # we handle --dry and --show separatly,
-        # create the jobs and call the show commands
-        jobs = jip.jobs.create(script, args=script_args)
-        if args['--dry']:
-            show_dry(jobs, options=script.options)
-        if args['--show']:
-            show_commands(jobs)
-        try:
-            jip.jobs.check_output_files(jobs)
-        except Exception as err:
-            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-            print >>sys.stderr, str(err)
-            sys.exit(1)
+        dry(script, script_args, dry=args['--dry'], show=args['--show'])
         return
 
     try:
