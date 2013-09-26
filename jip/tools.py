@@ -727,8 +727,11 @@ class PythonTool(Tool):
 
         if self.decorator.argparse:
             #initialize the options from argparse
-            from argparse import ArgumentParser
-            self._options_source = ArgumentParser(prog=self.name)
+            import argparse
+            self._options_source = argparse.ArgumentParser(
+                prog=self.name,
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            )
             init_parser = getattr(self.instance, self.decorator.argparse)
             init_parser(self._options_source)
         else:

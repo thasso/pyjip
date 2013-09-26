@@ -184,7 +184,7 @@ class Option(object):
             if v is None and self.required:
                 raise ValueError("Option '%s' is required but "
                                  "not set!" % (self._opt_string()))
-            return self.__resolve(v) if v else ""
+            return self.__resolve(v) if (v or v == 0) else ""
         else:
             return self.join.join([self.__resolve(v) for v in self.value])
 

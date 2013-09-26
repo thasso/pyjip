@@ -126,6 +126,15 @@ The configuration can cover the following entries:
 `profiles`: list of profiles that can be used to configure jobs on a cluster 
 
 
+Jip Tools by example
+====================
+The main parts of the JIP tool and pipeline documentation are structured as
+small hands on tutorials. The examples will guide you through basic tool
+creation and execution as well as pipeline creation and manipulation.
+
+* `Create your first tool<tut_first_tool>`_
+
+
 Indices and tables
 ==================
 
