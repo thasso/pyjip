@@ -16,7 +16,7 @@ TYPE_OUTPUT = "output"
 
 class ParserException(Exception):
     """Exception raised by a the Options argument parser"""
-    def __init__(self, message, options, status=0):
+    def __init__(self, message, options=None, status=0):
         """Create a new ParserException.
 
         :param message: the message
@@ -60,7 +60,7 @@ class Option(object):
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
                  default=None, value=None, required=False, streamable=None,
-                 hidden=False, join=" ", option_type=TYPE_OPTION):
+                 hidden=False, join=" ", option_type=TYPE_OPTION, const=None):
         self.name = name
         self.short = short
         self.long = long
@@ -77,6 +77,7 @@ class Option(object):
         self.render_context = None
         self.dependency = False
         self.user_specified = True
+        self.const = const
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0
@@ -85,6 +86,7 @@ class Option(object):
                     self.nargs = 1
                 else:
                     self.nargs = "*"
+
         self.value = value
         ## we set streamable base on the default value
         if self.streamable is None:
@@ -182,8 +184,8 @@ class Option(object):
             ## single value
             v = None if len(self.value) == 0 else self.value[0]
             if v is None and self.required:
-                raise ValueError("Option '%s' is required but "
-                                 "not set!" % (self._opt_string()))
+                raise ParserException("Option '%s' is required but "
+                                      "not set!" % (self._opt_string()))
             return self.__resolve(v) if (v or v == 0) else ""
         else:
             return self.join.join([self.__resolve(v) for v in self.value])
@@ -256,6 +258,14 @@ class Option(object):
             if len(self.value) == 0:
                 return ""
             return "" if not self.value[0] else self.get_opt()
+        if self.nargs == '?' and self.raw():
+            value = self.raw()[0]
+            if value:
+                if isinstance(value, bool):
+                    return self.get_opt()
+                else:
+                    return "%s %s" % (self.get_opt(), value)
+
         value = self.get()
         if not value:
             return ""
@@ -479,6 +489,10 @@ class Options(object):
             if o.name == "help":
                 continue
             opts = to_opts(o)
+            additional = {}
+            if o.nargs == "?" and o.const is not None:
+                additional['const'] = o.const
+
             if not o.name in opts:
                 if o.nargs == 0:
                     ## create boolean
@@ -486,7 +500,18 @@ class Options(object):
                         *opts,
                         dest=o.name,
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.default
+                        default=o.default,
+                        **additional
+                    )
+                elif o.nargs == "?":
+                    parser.add_argument(
+                        *opts,
+                        dest=o.name,
+                        type=o.type if o.type else str,
+                        nargs="?",
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.default,
+                        **additional
                     )
                 else:
                     parser.add_argument(
@@ -495,7 +520,8 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.default
+                        default=o.default,
+                        **additional
                     )
             else:
                 if o.nargs == 0:
@@ -503,7 +529,17 @@ class Options(object):
                     parser.add_argument(
                         *opts,
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.default
+                        default=o.default,
+                        **additional
+                    )
+                elif o.nargs == "?":
+                    parser.add_argument(
+                        *opts,
+                        type=o.type if o.type else str,
+                        nargs="?",
+                        action="store_true" if o.nargs == 0 else None,
+                        default=o.default,
+                        **additional
                     )
                 else:
                     parser.add_argument(
@@ -511,7 +547,8 @@ class Options(object):
                         type=o.type if o.type else str,
                         nargs="*",
                         action="store_true" if o.nargs == 0 else None,
-                        default=o.default
+                        default=o.default,
+                        **additional
                     )
 
         # Override the argparse error function to
@@ -567,6 +604,7 @@ class Options(object):
         for action in parser._optionals._actions:
             long = None
             short = None
+            const = None
             option_type = TYPE_OPTION
             if action.dest in inputs:
                 option_type = TYPE_INPUT
@@ -578,12 +616,16 @@ class Options(object):
                     long = s
                 elif s.startswith("-") and short is None:
                     short = s
+            if hasattr(action, "const"):
+                const = action.const
+
             opts.add(Option(
                 action.dest,
                 long=long,
                 type=action.type,
                 option_type=option_type,
                 short=short,
+                const=const,
                 nargs=action.nargs,
                 required=action.required,
                 default=action.default if action.dest != "help" else None,

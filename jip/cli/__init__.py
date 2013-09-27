@@ -550,6 +550,9 @@ def submit(script, script_args, keep=False, force=False, silent=False,
 def run(script, script_args, keep=False, force=False, silent=False):
     jobs = jip.jobs.create(script, args=script_args, keep=keep)
     jip.jobs.check_output_files(jobs)
+    # force silent mode for single jobs
+    if len(jobs) == 1:
+        silent = True
 
     for g in jip.jobs.group(jobs):
         job = g[0]

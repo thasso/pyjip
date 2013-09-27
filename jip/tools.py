@@ -728,9 +728,23 @@ class PythonTool(Tool):
         if self.decorator.argparse:
             #initialize the options from argparse
             import argparse
+
+            class PrintDefaultsFormatter(argparse.HelpFormatter):
+                def _get_help_string(self, action):
+                    help = action.help
+                    if '%(default)' not in action.help and \
+                       '(default: ' not in action.help:
+                        if action.default is not argparse.SUPPRESS:
+                            defaulting_nargs = [argparse.OPTIONAL,
+                                                argparse.ZERO_OR_MORE]
+                            if action.option_strings or \
+                               action.nargs in defaulting_nargs:
+                                help += ' (default: %(default)s)'
+                    return help
+
             self._options_source = argparse.ArgumentParser(
                 prog=self.name,
-                formatter_class=argparse.ArgumentDefaultsHelpFormatter
+                formatter_class=PrintDefaultsFormatter
             )
             init_parser = getattr(self.instance, self.decorator.argparse)
             init_parser(self._options_source)
