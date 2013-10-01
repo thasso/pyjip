@@ -52,7 +52,7 @@ def main():
         for job in jobs:
             if job.state not in jip.db.STATES_ACTIVE:
                 if clean:
-                    job.clean()
+                    jip.jobs.clean(job)
                 job.archived = True
                 print "%d archived" % job.id
         session.commit()
