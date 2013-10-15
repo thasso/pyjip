@@ -223,7 +223,7 @@ class Scanner():
                 files[basename(path)] = path
 
         #check cwd
-        for path in self.__search(getcwd(), pattern):
+        for path in self.__search(getcwd(), pattern, False):
             self.instances[basename(path)] = path
             files[basename(path)] = path
 
@@ -236,8 +236,9 @@ class Scanner():
             self.__scanned_files = files
         return files
 
-    def __search(self, folder, pattern):
-        for path in list_dir(folder):
+    def __search(self, folder, pattern, recursive=True):
+        log.debug("Searching folder: %s", folder)
+        for path in list_dir(folder, recursive=recursive):
             if pattern.match(path):
                 yield path
 
@@ -352,6 +353,10 @@ class PythonBlockUtils(object):
         if not opt.is_dependency():
             self.tool.options[name].validate()
 
+    def set(self, name, value):
+        """Set an options value"""
+        self.tool.options[name].value = value
+
     def run(self, name, **kwargs):
         return self.pipeline.run(name, **kwargs)
 
@@ -428,6 +433,7 @@ class PythonBlock(Block):
             "job": utils.job,
             "name": utils.name,
             "add_output": utils.add_output,
+            "set": utils.set,
             'utils': utils,
             'basename': basename
 
