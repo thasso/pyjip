@@ -55,8 +55,9 @@ def show_log(job, cluster, args):
 
 
 def _tail(job, file, lines=10, cmd="tail", is_error=False):
-    print "==> %s [%s] -- %s <==" % \
-        (colorize(str(job), BLUE),
+    print "==> [%s] %s [%s] -- %s <==" % \
+        (colorize(str(job.id), GREEN),
+         colorize(str(job), BLUE),
          colorize(job.state, STATE_COLORS[job.state]),
          colorize(file, RED if is_error else GREEN))
     p = Popen([cmd, "-n", str(lines), str(file)])
