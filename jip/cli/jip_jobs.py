@@ -99,7 +99,10 @@ def _pipeline_runtime(jobs):
     if not ranges:
         return None
     else:
-        t = timedelta(seconds=sum((r[1] - r[0]).seconds for r in ranges))
+        t = timedelta(
+            seconds=sum((r[1] - r[0]).seconds for r in ranges),
+            days=sum((r[1] - r[0]).days for r in ranges)
+        )
         return t
 
 
