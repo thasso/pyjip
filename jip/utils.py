@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """JIP utilities and helper functions"""
 from contextlib import contextmanager
-from os import walk
+from os import walk, listdir
 from os.path import abspath, join
 
 
@@ -26,15 +26,21 @@ def ignored(*exceptions):
         pass
 
 
-def list_dir(base):
+def list_dir(base, recursive=True):
     """Generator function to iterates a directory
     recursively and yields all files.
 
     :param base: the base directory
+    :param recursively: if true, only the content of the top level directory
+                        will be yield
     """
-    for root, dirnames, filenames in walk(base):
-        for filename in filenames:
-            yield abspath(join(root, filename))
+    if recursive:
+        for root, dirnames, filenames in walk(base):
+            for filename in filenames:
+                yield abspath(join(root, filename))
+    else:
+        for f in listdir(base):
+            yield abspath(f)
 
 
 def _search_folder(folder, pattern):
