@@ -1,6 +1,5 @@
 from distribute_setup import use_setuptools
 use_setuptools()
-import jip
 from setuptools import setup, Extension
 
 
@@ -10,7 +9,7 @@ dispatcher_ext = Extension('jip.dispatcher',
 
 setup(
     name='jip',
-    version=jip.__version__,
+    version="0.1",
     description='JIP pipeline library',
     author_email='thasso.griebel@gmail.com',
     url='',
