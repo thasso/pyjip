@@ -36,6 +36,7 @@ from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template, set_global_context
 from jip.utils import list_dir
 from jip.logger import getLogger
+import jip.profiles
 
 log = getLogger('jip.tools')
 
@@ -320,9 +321,15 @@ class Block(object):
         if self._process is not None:
             if self._process._popen is not None:
                 self._process.terminate()
-                # give it 5 seconds to cleanup and exit
+
                 import time
-                time.sleep(5)
+                # sleep and check job states a few times before we do a hard
+                # kill
+                for t in [0.01, 0.05, 0.10, 2, 3]:
+                    time.sleep(t)
+                    if not self.process.is_alive():
+                        break
+
                 if self.process.is_alive():
                     # kill it
                     import os
@@ -340,6 +347,8 @@ class PythonBlockUtils(object):
         self._pipeline = None
         self._local_env = local_env
         self._global_env = None
+        if hasattr(tool, "_pipeline"):
+            self._pipeline = tool._pipeline
 
     @property
     def pipeline(self):
@@ -358,7 +367,7 @@ class PythonBlockUtils(object):
         self.tool.options[name].value = value
 
     def run(self, name, **kwargs):
-        return self.pipeline.run(name, **kwargs)
+        return self._pipeline.run(name, **kwargs)
 
     def job(self, *args, **kwargs):
         return self.pipeline.job(*args, **kwargs)
@@ -424,9 +433,14 @@ class PythonBlock(Block):
             content = "\n".join(content)
         local_env = locals()
         utils = PythonBlockUtils(tool, local_env)
+        profile = jip.profiles.Profile()
+        if hasattr(tool, '_job'):
+            profile = tool._job
+
         env = {
             "tool": tool,
             "args": tool.options.to_dict(),
+            "opts": tool.options,
             "check_file": utils.check_file,
             "run": utils.run,
             "bash": utils.bash,
@@ -435,6 +449,7 @@ class PythonBlock(Block):
             "add_output": utils.add_output,
             "set": utils.set,
             'utils': utils,
+            'profile': profile,
             'basename': basename
 
         }
@@ -462,7 +477,6 @@ class PythonBlock(Block):
                 e.lineno += self._lineno
             raise
         log.debug("Block: block for: %s executed", tool)
-
         return env
 
     def terminate(self):
@@ -851,15 +865,7 @@ class ScriptTool(Tool):
 
     def validate(self):
         if self.validation_block:
-            result = self.validation_block.run(self)
-            if result:
-                args = result.get('args', None)
-                if args:
-                    ## update the options
-                    for opt in self.options:
-                        if opt.name in args:
-                            opt.value = args[opt.name]
-
+            self.validation_block.run(self)
         Tool.validate(self)
 
     def get_command(self):

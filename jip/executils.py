@@ -197,7 +197,7 @@ class DispatcherNode(object):
                 new_state = STATE_DONE if ret_state == 0 else STATE_FAILED
                 if ret_state != 0:
                     success = False
-                log.info("%s | finished with %d", job, process.wait())
+                log.info("%s | finished with %d", job, ret_state)
                 jip.jobs.set_state(job, new_state, update_children=False)
             except OSError as err:
                 if err.errno != 10:

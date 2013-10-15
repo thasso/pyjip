@@ -232,7 +232,11 @@ class Job(Base):
                 if self._process.poll() is None:
                     # give it 5 seconds to cleanup and exit
                     import time
-                    time.sleep(5)
+                    for t in [0.01, 0.02, 0.05, 0.10, 1, 2]:
+                        time.sleep(t)
+                        if self._process.poll() is not None:
+                            break
+
                     if self._process.poll() is None:
                         # kill it
                         import os

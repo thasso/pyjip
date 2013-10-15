@@ -591,4 +591,3 @@ def dry(script, script_args, dry=True, show=False):
         print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
         print >>sys.stderr, str(err)
         sys.exit(1)
-

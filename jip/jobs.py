@@ -278,7 +278,7 @@ def set_state(job, new_state, update_children=True, cleanup=True):
         try:
             job.terminate()
         except:
-            pass
+            log.error("Job termination raised an exception", exc_info=True)
         if not job.keep_on_fail and job.tool:
             log.info("Cleaning job %s after failure", str(job))
             job.tool.cleanup()
@@ -638,6 +638,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     :raises: `jip.tools.ValueError` if a job is invalid
     """
     if args and isinstance(source, jip.tools.Tool):
+        log.info("Parse tool argument")
         source.parse_args(args)
 
     pipeline = source
@@ -688,6 +689,9 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     # an output file occures twice
     for job in jobs:
         log.info("Validate %s", job)
+        # set pipeline and job so validation can modify values
+        job.tool._pipeline = pipeline
+        job.tool._job = job
         job.validate()
         if profile is not None:
             profile.apply(job)
