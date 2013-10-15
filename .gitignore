@@ -2,7 +2,7 @@
 build
 **.pyc
 **.so
-jip.egg-info
+pyjip.egg-info
 *.iml
 dist/
 Makefile.*

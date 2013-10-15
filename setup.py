@@ -8,7 +8,7 @@ dispatcher_ext = Extension('jip.dispatcher',
                             'jip/dispatcher/jip_dispatcher.c'])
 
 setup(
-    name='jip',
+    name='pyjip',
     version="0.1",
     description='JIP pipeline library',
     author_email='thasso.griebel@gmail.com',
