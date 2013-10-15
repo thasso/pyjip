@@ -431,11 +431,9 @@ class Options(object):
         :type option: jip.options.Option
         """
         i = self.__index(option.name)
-        if i >= 0:
-            raise ValueError("Option with the name '%s' already exists",
-                             option.name)
-        self.options.append(option)
-        option.source = self.source
+        if i < 0:
+            self.options.append(option)
+            option.source = self.source
 
     def validate(self):
         """Validate all options"""
