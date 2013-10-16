@@ -10,7 +10,7 @@ from jip.options import ParserException
 from jip.db import STATE_DONE, STATE_QUEUED, STATE_CANCELED, STATE_HOLD, \
     STATE_FAILED
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 config = Config()
 scanner = Scanner(jip_path=config.get('jip_path'),
