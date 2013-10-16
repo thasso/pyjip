@@ -237,7 +237,7 @@ def show_job_tree(jobs, title="Job hierarchy"):
         if len(other_deps) > 0:
             label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
         # print the separator and the label
-        print "%s%s" % (sep, label)
+        print ("%s%s" % (sep, label)).encode('utf-8')
 
         # update levels used by the children
         # and do the recursive call
