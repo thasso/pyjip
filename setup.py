@@ -21,6 +21,7 @@ setup(
     },
     install_requires=["sqlalchemy==0.8.2",
                       "jinja2==2.7",
+                      "argparse"
                       ],
     ext_modules=[dispatcher_ext],
     entry_points={
