@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from jip import find, Pipeline, create_jobs
+from jip import find, Pipeline, create
 
 
 def test_bash_tool_options():
@@ -14,6 +14,6 @@ def test_bash_tool_options():
 def test_bash_tool_job_rendering():
     p = Pipeline()
     p.run('bash', cmd="testme", output="test.out")
-    jobs = create_jobs(p)
+    jobs = create(p)
     assert len(jobs) == 1
     assert jobs[0].command == "(testme)> test.out"

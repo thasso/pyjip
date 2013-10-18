@@ -13,5 +13,7 @@ clean:
 	@rm -f jip/*.pyc
 	@rm -f *.pyc
 	@rm -rf build/
+	@rm -rf dist/
 	@rm -rf jip.egg-info/
+	@rm -rf pyjip.egg-info/
 	$(MAKE) -C docs clean
