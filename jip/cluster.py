@@ -20,8 +20,8 @@ def get():
     """Load the cluster from configuration"""
     name = jip.config.get("cluster", None)
     if name is None:
-        raise LookupError("No cluster configuration found! Please your config "
-                          "file")
+        raise LookupError("No cluster configuration found! Please put "
+                          "your config file in $HOME/.jip/jip.json")
     return from_name(name)
 
 

@@ -225,6 +225,8 @@ def _update_from_cluster_state(job):
     try:
         cluster = jip.cluster.get()
         cluster.update(job)
+    except LookupError:
+        pass
     except:
         log.warn("Error while calling cluster update for job!",
                  exc_info=True)
