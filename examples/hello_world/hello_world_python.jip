@@ -1,0 +1,5 @@
+#!/usr/bin/env jip
+
+#%begin command python
+print "Hello world"
+#end

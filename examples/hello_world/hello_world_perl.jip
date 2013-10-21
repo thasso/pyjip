@@ -1,0 +1,8 @@
+#!/usr/bin/env jip
+
+#%begin command perl
+use strict;
+use warnings;
+
+print "Hello world\n";
+#end
