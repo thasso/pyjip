@@ -184,7 +184,7 @@ def _pipeline_job(job):
 
     progress = "".join(progress)
     job.runtime = _pipeline_runtime(all_jobs)
-    job.queue = ", ".join(queues)
+    job.queue = ", ".join(q for q in queues if q)
     job.progress = progress
     job.state = state
     job.max_time = max_time
