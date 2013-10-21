@@ -19,7 +19,7 @@ Contents:
 Installation
 ------------
 The JIP system is mainly implemented in Python and can be installed from either
-the JIP `GitHub repository <http://github.com/thasso/jip>`_ or directly through
+the JIP `GitHub repository <http://github.com/thasso/pyjip>`_ or directly through
 pypi. 
 
 Install from GitHub
@@ -27,7 +27,7 @@ Install from GitHub
 In order to install JIP from the Github repository, you have to check out the
 code and run the install script::
 
-    $~> git clone https://github.com/thasso/jip
+    $~> git clone https://github.com/thasso/pyjip
     $~> cd jip
     $~/jip> python setup.py install
 
