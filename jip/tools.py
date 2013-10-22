@@ -476,6 +476,13 @@ class PythonBlock(Block):
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
             raise
+
+        # auto naming for tools
+        from jip.pipelines import Node
+        for k, v in env.iteritems():
+            if isinstance(v, Node):
+                if v._job.name is None:
+                    v._job.name = k
         log.debug("Block: block for: %s executed", tool)
         return env
 
