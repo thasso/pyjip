@@ -736,9 +736,9 @@ class Options(object):
         for pattern in sorted(docopt_options.keys(), key=lambda x: x.index):
             name = to_name(pattern)
             option_type = TYPE_OPTION
-            if name in inputs:
+            if name in inputs or (len(inputs) == 0 and name == 'input'):
                 option_type = TYPE_INPUT
-            elif name in outset:
+            elif name in outset or (len(outset) == 0 and name == 'output'):
                 option_type = TYPE_OUTPUT
 
             if type(pattern) == Argument:
