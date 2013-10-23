@@ -5,7 +5,7 @@ from jip import find, Pipeline, create
 def test_bash_tool_options():
     bash = find("bash")
     assert bash.options is not None
-    assert len(bash.options) == 4
+    assert len(bash.options) == 5
     assert bash.options['cmd'] is not None
     assert bash.options['input'] is not None
     assert bash.options['output'] is not None

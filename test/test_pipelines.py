@@ -29,8 +29,7 @@ def test_graph_create():
 
 def test_missing_node_for_edge_insert():
     p = Pipeline()
-    with pytest.raises(KeyError):
-        p.add_edge("A", "B")
+    assert p.add_edge("A", "B") is None
 
 
 def test_topological_sort():
