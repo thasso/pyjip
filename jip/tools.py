@@ -138,8 +138,16 @@ class tool(object):
         return self.__call_delegate(self._pipeline, wrapper, instance)
 
     def get_command(self, wrapper, instance):
-        interp, cmd = self.__call_delegate(self._get_command, wrapper,
-                                           instance)
+        cmds = self.__call_delegate(self._get_command, wrapper,
+                                    instance)
+        interp = "bash"
+        cmd = None
+        if isinstance(cmds, (list, tuple)):
+            interp = cmds[0]
+            cmd = cmds[1]
+        else:
+            cmd = cmds
+
         if interp and cmd:
             block = Block(content=cmd, interpreter=interp)
             return interp, block.render(wrapper)
@@ -256,7 +264,7 @@ class Scanner():
                     log.debug("Importing module: %s", module)
                     __import__(module)
             except ImportError, e:
-                log.warn("Error while importing module: %s. "
+                log.info("Error while importing module: %s. "
                          "Trying file import", str(e))
                 if exists(module):
                     self._load_from_file(module)

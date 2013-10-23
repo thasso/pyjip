@@ -563,7 +563,12 @@ def _create_jobs_for_group(nodes, nodes2jobs):
                     source_job.pipe_targets = out_values
                     out_option.set(sys.stdout)
                     # we also have to rerender the command
-                    _, cmd = source_job.tool.get_command()
+                    cmds = source_job.tool.get_command()
+                    cmd = None
+                    if isinstance(cmds, (list, tuple)):
+                        cmd = cmds[1]
+                    else:
+                        cmd = cmds
                     source_job.command = cmd
 
 
@@ -604,7 +609,14 @@ def from_node(node, env=None, keep=False):
         except:
             pass
 
-    interpreter, command = node._tool.get_command()
+    cmds = node._tool.get_command()
+    interpreter = "bash"
+    command = None
+    if isinstance(cmds, (list, tuple)):
+        interpreter = cmds[0]
+        command = cmds[1]
+    else:
+        command = cmds
     job.interpreter = interpreter
     job.command = command
     return job
