@@ -28,9 +28,11 @@ properties.
 """
 import cPickle
 import copy
+import imp
 from textwrap import dedent
-from os import remove, getcwd, getenv
-from os.path import exists, basename, dirname
+from os import remove, getcwd, getenv, listdir
+from os.path import exists, basename, dirname, abspath
+
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template, set_global_context
@@ -254,8 +256,45 @@ class Scanner():
                     log.debug("Importing module: %s", module)
                     __import__(module)
             except ImportError, e:
-                log.warn("Error while importing module: %s", str(e))
+                log.warn("Error while importing module: %s. "
+                         "Trying file import", str(e))
+                if exists(module):
+                    self._load_from_file(module)
         self.__scanned = True
+
+    def _load_from_file(self, path):
+        """Try to load a module from the given file. No module is loaded
+        if the file does not exists. Otherwise, a fukk module name us guessed
+        by checking for __init__.py files upwards. Then imp.load_source is
+        used to import the module
+
+        :param path: the path to the module file
+        """
+        if not exists(path):
+            return
+        name = self._guess_module_name(path)
+        log.debug("Importing module from file: %s %s", name, path)
+        imp.load_source(name, path)
+
+    def _guess_module_name(self, path):
+        """Guess the absolute module name for the given file by checking for
+        __init__.py files in the current folder structure and upwards"""
+        path = abspath(path)
+        base = basename(path)
+        if base.endswith('.py'):
+            base = base[:-3]
+        name = [base]
+
+        def _load_package_name(current, module_name):
+            inits = filter(lambda x: x == '__init__.py', listdir(current))
+            if inits:
+                module_name.append(basename(current))
+                return _load_package_name(dirname(current), module_name)
+            return module_name
+        # check if this is in a package
+        name = _load_package_name(dirname(path), name)
+        name.reverse()
+        return ".".join(name)
 
 
 class Block(object):
@@ -411,6 +450,10 @@ class PythonBlockUtils(object):
             if isinstance(v, Node):
                 ctx[k] = OptionWrapper(v,
                                        v._tool.options.get_default_output())
+        # add options
+        #ctx['input'] = bash_node._tool.options['input']
+        #ctx['output'] = bash_node._tool.options['output']
+        #ctx['outfile'] = bash_node._tool.options['outfile']
         cmd = render_template(command, **ctx)
         bash_node.cmd = cmd
         return bash_node
