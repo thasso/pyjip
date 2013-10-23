@@ -41,7 +41,7 @@ class bash(object):
     Run a bash command
 
     Usage:
-        bash_runner.jip [-i <input>] [-o <output>] -c <cmd>...
+        bash_runner.jip [-i <input>] [-o <output>] [-O <outfile>] -c <cmd>...
         bash_runner.jip [--help]
 
     Options:
@@ -52,6 +52,7 @@ class bash(object):
         -i, --input <input>       The input file to read
                                   [default: stdin]
     Outputs:
+        -O, --outfile <outfile>   The output file
         -o, --output <output>     The output file to write
                                   [default: stdout]
     """
