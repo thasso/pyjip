@@ -28,7 +28,7 @@ class JipUndefined(Undefined):
     unknown variables
     """
     def __unicode__(self):
-        log.warn("Unknown context variable: %s", self._undefined_name)
+        log.info("Unknown context variable: %s", self._undefined_name)
         return "${%s}" % (self._undefined_name)
 
 
@@ -90,7 +90,7 @@ def name_filter(ctx, value):
 def ext_filter(ctx, value):
     try:
         if isinstance(value, JipUndefined):
-            value = value._undefined_name
+            return "${%s|ext}" % (value._undefined_name)
         if not isinstance(value, Option):
             script = ctx.get('tool', None)
             if script:
@@ -102,11 +102,15 @@ def ext_filter(ctx, value):
             v = str(value)
         else:
             v = value.get()
-        i = str(v).rindex(".")
-        if i > 0:
-            return str(v)[:i]
+        try:
+            i = str(v).rindex(".")
+            if i > 0:
+                return str(v)[:i]
+        except:
+            pass
         return v
     except:
+        log.warn("Error while applying |ext filter!", exc_info=True)
         return value
 
 # global environment
