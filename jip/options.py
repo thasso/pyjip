@@ -353,9 +353,12 @@ class Options(object):
 
     def get_default_output(self):
         """Returns the first output option that is
-        found in the list of options. If no output
+        found in the list of options that has a non-null value. If no output
         option is found, a LookupError is raised
         """
+        for opt in self.get_by_type(TYPE_OUTPUT):
+            if opt.value:
+                return opt
         for opt in self.get_by_type(TYPE_OUTPUT):
             return opt
         raise LookupError("No default output option found")
@@ -422,9 +425,7 @@ class Options(object):
                                            for o in self))
 
     def add(self, option):
-        """Adds an options to the options set and raises an
-        exception if such option already exists.
-
+        """Adds an options to the options set.
         The source is applied to an option added.
 
         :para option: the option to add to the set
@@ -434,6 +435,13 @@ class Options(object):
         if i < 0:
             self.options.append(option)
             option.source = self.source
+
+    def _sort_outputs(self, order):
+        os = set(order)
+        self.options = sorted(
+            self.options,
+            key=lambda o: order.index(o.name) if o.name in os else -1
+        )
 
     def validate(self):
         """Validate all options"""
@@ -679,7 +687,7 @@ class Options(object):
                                        options)
 
         inputs = set(inputs)
-        outputs = set(outputs)
+        outset = set(outputs)
 
         ####################################################################
         # recursice pattern parser. We iterate the pattern and collect
@@ -727,7 +735,7 @@ class Options(object):
             option_type = TYPE_OPTION
             if name in inputs:
                 option_type = TYPE_INPUT
-            elif name in outputs:
+            elif name in outset:
                 option_type = TYPE_OUTPUT
 
             if type(pattern) == Argument:
@@ -753,4 +761,5 @@ class Options(object):
                     default=pattern.value,
                     option_type=option_type
                 ))
+        opts._sort_outputs(outputs)
         return opts
