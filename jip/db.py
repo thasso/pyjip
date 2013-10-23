@@ -58,6 +58,12 @@ job_pipes = Table("job_pipes", Base.metadata,
                   Column("target", Integer,
                          ForeignKey("jobs.id"), primary_key=True))
 
+job_groups = Table("job_groups", Base.metadata,
+                  Column("source", Integer,
+                         ForeignKey("jobs.id"), primary_key=True),
+                  Column("target", Integer,
+                         ForeignKey("jobs.id"), primary_key=True))
+
 
 class Job(Base):
     """The JIP Job class that represents a jobs that is stored in the
@@ -165,6 +171,15 @@ class Job(Base):
                            secondaryjoin=id == job_pipes.c.target,
                            backref=backref('pipe_from', lazy='joined',
                                            join_depth=1))
+
+    group_to = relationship("Job",
+                            lazy="joined",
+                            join_depth=1,
+                            secondary=job_groups,
+                            primaryjoin=id == job_groups.c.source,
+                            secondaryjoin=id == job_groups.c.target,
+                            backref=backref('group_from', lazy='joined',
+                                            join_depth=1))
 
     def __init__(self, tool=None):
         """Create a new Job instance.

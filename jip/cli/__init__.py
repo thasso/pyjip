@@ -129,7 +129,11 @@ def show_commands(jobs):
             job.interpreter,
             ",".join(deps)
         )
-        print " | ".join([j.command for j in g])
+        for i, j in enumerate(g):
+            if i > 0:
+                if not j.group_from:
+                    print "|"
+            print j.command
         print "###"
 
 

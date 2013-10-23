@@ -46,8 +46,8 @@ log = getLogger('jip.executils')
 
 def create_dispatcher_graph(job, _nodes=None):
     """Create a dispatcher graph for a given job. If the job does not
-    have anby pipe targets, a list with a single dispatcher node is returned,
-    otherwise the dispatching grpah is created from all the pipe target job.
+    have any pipe targets, a list with a single dispatcher node is returned,
+    otherwise the dispatching graph is created from all the pipe target job.
 
     :param job: the job
     :type: `jip.db.Job`
@@ -158,6 +158,17 @@ class DispatcherNode(object):
         from jip.db import STATE_RUNNING
         num_sources = len(self.sources)
         num_targets = len(self.targets)
+        has_groups = len(filter(lambda x: len(x.group_to) > 0,
+                                self.sources)) > 0
+        if has_groups:
+            for job in self.sources:
+                jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
+                p = job.run()
+                self.processes.append(p)
+                log.info("Waiting for job group process: %s", job)
+                p.wait()
+            return
+
         if num_targets == 0:
             # no targets, just run the source jobs
             # as they are

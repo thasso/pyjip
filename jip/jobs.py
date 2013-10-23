@@ -570,6 +570,11 @@ def _create_jobs_for_group(nodes, nodes2jobs):
                     else:
                         cmd = cmds
                     source_job.command = cmd
+            elif inedge._group:
+                log.info("Creating job group: %s->%s",
+                         inedge._source, inedge._target)
+                job.pipe_from.append(source_job)
+                job.group_from.append(source_job)
 
 
 def from_node(node, env=None, keep=False):

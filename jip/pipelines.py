@@ -433,6 +433,7 @@ class Pipeline(object):
                 new_edge = None
                 if e._source == node:
                     new_edge = self.add_edge(cloned_node, e._target)
+                    new_edge._group = e._group
                     for link in e._links:
                         link = new_edge.add_link(
                             cloned_tool.options[link[0].name],
@@ -442,6 +443,7 @@ class Pipeline(object):
                                   new_edge, link)
                 elif e._target == node and e not in incoming_edges:
                     new_edge = self.add_edge(e._source, cloned_node)
+                    new_edge._group = e._group
                     for link in e._links:
                         link = new_edge.add_link(
                             link[0],
@@ -455,6 +457,7 @@ class Pipeline(object):
                 if i < len(incoming_edges):
                     e = incoming_edges[i]
                     new_edge = self.add_edge(e._source, cloned_node)
+                    new_edge._group = e._group
                     for link in e._links:
                         link = new_edge.add_link(
                             link[0],
@@ -609,6 +612,20 @@ class Node(object):
         """
         self._graph.add_edge(other, self)
 
+    def group(self, other):
+        """Groups this not and the other node. This creates a dependency
+        between this node and the other nodes and enables grouping so the
+        two nodes will be executed in the same job. The other node is returned
+        so group chains can be created easily.
+
+        :param other: the child node
+        :type other: Node
+        :returns other: the other node
+        """
+        e = self._graph.add_edge(self, other)
+        e._group = True
+        return other
+
     ####################################################################
     # Operators
     ####################################################################
@@ -698,6 +715,9 @@ class Node(object):
             other._nodes.append(self)
             return other
         return _NodeProxy([self, other])
+
+    def __sub__(self, other):
+        return self.group(other)
 
     def __repr__(self):
         return "%s.%d" % (self._tool if not self._job.name else self._job.name,
@@ -857,19 +877,28 @@ class _NodeProxy(object):
     def __add__(self, other):
         return _NodeProxy([self, other])
 
+    def __sub__(self, other):
+        for n in self.nodes:
+            n.group(other)
+        return other
+
 
 class Edge(object):
     """An edge in the pipeline graph conncting source and target nodes.
     The edge has optional information about the jip.options.Options that
     are connected through this edge.
 
-    The edge carries a set on linke. Links are tuples of the form
+    The edge carries a set on links. Links are tuples of the form
     (source_option, target_option, streamable).
+
+    In addition, the edges _group flag indecates that the two nodes linked
+    by the edge should form a job group.
     """
     def __init__(self, source, target):
         self._source = source
         self._target = target
         self._links = set([])
+        self._group = False
 
     def add_link(self, source_option, target_option, allow_stream=True):
         """Create an option link between the source option and the target
