@@ -118,6 +118,9 @@ class Option(object):
     def is_dependency(self):
         return self.dependency
 
+    def __add__(self, other):
+        return str(self.get()) + other
+
     @property
     def value(self):
         values = self._value
