@@ -65,6 +65,39 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
     except:
         return value
 
+
+@contextfilter
+def else_filter(ctx, value, prefix=None, suffix=None):
+    try:
+        if isinstance(value, JipUndefined):
+            value = value._undefined_name
+        if not isinstance(value, Option):
+            script = ctx.get('tool', None)
+            if script:
+                v = script.options[value]
+                if v is not None:
+                    value = v
+
+        if not isinstance(value, Option):
+            if value:
+                return value
+            prefix = prefix if prefix is not None else ""
+            suffix = suffix if suffix is not None else ""
+            return "%s%s" % (prefix, suffix)
+
+        if value.to_cmd() != "":
+            return value
+
+        v = value.get()
+        prefix = prefix if prefix is not None else value.get_opt()
+        suffix = suffix if suffix is not None else ""
+        # we add a space between the prefix and the value iff the prefix is
+        # not empty and does not end in space and the value is not empty
+        space = "" if (prefix == "" or v == "" or prefix[-1] == " ") else " "
+        return "%s%s%s%s" % (prefix, space, v, suffix)
+    except:
+        return value
+
 @contextfilter
 def name_filter(ctx, value):
     from os.path import basename
@@ -118,6 +151,7 @@ environment = Environment(undefined=JipUndefined,
                           variable_start_string="${",
                           variable_end_string="}")
 environment.filters['arg'] = arg_filter
+environment.filters['else'] = else_filter
 environment.filters['name'] = name_filter
 environment.filters['ext'] = ext_filter
 
