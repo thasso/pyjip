@@ -252,6 +252,7 @@ class Job(Base):
                 os.environ[k] = v
         os.environ["JIP_ID"] = str(self.id) if self.id is not None else ""
         os.environ["JIP_JOB"] = str(self.job_id) if self.job_id else ""
+        os.environ["JIP_THREADS"] = str(self.threads) if self.threads else "1"
 
     def run(self):
         """Execute a single job. Note that no further checks on the

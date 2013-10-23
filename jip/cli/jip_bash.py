@@ -16,6 +16,7 @@ Options:
     -p, --priority <prio>    Job priority
     -A, --account <account>  The account to use for submission
     -C, --threads <cpus>     Number of CPU's assigned to the job
+                             [default: 1]
     -m, --mem <mem>          Max memory assigned to the job
     -n, --name <name>        Job name
     -R, --reload             Reload and rerender the job command
@@ -65,7 +66,8 @@ def main():
 
     if not args["--submit"]:
         jip.cli.run(pipeline, [], keep=args['--keep'],
-                    force=args['--force'], silent=True)
+                    force=args['--force'], silent=True,
+                    threads=args['--threads'])
     else:
         profile = jip.profiles.get(name='default'
                                    if not args['--profile']

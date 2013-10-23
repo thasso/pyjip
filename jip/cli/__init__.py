@@ -11,6 +11,7 @@ from jip.vendor.texttable import Texttable
 import jip.db
 import jip.jobs
 import jip.logger
+import jip.profiles
 
 log = jip.logger.getLogger('job.cli')
 
@@ -547,8 +548,10 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         _session.close()
 
 
-def run(script, script_args, keep=False, force=False, silent=False):
-    jobs = jip.jobs.create(script, args=script_args, keep=keep)
+def run(script, script_args, keep=False, force=False, silent=False, threads=1):
+    profile = jip.profiles.Profile(threads=threads)
+    jobs = jip.jobs.create(script, args=script_args, keep=keep,
+                           profile=profile)
     jip.jobs.check_output_files(jobs)
     # force silent mode for single jobs
     if len(jobs) == 1:

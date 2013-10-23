@@ -2,7 +2,7 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-p] [-f] [-k] [--dry] [--show]
+usage: jip-run [-h] [-p] [-f] [-k] [-C <threads>][--dry] [--show]
                <tool> [<args>...]
 
 Options:
@@ -10,6 +10,9 @@ Options:
   -f, --force              force command execution
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation
+  -C, --threads <threads>  Number of threads assigned to the job. The threads a
+                           exposed as JIP_THREADS envorinment variable
+                           [default: 1]
   --show                   show the rendered script rather than running it
   --dry                    show the configuration of the script/pipeline
   <tool>                   the tool that will be executed
@@ -45,7 +48,7 @@ def main(argv=None):
 
     try:
         run(script, script_args, keep=args['--keep'], silent=False,
-            force=args['--force'])
+            force=args['--force'], threads=args['--threads'])
     except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
