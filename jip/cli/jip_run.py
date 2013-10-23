@@ -44,7 +44,8 @@ def main(argv=None):
         return
 
     try:
-        run(script, script_args, keep=args['--keep'], silent=False)
+        run(script, script_args, keep=args['--keep'], silent=False,
+            force=args['--force'])
     except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
