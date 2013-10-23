@@ -105,7 +105,11 @@ class Pipeline(object):
 
     def add_edge(self, source, target):
         source, target = self.__resolve_node_tool(source, target)
-        source_node = self._nodes[source]
+        source_node = None
+        try:
+            source_node = self._nodes[source]
+        except LookupError:
+            return None
         target_node = self._nodes[target]
         edge = Edge(source_node, target_node)
         if edge in self._edges:
@@ -788,7 +792,8 @@ class Node(object):
             # get the edge. The source is the values.source, which
             # references the other options tool
             edge = self._graph.add_edge(value.source, self._tool)
-            edge.add_link(value, option, allow_stream=allow_stream)
+            if edge:
+                edge.add_link(value, option, allow_stream=allow_stream)
         else:
             if not append:
                 if set_dep:
