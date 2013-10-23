@@ -266,6 +266,11 @@ class Job(Base):
         # write template to named temp file and run with interpreter
         script_file = create_temp_file()
         try:
+            if self.interpreter == 'bash':
+                log.debug("Setting up default bash environment "
+                          "and enable pipefail")
+                script_file.write("set -o pipefail\n\n")
+
             log.debug("Writing command: %s", self.command)
             script_file.write(self.command)
             script_file.close()
