@@ -104,6 +104,8 @@ class tool(object):
         self._help = help if help else "help"
 
     def __call__(self, cls):
+        # overwrite the string representation
+        cls.__repr__ = lambda x: self.name
         Scanner.registry[self.name] = PythonTool(cls, self,
                                                  self.add_outputs)
         log.debug("Registered tool from module: %s", self.name)
@@ -125,6 +127,7 @@ class tool(object):
             if (hasattr(fun, "__self__") and fun.__self__ is not None) or \
                (hasattr(fun, "im_self") and fun.im_self is not None):
                 instance.options = wrapper.options
+                instance.validation_error = wrapper.validation_error
                 return fun()
             else:
                 return fun(wrapper)
@@ -674,6 +677,9 @@ class Tool(object):
                         raise ValidationError(self,
                                               "Input file not found: %s" %
                                               value)
+
+    def validation_error(self, message, *args):
+        raise ValidationError(self, message % args)
 
     def is_done(self):
         """The default implementation return true if the tools has output
