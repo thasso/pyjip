@@ -32,6 +32,7 @@ import imp
 from textwrap import dedent
 from os import remove, getcwd, getenv, listdir
 from os.path import exists, basename, dirname, abspath
+import sys
 
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
@@ -818,7 +819,17 @@ class PythonTool(Tool):
                                                 argparse.ZERO_OR_MORE]
                             if action.option_strings or \
                                action.nargs in defaulting_nargs:
-                                help += ' (default: %(default)s)'
+                                if isinstance(action.default, file):
+                                    if action.default == sys.stdout:
+                                        help += ' (default: stdout)'
+                                    elif action.default == sys.stdin:
+                                        help += ' (default: stdin)'
+                                    elif action.default == sys.stderr:
+                                        help += ' (default: stderr)'
+                                    else:
+                                        help += ' (default: <stream>)'
+                                else:
+                                    help += ' (default: %(default)s)'
                     return help
 
             self._options_source = argparse.ArgumentParser(
