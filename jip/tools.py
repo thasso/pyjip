@@ -879,6 +879,7 @@ class PythonTool(Tool):
         self.instance()
 
     def validate(self):
+        Tool.validate(self)
         return self.decorator.validate(self, self.instance)
 
     def is_done(self):
