@@ -29,10 +29,12 @@ properties.
 import cPickle
 import copy
 import imp
+import inspect
 from textwrap import dedent
 from os import remove, getcwd, getenv, listdir
 from os.path import exists, basename, dirname, abspath
 import sys
+import types
 
 
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
@@ -46,12 +48,18 @@ log = getLogger('jip.tools')
 # the pickle template to store a pyton tool
 _pickel_template = """
 python -c '
-import sys;
-import cPickle;
-import jip;
-jip._disable_module_search = True;
-source="".join([l for l in sys.stdin]).decode("base64");
-cPickle.loads(source).run();
+import sys
+import cPickle
+import jip
+import types
+
+jip._disable_module_search = True
+source="".join([l for l in sys.stdin]).decode("base64")
+tool = cPickle.loads(source)
+if isinstance(tool, types.FunctionType):
+    tool()
+else:
+    tool.run()
 '<< __EOF__
 %s__EOF__
 """
@@ -86,12 +94,16 @@ class tool(object):
     """
     def __init__(self, name, inputs=None, outputs=None, argparse='register',
                  get_command=None, validate=None, add_outputs=None,
-                 pipeline=None, is_done=None, cleanup=None, help=None):
+                 pipeline=None, is_done=None, cleanup=None, help=None,
+                 check_files=None, ensure=None, pytool=False):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
         self.argparse = argparse
         self.add_outputs = add_outputs
+        self._check_files = check_files
+        self._ensure = ensure
+        self._pytool = pytool
 
         ################################################################
         # tool delegates
@@ -105,7 +117,8 @@ class tool(object):
 
     def __call__(self, cls):
         # overwrite the string representation
-        cls.__repr__ = lambda x: self.name
+        if not isinstance(cls, types.FunctionType):
+            cls.__repr__ = lambda x: self.name
         Scanner.registry[self.name] = PythonTool(cls, self,
                                                  self.add_outputs)
         log.debug("Registered tool from module: %s", self.name)
@@ -136,7 +149,14 @@ class tool(object):
                 return fun(wrapper)
 
     def validate(self, wrapper, instance):
-        return self.__call_delegate(self._validate, wrapper, instance)
+        r = self.__call_delegate(self._validate, wrapper, instance)
+        if self._check_files:
+            for check in self._check_files:
+                wrapper.check_file(check)
+        if self._ensure:
+            for e in self._ensure:
+                wrapper.ensure(e[0], e[1], None if len(e) < 3 else e[2])
+        return r
 
     def is_done(self, wrapper, instance):
         return self.__call_delegate(self._is_done, wrapper, instance)
@@ -145,10 +165,30 @@ class tool(object):
         return self.__call_delegate(self._pipeline, wrapper, instance)
 
     def get_command(self, wrapper, instance):
-        cmds = self.__call_delegate(self._get_command, wrapper,
-                                    instance)
         interp = "bash"
         cmd = None
+        if not isinstance(instance, types.FunctionType):
+            cmds = self.__call_delegate(self._get_command, wrapper,
+                                        instance)
+        else:
+            if self._pytool:
+                # this is a single function that we want to execute
+                # as a tool
+                wrapper.decorator.add_outputs = None
+                wrapper._add_outputs = None
+                wrapper.cls = None
+                r = ('bash', _pickel_template %
+                     (cPickle.dumps(wrapper).encode("base64")))
+                return r
+            else:
+                # this is not a python tool function but a function
+                # that will return a template
+                argspec = inspect.getargspec(instance)
+                if len(argspec[0]) > 0:
+                    cmds = instance(wrapper)
+                else:
+                    cmds = instance()
+
         if isinstance(cmds, (list, tuple)):
             interp = cmds[0]
             cmd = cmds[1]
@@ -165,6 +205,17 @@ class tool(object):
 
     def help(self, wrapper, instance):
         return self.__call_delegate(self._help, wrapper, instance)
+
+
+class pytool(tool):
+    """This is a decorator that can be used to mark single python functions
+    as tools. The function will be wrapped in a PythonTool instance and
+    the function must accept a single paramter self to access to tools
+    options.
+    """
+    def __init__(self, *args, **kwargs):
+        kwargs['pytool'] = True
+        tool.__init__(self, *args, **kwargs)
 
 
 class Scanner():
@@ -271,8 +322,8 @@ class Scanner():
                     log.debug("Importing module: %s", module)
                     __import__(module)
             except ImportError, e:
-                log.info("Error while importing module: %s. "
-                         "Trying file import", str(e))
+                log.debug("Error while importing module: %s. "
+                          "Trying file import", str(e))
                 if exists(module):
                     self._load_from_file(module)
         self.__scanned = True
@@ -861,7 +912,10 @@ class PythonTool(Tool):
         self.cls = cls
         self.name = decorator.name
         try:
-            self.instance = cls()
+            if not isinstance(cls, types.FunctionType):
+                self.instance = cls()
+            else:
+                self.instance = cls
         except:
             self.instance = cls
         ################################################################
@@ -925,6 +979,9 @@ class PythonTool(Tool):
         ## add additional output arguments
         if self._add_outputs is not None:
             for arg in self._add_outputs:
+                if isinstance(arg, (list, tuple)):
+                    # get default value
+                    arg = arg[0]
                 self._options.add(Option(
                     arg,
                     option_type=TYPE_OUTPUT,
@@ -936,9 +993,30 @@ class PythonTool(Tool):
     def run(self):
         self.instance.options = self.options
         self.instance.tool_instance = self
-        self.instance()
+        if isinstance(self.instance, types.FunctionType):
+            # check if the function takes a paramter
+            argspec = inspect.getargspec(self.instance)
+            if len(argspec[0]) > 0:
+                self.instance(self)
+            else:
+                self.instance()
+        else:
+            self.instance()
 
     def validate(self):
+        if self._add_outputs is not None:
+            for arg in self._add_outputs:
+                if isinstance(arg, (list, tuple)):
+                    value = arg[1]
+                    arg = arg[0]
+                    if callable(value):
+                        try:
+                            value = value(self)
+                        except Exception as err:
+                            log.error("Error evaluating output value: %s",
+                                      str(err), exc_info=True)
+                    self.options[arg].set(value)
+
         r = self.decorator.validate(self, self.instance)
         Tool.validate(self)
         return r

@@ -2,7 +2,7 @@
 """JIP script execution and pipeline system"""
 import jip.logger
 from jip.logger import log_level
-from jip.tools import tool, Scanner, ValidationError, Tool
+from jip.tools import tool, pytool, Scanner, ValidationError, Tool
 from jip.jobs import create, set_state
 from jip.pipelines import Pipeline
 from jip.configuration import Config

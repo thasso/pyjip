@@ -188,7 +188,7 @@ class Option(object):
             v = None if len(self.value) == 0 else self.value[0]
             if v is None and self.required:
                 raise ParserException("Option '%s' is required but "
-                                      "not set!" % (self._opt_string()))
+                                      "not set!\n" % (self._opt_string()))
             return self.__resolve(v) if (v or v == 0) else ""
         else:
             return self.join.join([self.__resolve(v) for v in self.value])
@@ -221,7 +221,7 @@ class Option(object):
         """
         if self.required:
             if self.nargs != 0 and len(self.value) == 0:
-                raise ValueError("Option %s is required but not set!" %
+                raise ValueError("Option %s is required but not set!\n" %
                                  self._opt_string())
 
     def check_file(self):
