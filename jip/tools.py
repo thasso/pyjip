@@ -83,7 +83,7 @@ class tool(object):
     are optional and allow you to delegate functionality between the actual
     :class:`jip.tool.Tool` implementation and the decorated class.
     """
-    def __init__(self, name, inputs=None, outputs=None, argparse=None,
+    def __init__(self, name, inputs=None, outputs=None, argparse='register',
                  get_command=None, validate=None, add_outputs=None,
                  pipeline=None, is_done=None, cleanup=None, help=None):
         self.name = name
@@ -803,7 +803,8 @@ class PythonTool(Tool):
         if self._options is not None:
             return self._options
 
-        if self.decorator.argparse:
+        if self.decorator.argparse and hasattr(self.instance,
+                                               self.decorator.argparse):
             #initialize the options from argparse
             import argparse
 
