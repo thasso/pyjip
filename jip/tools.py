@@ -127,6 +127,7 @@ class tool(object):
             if (hasattr(fun, "__self__") and fun.__self__ is not None) or \
                (hasattr(fun, "im_self") and fun.im_self is not None):
                 instance.options = wrapper.options
+                instance.args = wrapper.args
                 instance.validation_error = wrapper.validation_error
                 return fun()
             else:
@@ -607,6 +608,12 @@ class Tool(object):
             if self._options_source is not None:
                 self._options = self._parse_options(self._options_source)
         return self._options
+
+    @property
+    def args(self):
+        """Returns a dictionary from the option names to the option values
+        """
+        return self.options.to_dict()
 
     def parse_args(self, args):
         """Parses the given argument. An excetion is raised if

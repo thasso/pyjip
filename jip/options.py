@@ -345,7 +345,14 @@ class Options(object):
                 r[o.name] = o.raw()
             else:
                 r[o.name] = o
-        return r
+
+        class ReadonlyDict(dict):
+            def __setitem__(self, key, value):
+                raise Exception("\n\nYou can not set option values in this\n"
+                                "dictionary. The argument representation is\n"
+                                "read-only. If you want to modify an option,\n"
+                                "use the options set() method.")
+        return ReadonlyDict(r)
 
     def to_cmd(self):
         """Render all non hidden options to a single command line
