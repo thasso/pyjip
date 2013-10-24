@@ -622,9 +622,13 @@ class Options(object):
             short = None
             const = None
             option_type = TYPE_OPTION
-            if action.dest in inputs:
+            if action.dest in inputs or \
+               action.dest == 'input' or \
+               (action.default and action.default == sys.stdin):
                 option_type = TYPE_INPUT
-            elif action.dest in outputs:
+            elif action.dest in outputs or \
+                    action.dest == 'output' or \
+                    (action.default and action.default == sys.stdout):
                 option_type = TYPE_OUTPUT
 
             for s in action.option_strings:
