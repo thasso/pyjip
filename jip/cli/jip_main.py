@@ -55,9 +55,11 @@ def main():
     try:
         _main()
     except jip.options.ParserException as err:
+        log.debug("parser error: %s", str(err), exc_info=True)
         sys.stderr.write(str(err))
         sys.exit(1)
     except jip.ValidationError as va:
+        log.debug("validation error: %s", str(va), exc_info=True)
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
