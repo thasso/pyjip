@@ -128,6 +128,8 @@ class tool(object):
                (hasattr(fun, "im_self") and fun.im_self is not None):
                 instance.options = wrapper.options
                 instance.args = wrapper.args
+                instance.ensure = wrapper.ensure
+                instance.check_file = wrapper.check_file
                 instance.validation_error = wrapper.validation_error
                 return fun()
             else:
@@ -688,6 +690,64 @@ class Tool(object):
     def validation_error(self, message, *args):
         raise ValidationError(self, message % args)
 
+    def ensure(self, option_name, check, message=None):
+        """Check a given option value using the check pattern or function and
+        raise a ValidationError in case the pattern does not match or the
+        function does return False.
+
+        In case of list values, please note that in case check is a pattern,
+        all values are checked independently. If check is a function, the
+        list is passed on as is if the option takes list values, otherwise,
+        the check function is called for each value independently.
+
+        Note also that you shoudl not use this function to check for file
+        existence. Use the `check_file()` function on the option or on the
+        tool instead. `check_file` checks for incoming dependencies in
+        pipelines, in which case the file does not exist _yet_ but it
+        will be created by a parent job.
+
+        :param option_name: the name of the option to check
+        :param check: either a string that is interpreter as a regexp pattern
+                      or a function that takes the options value as a single
+                      paramter and returns True if the value is valid
+        """
+        o = self.options[option_name]
+        if isinstance(check, basestring):
+            # regexp patter
+            import re
+            for v in o.value:
+                if not re.match(check, str(v)):
+                    self.validation_error(
+                        message if message else "check failed for %s" % str(v)
+                    )
+            return
+        elif callable(check):
+            if o.nargs == 0 or o.nargs == 1:
+                for v in o.value:
+                    if not check(v):
+                        self.validation_error(
+                            message if message
+                            else "check failed for %s" % str(v)
+                        )
+            else:
+                if not check(o.value):
+                    self.validation_error(
+                        message if message else "check failed for %s" % str(v)
+                    )
+            return
+        raise Exception("Ensure check paramter has to be a "
+                        "function or a pattern")
+
+    def check_file(self, option_name):
+        """Delegates to the options check name function
+
+        :param option_name: the name of the option
+        """
+        try:
+            self.options[option_name].check_file()
+        except ValueError as e:
+            self.validation_error(str(e))
+
     def is_done(self):
         """The default implementation return true if the tools has output
         files and all output files exist.
@@ -879,8 +939,9 @@ class PythonTool(Tool):
         self.instance()
 
     def validate(self):
+        r = self.decorator.validate(self, self.instance)
         Tool.validate(self)
-        return self.decorator.validate(self, self.instance)
+        return r
 
     def is_done(self):
         return self.decorator.is_done(self, self.instance)

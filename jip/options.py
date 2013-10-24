@@ -224,7 +224,7 @@ class Option(object):
                 raise ValueError("Option %s is required but not set!" %
                                  self._opt_string())
 
-    def check_files(self):
+    def check_file(self):
         """Validate this options and check that, if the options is not
         set through a dependency, all string values represent existing
         files
