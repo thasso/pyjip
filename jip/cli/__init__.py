@@ -93,7 +93,7 @@ def show_dry(jobs, options=None, profiles=False):
     #############################################################
     # Print general options
     #############################################################
-    if options:
+    if options and len(jobs) > 1:
         show_options(options,
                      "Pipeline Configuration",
                      ['help', 'dry', 'force'])
@@ -101,14 +101,15 @@ def show_dry(jobs, options=None, profiles=False):
     # print job options
     #############################################################
     for job in jobs:
-        show_options(job.configuration, "Job-%s" % str(job))
+        show_options(job.configuration, "Job - %s" % str(job))
     #############################################################
     # print job states
     #############################################################
     show_job_states(jobs)
     if profiles:
         show_job_profiles(jobs)
-    show_job_tree(jobs)
+    if len(jobs) > 1:
+        show_job_tree(jobs)
 
 
 def show_commands(jobs):
