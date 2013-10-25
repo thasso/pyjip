@@ -95,7 +95,8 @@ class tool(object):
     def __init__(self, name, inputs=None, outputs=None, argparse='register',
                  get_command=None, validate=None, add_outputs=None,
                  pipeline=None, is_done=None, cleanup=None, help=None,
-                 check_files=None, ensure=None, pytool=False):
+                 check_files=None, ensure=None, pytool=False,
+                 force_pipeline=False):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
@@ -104,6 +105,7 @@ class tool(object):
         self._check_files = check_files
         self._ensure = ensure
         self._pytool = pytool
+        self._force_pipeline = force_pipeline
 
         ################################################################
         # tool delegates
@@ -215,6 +217,15 @@ class pytool(tool):
     """
     def __init__(self, *args, **kwargs):
         kwargs['pytool'] = True
+        tool.__init__(self, *args, **kwargs)
+
+
+class pipeline(tool):
+    """This is a decorator that can be used to mark single python functions
+    as pipelines.
+    """
+    def __init__(self, *args, **kwargs):
+        kwargs['force_pipeline'] = True
         tool.__init__(self, *args, **kwargs)
 
 
@@ -472,7 +483,7 @@ class PythonBlockUtils(object):
         self.tool.options[name].value = value
 
     def run(self, name, **kwargs):
-        return self._pipeline.run(name, **kwargs)
+        return self.pipeline.run(name, **kwargs)
 
     def job(self, *args, **kwargs):
         return self.pipeline.job(*args, **kwargs)
@@ -560,7 +571,6 @@ class PythonBlock(Block):
             'utils': utils,
             'profile': profile,
             'basename': basename
-
         }
 
         # link known tools into the context
@@ -576,6 +586,11 @@ class PythonBlock(Block):
                 k = k[:-4]
             if not k in env:
                 env[k] = partial(utils.run, name)
+
+        # link options to context
+        for o in tool.options:
+            if not o.name in env:
+                env[o.name] = o
 
         utils._global_env = env
         set_global_context(env)
@@ -1025,6 +1040,27 @@ class PythonTool(Tool):
         return self.decorator.is_done(self, self.instance)
 
     def pipeline(self):
+        if self.decorator._force_pipeline and isinstance(self.instance,
+                                                         types.FunctionType):
+            # force pipeline generation. Call the instance function
+            # and check if the retrned value is a pipeline or a string
+            # strings go into a pipeline block for evaluation, pipelines
+            # are returned unmodified
+            # check if the function takes a paramter
+            argspec = inspect.getargspec(self.instance)
+            r = None
+            if len(argspec[0]) > 0:
+                r = self.instance(self)
+            else:
+                r = self.instance()
+            if isinstance(r, basestring):
+                # create a pipeline block and evaluate it
+                block = PythonBlock(r)
+                e = block.run(self)
+                return e['utils']._pipeline
+            else:
+                return r
+
         return self.decorator.pipeline(self, self.instance)
 
     def help(self):
