@@ -13,6 +13,11 @@ TYPE_OPTION = "option"
 TYPE_INPUT = "input"
 TYPE_OUTPUT = "output"
 
+#: check that required options are set on access
+# this can be disable so that for example pipeline can be
+# created to access their structure even tough they might not work
+_check_required = True
+
 
 class ParserException(Exception):
     """Exception raised by a the Options argument parser"""
@@ -160,7 +165,7 @@ class Option(object):
             return sys.stdout
         if v == 'stderr':
             self.option_type = TYPE_OUTPUT
-            return sys.sterr
+            return sys.stderr
         return v
 
     def get_opt(self):
@@ -186,7 +191,7 @@ class Option(object):
                                  "than one value!" % self.name)
             ## single value
             v = None if len(self.value) == 0 else self.value[0]
-            if v is None and self.required:
+            if v is None and self.required and _check_required:
                 raise ParserException("Option '%s' is required but "
                                       "not set!\n" % (self._opt_string()))
             return self.__resolve(v) if (v or v == 0) else ""

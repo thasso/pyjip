@@ -8,6 +8,7 @@ the configuration. This profile can than be refiend by a pipeline script
 or command line options.
 """
 import re
+import os
 
 import jip.utils
 from jip.templates import render_template
@@ -17,12 +18,10 @@ class Profile(object):
     """A Profile contains cluster and runtime specific information about
     a job.
     """
-
-    """Container class that wrapps job meta-data"""
     def __init__(self, name=None, threads=1,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=0, extra=None,
-                 profile=None, prefix=None, temp=False, _load=True):
+                 profile=None, prefix=None, temp=False, _load=True, env=None):
         self.name = render_template(name)
         self.threads = render_template(threads)
         self.profile = render_template(profile)
@@ -34,8 +33,10 @@ class Profile(object):
         self.out = render_template(out)
         self.account = render_template(account)
         self.prefix = render_template(prefix)
+        self.env = None
         self.temp = temp
         self.extra = extra
+        self.job_specs = None
         if profile is not None and _load:
             self.load(profile)
 
@@ -62,6 +63,7 @@ class Profile(object):
         self.account = profile.get('account', self.account)
         self.mem = profile.get('mem', self.mem)
         self.extra = profile.get('extra', self.extra)
+        self.enc = profile.get('env', self.env)
 
     def load_args(self, args):
         """Update this profile from the given dictionary of command line
@@ -100,8 +102,26 @@ class Profile(object):
         if self.extra is not None:
             job.extra = self.extra
 
-        for child in job.pipe_to:
-            self.apply(child)
+        # load environment
+        if self.env:
+            current = os.environ.copy()
+            if job.env:
+                current.update(job.env)
+            rendered = {}
+            for k, v in self.env.iteritems():
+                rendered[k] = render_template(v, **current)
+            job.env.update(rendered)
+
+
+        if self.job_specs is not None and job._tool.name in self.job_specs:
+            # apply the job spec
+            spec_profile = Profile(threads=self.threads)
+            spec_profile.load_spec(self.job_specs[job._tool.name], None)
+            spec_profile.apply(job)
+
+        if hasattr(job, 'pipe_to'):
+            for child in job.pipe_to:
+                self.apply(child)
 
     def __call__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
@@ -126,6 +146,21 @@ class Profile(object):
 
     def __repr__(self):
         return str(vars(self))
+
+    def load_spec(self, spec, tool):
+        """Update this profile from the specifications default parameters
+
+        :param spec: dictionary with the job specification
+        :param tool: name of the tool or pipeline
+        """
+        if spec is not None and (tool is None or tool in spec):
+            d = spec if tool is None or tool not in spec else spec[tool]
+            for k, v in d.iteritems():
+                if v is None:
+                    continue
+                self.__setattr__(k, v)
+            if tool is not None and 'jobs' in spec[tool]:
+                self.job_specs = spec[tool]['jobs']
 
 
 def get(name='default'):

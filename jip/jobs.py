@@ -628,7 +628,7 @@ def from_node(node, env=None, keep=False):
 
 
 def create(source, args=None, excludes=None, skip=None, keep=False,
-           profile=None):
+           profile=None, validate=True):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.
 
@@ -654,6 +654,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
                  node is removed
     :param keep: keep the jobs output on failure
     :param profile: default job profile that will be applied to all jobs
+    :param validate: set this to False to disable job validation
     :raises: `jip.tools.ValueError` if a job is invalid
     """
     if args and isinstance(source, jip.tools.Tool):
@@ -668,7 +669,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
         pipeline = p
 
     log.info("Expanding pipeline with %d nodes", len(pipeline))
-    pipeline.expand()
+    pipeline.expand(validate=validate)
     log.info("Expanded pipeline has %d nodes", len(pipeline))
     if pipeline.excludes:
         if not excludes:
@@ -711,7 +712,11 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
         # set pipeline and job so validation can modify values
         job.tool._pipeline = pipeline
         job.tool._job = job
-        job.validate()
+        try:
+            job.validate()
+        except:
+            if validate:
+                raise
         if profile is not None:
             profile.apply(job)
     return jobs

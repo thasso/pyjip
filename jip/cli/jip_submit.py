@@ -2,7 +2,7 @@
 """
 Submit a jip script to a remote cluster
 
-usage: jip-submit [-f] [-k] [-P <profile>] [-t <time>] [-q <queue>]
+usage: jip-submit [-f] [-k] [-P <profile>] [-s <spec>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
                   [-o <out>] [-e <err>] [-H] [--dry] [--show]
                   <tool> [<args>...]
@@ -12,6 +12,7 @@ Options:
   -k, --keep               do not perform a cleanup step after job failure or
                            cancellation
   -P, --profile <profile>  Select a job profile for resubmission
+  -s, --spec <spec>        Job environment specification file (see jip specs)
   -t, --time <time>        Max wallclock time for the job
   -q, --queue <queue>      Job queue
   -p, --priority <prio>    Job priority
@@ -33,6 +34,7 @@ Other Options:
     -h --help             Show this help message
 
 """
+import json
 import sys
 
 import jip
@@ -58,6 +60,10 @@ def main(argv=None):
     profile = jip.profiles.get(name='default'
                                if not args['--profile']
                                else args['--profile'])
+    if args['--spec']:
+        with open(args['--spec']) as of:
+            profile.load_spec(json.load(of), script.name)
+
     profile.load_args(args)
     log.info("Profile: %s", profile)
 

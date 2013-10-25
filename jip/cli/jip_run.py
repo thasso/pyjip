@@ -2,7 +2,7 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-p] [-f] [-k] [-C <threads>][--dry] [--show]
+usage: jip-run [-h] [-p] [-f] [-k] [-s <spec>] [-C <threads>][--dry] [--show]
                <tool> [<args>...]
 
 Options:
@@ -13,6 +13,7 @@ Options:
   -C, --threads <threads>  Number of threads assigned to the job. The threads a
                            exposed as JIP_THREADS envorinment variable
                            [default: 1]
+  -s, --spec <spec>        Load a pipeline/jobs specification
   --show                   show the rendered script rather than running it
   --dry                    show the configuration of the script/pipeline
   <tool>                   the tool that will be executed
@@ -22,6 +23,7 @@ Other Options:
     -h --help             Show this help message
 
 """
+import json
 import sys
 
 from . import parse_args, run, dry
@@ -46,9 +48,15 @@ def main(argv=None):
         dry(script, script_args, dry=args['--dry'], show=args['--show'])
         return
 
+    spec = None
+    if args['--spec']:
+        with open(args['--spec']) as of:
+            spec = json.load(of)
+
     try:
         run(script, script_args, keep=args['--keep'], silent=False,
-            force=args['--force'], threads=args['--threads'])
+            force=args['--force'], threads=args['--threads'],
+            spec=spec)
     except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")

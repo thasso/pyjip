@@ -8,6 +8,7 @@ import os
 import sys
 
 from jip.vendor.texttable import Texttable
+import jip.cluster
 import jip.db
 import jip.jobs
 import jip.logger
@@ -437,7 +438,7 @@ def read_ids_from_pipe():
 
 
 def submit(script, script_args, keep=False, force=False, silent=False,
-           session=None, profile=None, hold=False):
+           session=None, profile=None, hold=False, spec=None):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -447,7 +448,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     log.info("Cluster engine: %s", cluster)
 
     jobs = jip.jobs.create(script, args=script_args, keep=keep,
-                           profile=profile)
+                           profile=profile, spec=spec)
     jip.jobs.check_output_files(jobs)
 
     # we reached final submission time. Time to
@@ -553,8 +554,13 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         _session.close()
 
 
-def run(script, script_args, keep=False, force=False, silent=False, threads=1):
+def run(script, script_args, keep=False, force=False, silent=False, threads=1, spec=None):
     profile = jip.profiles.Profile(threads=threads)
+    if spec:
+        profile.load_spec(spec, script.name)
+        # reset threads
+        profile.threads = threads
+
     jobs = jip.jobs.create(script, args=script_args, keep=keep,
                            profile=profile)
     jip.jobs.check_output_files(jobs)
@@ -570,7 +576,7 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1):
                 print colorize("Skipping", YELLOW), name
         else:
             if not silent:
-                sys.stdout.write("Running {name:30} ".format(name=name))
+                sys.stdout.write(colorize("Running", YELLOW) + " {name:30} ".format(name=colorize(name, BLUE)))
                 sys.stdout.flush()
             start = datetime.now()
             success = jip.jobs.run(job)

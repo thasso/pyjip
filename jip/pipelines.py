@@ -95,6 +95,11 @@ class Pipeline(object):
         del self._nodes[tool]
 
     def nodes(self):
+        """Generator that yields the nodes of this pipeline
+
+        :returns nodes: the nodes of this pipeline
+        :rtype: list of Node
+        """
         for node in self._nodes.itervalues():
             yield node
 
@@ -283,12 +288,14 @@ class Pipeline(object):
                 map(lambda n: n.update_options(), children)
         self._update_cleanup_nodes()
 
-    def expand(self):
+    def expand(self, validate=True):
         """This modifies the current graph state and applies fan_out
-        oprations on nodes with singleton options that are populated with
+        operations on nodes with singleton options that are populated with
         list.
         An exception is raised in case a node has more than one option that
-        should be exaned and the number of configured elements is not the same.
+        should be expanded and the number of configured elements is not the same.
+
+        :param validate: disable validation by setting this to false
         """
         log.debug("Expand Graph")
         # add dependency edges between groups
@@ -356,7 +363,7 @@ class Pipeline(object):
                 continue
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
-            sub_pipe.expand()
+            sub_pipe.expand(validate=validate)
             # find all nodes with no incoming edges and connect
             # them to the current nodes incoming nodes
             no_incoming = [n for n in sub_pipe.nodes()
@@ -377,7 +384,15 @@ class Pipeline(object):
             # non-silent validation for pipeline node to
             # make sure the node WAS valid, otherwise the node
             # and its validation capabilities will be lost
-            node._tool.validate()
+            #
+            # if validation is disable, exceptions are catched and not raised here
+            try:
+                node._tool.validate()
+            except Exception as err:
+                if validate:
+                    raise
+                else:
+                    log.debug("Node validation failed, but validaton is disabled: %s", err)
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
