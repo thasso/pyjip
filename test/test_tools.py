@@ -41,7 +41,7 @@ def test_tool_validation_missing_required():
     with pytest.raises(ValidationError) as execinfo:
         tool.validate()
     assert str(execinfo.value) == "tools: Option -i/--input " \
-        "is required but not set!"
+        "is required but not set!\n"
 
 
 def test_tool_validation_unknown():
