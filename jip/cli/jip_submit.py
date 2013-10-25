@@ -60,6 +60,7 @@ def main(argv=None):
     profile = jip.profiles.get(name='default'
                                if not args['--profile']
                                else args['--profile'])
+    profile.tool_name = script.name
     if args['--spec']:
         with open(args['--spec']) as of:
             profile.load_spec(json.load(of), script.name)

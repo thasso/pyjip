@@ -7,21 +7,27 @@ profiles can be applied. For example, a default profile can be loaded from
 the configuration. This profile can than be refiend by a pipeline script
 or command line options.
 """
+import collections
 import re
 import os
+import json
 
 import jip.utils
 from jip.templates import render_template
+
+#: global specs
+specs = None
 
 
 class Profile(object):
     """A Profile contains cluster and runtime specific information about
     a job.
     """
-    def __init__(self, name=None, threads=1,
+    def __init__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=0, extra=None,
-                 profile=None, prefix=None, temp=False, _load=True, env=None):
+                 profile=None, prefix=None, temp=False, _load=True, env=None,
+                 tool_name=None):
         self.name = render_template(name)
         self.threads = render_template(threads)
         self.profile = render_template(profile)
@@ -37,6 +43,7 @@ class Profile(object):
         self.temp = temp
         self.extra = extra
         self.job_specs = None
+        self.tool_name = tool_name
         if profile is not None and _load:
             self.load(profile)
 
@@ -74,7 +81,7 @@ class Profile(object):
             if v and hasattr(self, k):
                 setattr(self, k, v)
 
-    def apply(self, job):
+    def apply(self, job, _load_specs=True, overwrite_threads=False):
         """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
@@ -82,7 +89,11 @@ class Profile(object):
             job.name = "%s%s" % ("" if not self.prefix else self.prefix,
                                  self.name)
         if self.threads is not None:
-            job.threads = max(int(self.threads), job.threads)
+            if not overwrite_threads:
+                job.threads = max(int(self.threads), job.threads)
+            else:
+                job.threads = int(self.threads)
+
         if self.queue is not None:
             job.queue = self.queue
         if self.priority is not None:
@@ -112,12 +123,32 @@ class Profile(object):
                 rendered[k] = render_template(v, **current)
             job.env.update(rendered)
 
+        if specs is None:
+            get_specs()
+
+        if _load_specs:
+            if job._tool.name in specs:
+                # apply the job spec
+                spec_profile = Profile(threads=self.threads)
+                spec_profile.load_spec(specs[job._tool.name], None)
+                spec_profile.apply(job, False, overwrite_threads=True)
+
+            if self.tool_name in specs:
+                # apply the job spec
+                spec_profile = Profile(threads=self.threads)
+                spec_profile.load_spec(specs[self.tool_name], None)
+                spec_profile.apply(job, False)
+                spec = specs[self.tool_name]
+                if 'jobs' in spec and job._tool.name in spec['jobs']:
+                    spec_profile = Profile(threads=self.threads)
+                    spec_profile.load_spec(spec['jobs'][job._tool.name], None)
+                    spec_profile.apply(job, False, overwrite_threads=True)
 
         if self.job_specs is not None and job._tool.name in self.job_specs:
             # apply the job spec
             spec_profile = Profile(threads=self.threads)
             spec_profile.load_spec(self.job_specs[job._tool.name], None)
-            spec_profile.apply(job)
+            spec_profile.apply(job, False, overwrite_threads=True)
 
         if hasattr(job, 'pipe_to'):
             for child in job.pipe_to:
@@ -163,7 +194,41 @@ class Profile(object):
                 self.job_specs = spec[tool]['jobs']
 
 
-def get(name='default'):
-    """Load a profile by name"""
+def get(name='default', tool=None):
+    """Load a profile by name. If tools is speciefied, the specs are
+    searched to the tool and if found, the spec is applied.
+    """
     p = Profile(profile=name)
     return p
+
+
+def get_specs(path=None):
+    """Load specs form default locations and then update from specs in given
+    path if specified.
+
+    :param path: optional path to an additional spec file
+    """
+    global specs
+    cwd = os.path.join(os.getcwd(), "jip.specs")
+    home = os.path.join(os.getenv("HOME", ""), ".jip/jip.specs")
+    specs = {}
+    if os.path.exists(home):
+        with open(home) as of:
+            specs = _update(specs, json.load(of))
+    if os.path.exists(cwd):
+        with open(cwd) as of:
+            specs = _update(specs, json.load(of))
+    if path and os.path.exists(path):
+        with open(path) as of:
+            specs = _update(specs, json.load(of))
+    return specs
+
+
+def _update(config, other):
+    for k, v in other.iteritems():
+        if isinstance(v, collections.Mapping):
+            r = _update(config.get(k, {}), v)
+            config[k] = r
+        else:
+            config[k] = other[k]
+    return config

@@ -85,7 +85,7 @@ class Slurm(Cluster):
         """Submit the given job to the slurm cluster"""
         job_cmd = job.get_cluster_command()
         cmd = ["sbatch", "--wrap", job_cmd]
-        if job.threads > 0:
+        if job.threads and job.threads > 0:
             cmd.extend(["-c", str(job.threads)])
         if job.max_time > 0:
             cmd.extend(["-t", str(job.max_time)])

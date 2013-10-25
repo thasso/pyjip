@@ -438,7 +438,7 @@ def read_ids_from_pipe():
 
 
 def submit(script, script_args, keep=False, force=False, silent=False,
-           session=None, profile=None, hold=False, spec=None):
+           session=None, profile=None, hold=False):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -448,7 +448,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     log.info("Cluster engine: %s", cluster)
 
     jobs = jip.jobs.create(script, args=script_args, keep=keep,
-                           profile=profile, spec=spec)
+                           profile=profile)
     jip.jobs.check_output_files(jobs)
 
     # we reached final submission time. Time to
@@ -554,7 +554,8 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         _session.close()
 
 
-def run(script, script_args, keep=False, force=False, silent=False, threads=1, spec=None):
+def run(script, script_args, keep=False, force=False, silent=False, threads=1,
+        spec=None):
     profile = jip.profiles.Profile(threads=threads)
     if spec:
         profile.load_spec(spec, script.name)
