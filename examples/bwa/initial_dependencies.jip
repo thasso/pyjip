@@ -1,0 +1,26 @@
+#!/usr/bin/env jip
+#
+# initial example of a pipeline script
+
+#%begin pipeline
+
+out = 'output'
+reference = 'reference.fa'
+infile = 's_1.txt'
+
+align = bash('bwa aln -I -t 8 ${reference} ${infile}') > "${out}.sai"
+sam = bash('bwa samse ${reference} ${align} ${infile}') > '${out}.sam'
+bam = bash('samtools view -bSu ${sam} | samtools sort - ${outfile|ext}', outfile='${out}.sorted.bam') 
+dups = bash('''
+java -Xmx1g -jar /apps/PICARD/1.95/MarkDuplicates.jar \
+                            MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000\
+                            METRICS_FILE=${out}.metrics \
+                            REMOVE_DUPLICATES=true \
+                            ASSUME_SORTED=true  \
+                            VALIDATION_STRINGENCY=LENIENT \
+                            INPUT=${bam} \
+                            OUTPUT=${outfile} 
+''', outfile="${out}.dedupe.bam")
+index = bash('samtools index ${dups}', outfile='${out}.dedupe.bam.bai')
+pileup = bash('samtools mpileup -uf ${reference} ${input|ext} | /apps/SAMTOOLS/0.1.19/bin/bcftools view -bvcg -', output='${out}.bcf', input=index)
+#%end
