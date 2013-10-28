@@ -317,8 +317,34 @@ def test_user_specified_option_and_default_recovery():
     assert opts['test'].user_specified
 
 
-def test_add_output():
+def test_add_output_list_option():
     ops = Options()
     o = ops.add_output("test", [1, 2, 3])
     assert o.hidden
-    assert o.value == [1, 2, 3]
+    assert o.raw() == [1, 2, 3]
+
+
+def test_add_output_single_value_option_none_value():
+    ops = Options()
+    o = ops.add_output("test")
+    assert o.hidden
+    assert o.raw() is None
+
+
+def test_add_output_single_value_option():
+    ops = Options()
+    o = ops.add_output("test", "myfile.txt")
+    assert o.hidden
+    assert o.raw() == 'myfile.txt'
+
+
+def test_add_output_single_value_option_multiplw_inputs():
+    ops = Options()
+    o = ops.add_output("test", value=[1, 2], nargs=1)
+    assert o.hidden
+    assert o.raw() == [1, 2]
+
+    with pytest.raises(ValueError):
+        o.get()
+
+
