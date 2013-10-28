@@ -322,17 +322,48 @@ class Options(object):
         self._help = ""
         self.source = None
 
-    def add_output(self, name, default=None):
-        """Add additional, hidden, output option"""
+    def add_output(self, name, value=None, nargs=None, hidden=True, **kwargs):
+        """Add additional, hidden, output option. The default
+        value for this option is None, but you can pass a value
+        here that will be set after the option is added.
+
+        If no value is specified, the option by default is a single value
+        option. You can overwrite this by specifying the `nargs` argument.
+
+        By default, the new option is hidden and will not be listed in the
+        default options printer. You can overwrite this with the hidden flag.
+
+        :param name: the name of the new option
+        :type name: string
+        :param value: optional value applied to the option
+        :param nargs: multiplicity specifier. If this is not set explicitly
+                      but a value is provided, the value is inspected to
+                      guess a multiplicity.
+        :param hidden: set this to False to create a visible option
+        :param kwargs: all additional keyword argumnents are passed to the
+                       new option as they are
+        """
+        if nargs is None:
+            nargs = 1
+            if value is not None:
+                # catch boolean and list cases
+                if isinstance(value, bool):
+                    nargs = 0
+                elif isinstance(value, (list, tuple)):
+                    nargs = "*"
         option = Option(
             name,
-            option_type=TYPE_OUTPUT,
-            default=default,
-            hidden=True,
+            option_type=kwargs.get('option_type', TYPE_OUTPUT),
+            default=None,
+            nargs=nargs,
+            hidden=hidden,
+            **kwargs
         )
         option.source = self.source
         if not option in self.options:
             self.options.append(option)
+        if value is not None:
+            self.options[option.name].set(value)
 
     def render_context(self, ctx):
         for o in self:
