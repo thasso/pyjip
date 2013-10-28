@@ -342,6 +342,8 @@ class Options(object):
         :param hidden: set this to False to create a visible option
         :param kwargs: all additional keyword argumnents are passed to the
                        new option as they are
+        :returns option: the added option
+        :rtype: Option
         """
         if nargs is None:
             nargs = 1
@@ -360,10 +362,20 @@ class Options(object):
             **kwargs
         )
         option.source = self.source
-        if not option in self.options:
+        try:
+            source_index = self.options.index(option)
+        except:
+            source_index = -1
+
+        if source_index < 0:
             self.options.append(option)
+        else:
+            option = self.options[source_index]
+
+        option = self.options[source_index]
         if value is not None:
-            self.options[option.name].set(value)
+            option.set(value)
+        return option
 
     def render_context(self, ctx):
         for o in self:

@@ -317,3 +317,8 @@ def test_user_specified_option_and_default_recovery():
     assert opts['test'].user_specified
 
 
+def test_add_output():
+    ops = Options()
+    o = ops.add_output("test", [1, 2, 3])
+    assert o.hidden
+    assert o.value == [1, 2, 3]
