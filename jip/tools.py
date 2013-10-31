@@ -28,7 +28,6 @@ properties.
 """
 import cPickle
 import copy
-import imp
 import inspect
 from textwrap import dedent
 from os import remove, getcwd, getenv, listdir
@@ -36,7 +35,7 @@ from os.path import exists, basename, dirname, abspath
 import sys
 import types
 
-
+import jip.templates
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template, set_global_context
 from jip.utils import list_dir
@@ -580,9 +579,14 @@ class PythonBlock(Block):
             "add_input": tool.options.add_input,
             "add_option": tool.options.add_option,
             "set": utils.set,
+            'r': render_template,
             'utils': utils,
             'profile': profile,
             'basename': basename,
+            'dirname': dirname,
+            'abspath': abspath,
+            'pwd': getcwd(),
+            'exists': exists,
             '__file__': tool.path if tool.path else None
         }
 
@@ -603,9 +607,11 @@ class PythonBlock(Block):
         # link options to context
         for o in tool.options:
             if not o.name in env:
-                env[o.name] = o
+                n = o.name.replace("-", "_").replace(" ", "_")
+                env[n] = o
 
         utils._global_env = env
+        old_global_context = jip.templates.global_context
         set_global_context(env)
         try:
             exec content in local_env, env
@@ -613,6 +619,8 @@ class PythonBlock(Block):
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
             raise
+        finally:
+            set_global_context(old_global_context)
 
         # auto naming for tools
         from jip.pipelines import Node
