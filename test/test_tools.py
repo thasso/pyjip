@@ -40,8 +40,7 @@ def test_tool_validation_missing_required():
     assert len(tool.options) == 2
     with pytest.raises(ValidationError) as execinfo:
         tool.validate()
-    assert str(execinfo.value) == "tools: Option -i/--input " \
-        "is required but not set!\n"
+    assert "required" in str(execinfo.value)
 
 
 def test_tool_validation_unknown():
@@ -80,7 +79,7 @@ def test_tool_validate_input_file_not_found():
     tool.parse_args(["-i", "unknown"])
     with pytest.raises(ValidationError) as execinfo:
         tool.validate()
-    assert str(execinfo.value) == "tools: Input file not found: unknown"
+    assert "Input file not found: unknown" in str(execinfo.value)
 
 
 def test_load_script_block_from_string():

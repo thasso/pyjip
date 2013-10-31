@@ -805,7 +805,7 @@ class Node(object):
         if isinstance(value, Node):
             # in case the other value is a node, we try to
             # get the node tools default output option
-            value._tool._make_absolute(value._job.working_dir)
+            value._tool.options.make_absolute(value._job.working_dir)
             value = value._tool.options.get_default_output()
 
         if isinstance(value, Option):

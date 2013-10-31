@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 from jip import find, Pipeline, create
 
 
@@ -16,4 +17,5 @@ def test_bash_tool_job_rendering():
     p.run('bash', cmd="testme", output="test.out")
     jobs = create(p)
     assert len(jobs) == 1
-    assert jobs[0].command == "(testme)> test.out"
+    assert jobs[0].command == "(testme)> " + os.path.join(os.getcwd(),
+                                                          'test.out')
