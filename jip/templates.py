@@ -32,17 +32,61 @@ class JipUndefined(Undefined):
         return "${%s}" % (self._undefined_name)
 
 
+def __resolve_options(ctx, value):
+    """Resolve the given value to JipUndefined or, if its not
+    an option, try to find one if a tool is associated with the context
+
+    :param ctx: the context
+    :param value: the source value
+    :returns: resolved or as is
+    """
+    if isinstance(value, JipUndefined):
+        value = value._undefined_name
+    if not isinstance(value, Option):
+        script = ctx.get('tool', None)
+        if script:
+            v = script.options[value]
+            if v is not None:
+                value = v
+    return value
+
+
+@contextfilter
+def suf_filter(ctx, value, suffix=None):
+    try:
+        value = __resolve_options(ctx, value)
+
+        if isinstance(value, Option):
+            value = value.get()
+        if not value:
+            return ""
+        v = str(value)
+        suffix = suffix if suffix is not None else ""
+        return "%s%s" % (v, suffix)
+    except:
+        return value
+
+
+@contextfilter
+def pre_filter(ctx, value, prefix=None):
+    try:
+        value = __resolve_options(ctx, value)
+
+        if isinstance(value, Option):
+            value = value.get()
+        if not value:
+            return ""
+        v = str(value)
+        prefix = prefix if prefix is not None else ""
+        return "%s%s" % (prefix, v)
+    except:
+        return value
+
+
 @contextfilter
 def arg_filter(ctx, value, prefix=None, suffix=None):
     try:
-        if isinstance(value, JipUndefined):
-            value = value._undefined_name
-        if not isinstance(value, Option):
-            script = ctx.get('tool', None)
-            if script:
-                v = script.options[value]
-                if v is not None:
-                    value = v
+        value = __resolve_options(ctx, value)
 
         if not isinstance(value, Option):
             if not value:
@@ -69,14 +113,7 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
 @contextfilter
 def else_filter(ctx, value, prefix=None, suffix=None):
     try:
-        if isinstance(value, JipUndefined):
-            value = value._undefined_name
-        if not isinstance(value, Option):
-            script = ctx.get('tool', None)
-            if script:
-                v = script.options[value]
-                if v is not None:
-                    value = v
+        value = __resolve_options(ctx, value)
 
         if not isinstance(value, Option):
             if value:
@@ -98,18 +135,12 @@ def else_filter(ctx, value, prefix=None, suffix=None):
     except:
         return value
 
+
 @contextfilter
 def name_filter(ctx, value):
     from os.path import basename
     try:
-        if isinstance(value, JipUndefined):
-            value = value._undefined_name
-        if not isinstance(value, Option):
-            script = ctx.get('tool', None)
-            if script:
-                v = script.options[value]
-                if v is not None:
-                    value = v
+        value = __resolve_options(ctx, value)
 
         if not isinstance(value, Option):
             v = str(value)
@@ -118,6 +149,7 @@ def name_filter(ctx, value):
         return basename(v)
     except:
         return value
+
 
 @contextfilter
 def ext_filter(ctx, value):
@@ -154,6 +186,8 @@ environment.filters['arg'] = arg_filter
 environment.filters['else'] = else_filter
 environment.filters['name'] = name_filter
 environment.filters['ext'] = ext_filter
+environment.filters['suf'] = suf_filter
+environment.filters['pre'] = pre_filter
 
 
 def render_values(options, ctx):
