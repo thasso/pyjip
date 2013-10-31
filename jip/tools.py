@@ -151,14 +151,20 @@ class tool(object):
                 return fun(wrapper)
 
     def validate(self, wrapper, instance):
-        r = self.__call_delegate(self._validate, wrapper, instance)
-        if self._check_files:
-            for check in self._check_files:
-                wrapper.check_file(check)
-        if self._ensure:
-            for e in self._ensure:
-                wrapper.ensure(e[0], e[1], None if len(e) < 3 else e[2])
-        return r
+        try:
+            r = self.__call_delegate(self._validate, wrapper, instance)
+            if self._check_files:
+                for check in self._check_files:
+                    wrapper.check_file(check)
+            if self._ensure:
+                for e in self._ensure:
+                    wrapper.ensure(e[0], e[1], None if len(e) < 3 else e[2])
+            return r
+        except Exception as err:
+            if not isinstance(err, ValidationError):
+                log.info("Validation error: %s", str(err), exc_info=True)
+                err = ValidationError(wrapper, str(err))
+            raise err
 
     def is_done(self, wrapper, instance):
         return self.__call_delegate(self._is_done, wrapper, instance)
@@ -349,9 +355,12 @@ class Scanner():
         """
         if not exists(path):
             return
-        name = self._guess_module_name(path)
-        log.debug("Importing module from file: %s %s", name, path)
-        imp.load_source(name, path)
+        name, parent_dir = self._guess_module_name(path)
+        log.debug("Importing module from file: %s %s %s", name, path,
+                  parent_dir)
+        sys.path.append(parent_dir)
+        __import__(name)
+        #imp.load_source(name, path)
 
     def _guess_module_name(self, path):
         """Guess the absolute module name for the given file by checking for
@@ -367,11 +376,11 @@ class Scanner():
             if inits:
                 module_name.append(basename(current))
                 return _load_package_name(dirname(current), module_name)
-            return module_name
+            return module_name, current
         # check if this is in a package
-        name = _load_package_name(dirname(path), name)
+        name, parent_dir = _load_package_name(dirname(path), name)
         name.reverse()
-        return ".".join(name)
+        return ".".join(name), parent_dir
 
 
 class Block(object):
@@ -739,6 +748,7 @@ class Tool(object):
         try:
             self.options.validate()
         except Exception, e:
+            log.info("Validation error: %s", str(e), exc_info=True)
             raise ValidationError(self, str(e))
 
         for opt in self.options.get_by_type(TYPE_INPUT):

@@ -240,6 +240,10 @@ class Option(object):
                 if isinstance(v, basestring) and not exists(v):
                     raise ValueError("File not found: %s" % v)
 
+    def check_files(self):
+        """Alias for `check_file`"""
+        self.check_file()
+
     def is_list(self):
         """Return true if this option takes lists of values"""
         return self.nargs != 0 and self.nargs != 1
