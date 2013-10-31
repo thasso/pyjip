@@ -60,12 +60,15 @@ class Option(object):
         streamable   true if this option can take a stream as input
         option_type  the option type, one of TYPE_OPTION, TYPE_INPUT,
                      TYPE_OUTPUT
+        sticky       sticky can be applied to an option to mark it as
+                     ignored when job/tool cleanup is performed
 
     Please note that values are always represented as a list.
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
                  default=None, value=None, required=False, streamable=None,
-                 hidden=False, join=" ", option_type=TYPE_OPTION, const=None):
+                 hidden=False, join=" ", option_type=TYPE_OPTION, const=None,
+                 sticky=False):
         self.name = name
         self.short = short
         self.long = long
@@ -83,6 +86,7 @@ class Option(object):
         self.dependency = False
         self.user_specified = True
         self.const = const
+        self.sticky = sticky
         if self.nargs is None:
             if isinstance(default, bool):
                 self.nargs = 0

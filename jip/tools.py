@@ -855,14 +855,24 @@ class Tool(object):
                 log.warning("Tool cleanup! Removing: %s", outfile)
                 remove(outfile)
 
-    def get_output_files(self):
+    def get_output_files(self, sticky=True):
         """Yields a list of all output files for the options
         of this tool. Only TYPE_OUTPUT options are considered
         whose values are strings. If a source for the option
         is not None, it has to be equal to this tool.
+
+        If `sticky` is set to False, all options marked with the
+        sticky flag are ignored
+
+        :param sticky: by default all output option values are returned,
+                       if this is set to False, only non-sticky output
+                       options are yield
+        :type sticky:  boolean
+        :returns: list of option values
         """
         for opt in self.options.get_by_type(TYPE_OUTPUT):
-            if opt.source is not None and opt.source != self:
+            if (opt.source is not None and opt.source != self) or \
+               (not sticky and opt.sticky):
                 continue
             values = opt.raw()
             if not isinstance(values, (list, tuple)):
