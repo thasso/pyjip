@@ -330,8 +330,62 @@ class Options(object):
         self._help = ""
         self.source = None
 
+    def add_input(self, name, value=None, nargs=None, hidden=True, **kwargs):
+        """Add additional, hidden, input option. The default
+        value for this option is None, but you can pass a value
+        here that will be set after the option is added.
+
+        If no value is specified, the option by default is a single value
+        option. You can overwrite this by specifying the `nargs` argument.
+
+        By default, the new option is hidden and will not be listed in the
+        default options printer. You can overwrite this with the hidden flag.
+
+        :param name: the name of the new option
+        :type name: string
+        :param value: optional value applied to the option
+        :param nargs: multiplicity specifier. If this is not set explicitly
+                      but a value is provided, the value is inspected to
+                      guess a multiplicity.
+        :param hidden: set this to False to create a visible option
+        :param kwargs: all additional keyword argumnents are passed to the
+                       new option as they are
+        :returns option: the added option
+        :rtype: Option
+        """
+        return self.add_option(name, value=value, nargs=nargs, hidden=True,
+                               type=TYPE_INPUT, **kwargs)
+
     def add_output(self, name, value=None, nargs=None, hidden=True, **kwargs):
         """Add additional, hidden, output option. The default
+        value for this option is None, but you can pass a value
+        here that will be set after the option is added.
+
+        If no value is specified, the option by default is a single value
+        option. You can overwrite this by specifying the `nargs` argument.
+
+        By default, the new option is hidden and will not be listed in the
+        default options printer. You can overwrite this with the hidden flag.
+
+        :param name: the name of the new option
+        :type name: string
+        :param value: optional value applied to the option
+        :param nargs: multiplicity specifier. If this is not set explicitly
+                      but a value is provided, the value is inspected to
+                      guess a multiplicity.
+        :param hidden: set this to False to create a visible option
+        :param kwargs: all additional keyword argumnents are passed to the
+                       new option as they are
+        :returns option: the added option
+        :rtype: Option
+        """
+        return self.add_option(name, value=value, nargs=nargs, hidden=True,
+                               type=TYPE_OUTPUT, **kwargs)
+
+
+    def add_option(self, name, value=None, nargs=None, hidden=True,
+                   type=TYPE_OPTION, **kwargs):
+        """Add additional, hidden, option. The default
         value for this option is None, but you can pass a value
         here that will be set after the option is added.
 
@@ -363,7 +417,7 @@ class Options(object):
                     nargs = "*"
         option = Option(
             name,
-            option_type=kwargs.get('option_type', TYPE_OUTPUT),
+            option_type=kwargs.get('option_type', type),
             default=None,
             nargs=nargs,
             hidden=hidden,
