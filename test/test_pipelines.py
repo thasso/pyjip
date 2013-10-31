@@ -1,4 +1,6 @@
 #!usr/bin/env python
+import sys
+import os
 import pytest
 from jip.pipelines import Pipeline
 from jip.tools import Tool
@@ -340,3 +342,61 @@ def test_two_groups():
     node_2 | node_3
     groups = list(p.groups())
     assert len(groups) == 2
+
+
+def test_skip_first_node():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+
+    p = Pipeline()
+    node_1 = p.run(tool_1, input='/infile.txt')
+    node_2 = p.run(tool_2)
+    node_3 = p.run(tool_3, output='/outfile.txt')
+
+    node_1 | node_2 | node_3
+    groups = list(p.groups())
+    assert len(groups) == 1
+    assert node_1._tool.options['input'].get() == '/infile.txt'
+    assert node_1._tool.options['output'].raw() == sys.stdout
+    assert node_2._tool.options['input'].raw() == sys.stdout  # output of 1
+    assert node_2._tool.options['output'].raw() == sys.stdout
+    assert node_3._tool.options['input'].raw() == sys.stdout
+    assert node_3._tool.options['output'].get() == '/outfile.txt'
+
+    p.skip(node_1)
+    assert len(list(p.nodes())) == 2
+    assert node_2._tool.options['input'].get() == '/infile.txt'
+    assert node_2._tool.options['output'].raw() == sys.stdout
+    assert node_3._tool.options['input'].raw() == sys.stdout
+    assert node_3._tool.options['output'].get() == '/outfile.txt'
+
+
+def test_skip_last_node():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+
+    p = Pipeline()
+    node_1 = p.run(tool_1, input='/infile.txt')
+    node_2 = p.run(tool_2)
+    node_3 = p.run(tool_3, output='/outfile.txt')
+
+    node_1 | node_2 | node_3
+    groups = list(p.groups())
+    assert len(groups) == 1
+    assert node_1._tool.options['input'].get() == '/infile.txt'
+    assert node_1._tool.options['output'].raw() == sys.stdout
+    assert node_2._tool.options['input'].raw() == sys.stdout  # output of 1
+    assert node_2._tool.options['output'].raw() == sys.stdout
+    assert node_3._tool.options['input'].raw() == sys.stdout
+    assert node_3._tool.options['output'].get() == '/outfile.txt'
+
+    p.skip(node_3)
+    assert len(list(p.nodes())) == 2
+    assert node_1._tool.options['input'].get() == '/infile.txt'
+    assert node_1._tool.options['output'].raw() == sys.stdout
+    assert node_2._tool.options['input'].raw() == sys.stdout
+    assert node_2._tool.options['output'].get() == '/outfile.txt'
+
+

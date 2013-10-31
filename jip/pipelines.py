@@ -234,31 +234,40 @@ class Pipeline(object):
             if not name in names2nodes:
                 log.warn("Node marked for exclusing not found: %s", name)
             else:
-                node = names2nodes[name]
+                if isinstance(name, basestring) and not name in names2nodes:
+                    node = names2nodes[name]
+                else:
+                    node = name
                 _recursive_remove(names2nodes[name])
         map(lambda n: n.update_options(), self.nodes())
         self._update_cleanup_nodes()
 
     def skip(self, excludes):
-        """Takes a list of node names and removes the node and tries
-        to connect parent and children of teh node
+        """Takes a list of node names or node instances and removes the node
+        and tries to connect parent and children of the node
 
         :param excludes: list of node names
         :type excludes: list of string
         """
         if not excludes:
             return
+        if not isinstance(excludes, (list, tuple)):
+            excludes = [excludes]
         excludes = set(excludes)
         # index the nodes by name
         names2nodes = {}
         for node in self.nodes():
             if node._job.name is not None:
                 names2nodes[node._job.name] = node
+
         for name in excludes:
-            if not name in names2nodes:
+            if isinstance(name, basestring) and not name in names2nodes:
                 log.warn("Node marked for skip not found: %s", name)
             else:
-                node = names2nodes[name]
+                if isinstance(name, basestring):
+                    node = names2nodes[name]
+                else:
+                    node = name
                 parents = list(node.parents())
                 children = list(node.children())
                 if len(parents) > 0 and len(children) > 0:
@@ -283,6 +292,23 @@ class Pipeline(object):
                                                         source_option,
                                                         append=True,
                                                         allow_stream=stream)
+                elif len(parents) == 0:
+                    # no parent but at least one child.
+                    in_opt = node._tool.options.get_default_input()
+                    if in_opt:
+                        for child in children:
+                            child._tool.options.get_default_input().set(
+                                in_opt.raw()
+                            )
+                elif len(children) == 0:
+                    # no children
+                    opt = node._tool.options.get_default_output()
+                    if opt:
+                        for parent in parents:
+                            parent._tool.options.get_default_output().set(
+                                opt.raw()
+                            )
+
                 self.remove(node)
                 map(lambda n: n.update_options(), parents)
                 map(lambda n: n.update_options(), children)
