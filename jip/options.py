@@ -138,9 +138,12 @@ class Option(object):
         :param path: the parent path
         :type path: string
         """
+        if not path:
+            return
         values = []
         for v in self._value:
-            if isinstance(v, basestring) and not v.startswith('/'):
+            if isinstance(v, basestring) and v and len(v) > 0 and\
+                    not v.startswith('/'):
                 log.debug("Make option %s absolute to %s",
                           self.name, path)
                 v = os.path.join(os.path.abspath(path), v)
