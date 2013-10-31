@@ -89,7 +89,7 @@ class Profile(object):
         if self.name is not None:
             job.name = "%s%s" % ("" if not self.prefix else self.prefix,
                                  self.name)
-        if self.threads is not None:
+        if self.threads is not None and job.threads is None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
             else:
@@ -114,7 +114,7 @@ class Profile(object):
         if self.extra is not None:
             job.extra = self.extra
         if self.working_dir is not None:
-            job.working_dir = self.working_dir
+            job.working_directory = os.path.abspath(self.working_dir)
 
         # load environment
         if self.env:

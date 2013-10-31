@@ -45,6 +45,8 @@ Miscellaneous other commands:
 import sys
 import jip
 import jip.options
+import jip.tools
+import jip.cli
 from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
 
@@ -62,6 +64,15 @@ def main():
         log.debug("validation error: %s", str(va), exc_info=True)
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
+        sys.exit(1)
+    except jip.tools.ToolNotFoundException as notFound:
+        log.debug("Tool not found: %s", str(notFound), exc_info=True)
+        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
+        print >>sys.stderr, """\
+
+Check your search paths and your jip configuration to include and
+find tool definitions that are not in any default paths.
+"""
         sys.exit(1)
 
 

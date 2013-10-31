@@ -87,6 +87,11 @@ class ValidationError(Exception):
         return self.__repr__()
 
 
+class ToolNotFoundException(Exception):
+    """Raised in case a tool is not found by the scanner"""
+    pass
+
+
 #########################################################
 # decorators
 #########################################################
@@ -261,7 +266,7 @@ class Scanner():
     def find(self, name, path=None, is_pipeline=False):
         if exists(name):
             ## the passed argument is a file. Try to load it at a
-            ## script
+            ## script and add the files directory to the search path
             tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
             self.instances[name] = tool
             self.jip_file_paths.add(dirname(name))
@@ -282,7 +287,7 @@ class Scanner():
         if tool is None:
             tool = self.instances.get(name + ".jip", None)
         if tool is None:
-            raise LookupError("No tool named '%s' found!" % name)
+            raise ToolNotFoundException("No tool named '%s' found!" % name)
         if isinstance(tool, basestring):
             ## the tool is not loaded, load the script,
             ## and add it to the cache
@@ -295,7 +300,8 @@ class Scanner():
 
     def scan(self, path=None):
         log.debug("Searching for JIP tools")
-        self.instances = {}
+        if self.instances is None:
+            self.instances = {}
         self.scan_files(parent=path)
         self.scan_modules()
         for n, m in Scanner.registry.iteritems():
@@ -330,6 +336,7 @@ class Scanner():
         log.debug("Searching folder: %s", folder)
         for path in list_dir(folder, recursive=recursive):
             if pattern.match(path):
+                log.debug("Found tool: %s", path)
                 yield path
 
     def scan_modules(self):

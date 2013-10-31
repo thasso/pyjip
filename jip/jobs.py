@@ -605,22 +605,7 @@ def from_node(node, env=None, keep=False):
     if node._job is not None:
         node._job.apply(job)
 
-    # make output absolute relative to the jobs working directory
-    for opt in node._tool.options.get_by_type(jip.options.TYPE_OUTPUT):
-        try:
-            opt.make_absolute(job.working_directory)
-        except Exception as e:
-            log.info("Unable to make output option %s absolute: %s", opt.name,
-                     str(e), exc_info=True)
-
-    # make input options absolute relative to the current working directory
-    cwd = os.getcwd()
-    for opt in node._tool.options.get_by_type(jip.options.TYPE_INPUT):
-        try:
-            opt.make_absolute(cwd)
-        except Exception as e:
-            log.info("Unable to make input option %s absolute: %s", opt.name,
-                     str(e), exc_info=True)
+    node._tool.options.make_absolute(job.working_directory)
     job.configuration = node._tool.options
 
     # check for special options

@@ -484,6 +484,32 @@ class Options(object):
             option.set(value)
         return option
 
+    def make_absolute(self, path):
+        """Render input and output options absolute.
+        Output options are made absolute relative the given path and
+        input options are made absolute relative to the current working
+        directory
+
+        :param path: the parent path for output options
+        :type path: string
+        """
+        # make output absolute relative to the jobs working directory
+        for opt in self.get_by_type(TYPE_OUTPUT):
+            try:
+                opt.make_absolute(path)
+            except Exception as e:
+                log.info("Unable to make output option %s absolute: %s",
+                         opt.name, str(e), exc_info=True)
+
+        # make input options absolute relative to the current working directory
+        cwd = os.getcwd()
+        for opt in self.get_by_type(TYPE_INPUT):
+            try:
+                opt.make_absolute(cwd)
+            except Exception as e:
+                log.info("Unable to make input option %s absolute: %s",
+                         opt.name, str(e), exc_info=True)
+
     def render_context(self, ctx):
         for o in self:
             o.render_context = ctx

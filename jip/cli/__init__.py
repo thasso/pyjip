@@ -191,7 +191,7 @@ def show_job_profiles(jobs, title="Job profiles"):
             timedelta(seconds=job.max_time * 60),
             job.max_memory,
             job.account,
-            job.working_directory
+            os.path.relpath(job.working_directory)
         ])
     print render_table([
         "Name",
@@ -583,7 +583,10 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
                 print colorize("Skipping", YELLOW), name
         else:
             if not silent:
-                sys.stdout.write(colorize("Running", YELLOW) + " {name:30} ".format(name=colorize(name, BLUE)))
+                sys.stdout.write(colorize("Running", YELLOW) +
+                                 " {name:30} ".format(
+                                     name=colorize(name, BLUE)
+                                 ))
                 sys.stdout.flush()
             start = datetime.now()
             success = jip.jobs.run(job)
