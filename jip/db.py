@@ -4,6 +4,7 @@ Jobs in the database
 """
 import datetime
 import sys
+import os
 from os import getcwd
 import subprocess
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
+import jip.options
 
 log = getLogger('jip.db')
 
@@ -254,13 +256,11 @@ class Job(Base):
 
                     if self._process.poll() is None:
                         # kill it
-                        import os
                         import signal
                         os.kill(self.process._popen.pid, signal.SIGKILL)
 
     def _load_job_env(self):
         """Load the job environment"""
-        import os
         env = self.env
         if env is not None:
             for k, v in env.iteritems():
@@ -314,9 +314,35 @@ class Job(Base):
         else:
             return "jip exec --db %s %d" % (db_path, self.id)
 
+    def _make_absolute(self):
+        """Make input/output options absolute"""
+        # make output absolute relative to the jobs working directory
+        for opt in self.tool.options.get_by_type(jip.options.TYPE_OUTPUT):
+            try:
+                opt.make_absolute(self.working_directory)
+            except Exception as e:
+                log.info("Unable to make output option %s absolute: %s",
+                         opt.name, str(e), exc_info=True)
+        # make input options absolute relative to the current working directory
+        cwd = os.getcwd()
+        for opt in self.tool.options.get_by_type(jip.options.TYPE_INPUT):
+            try:
+                opt.make_absolute(cwd)
+            except Exception as e:
+                log.info("Unable to make input option %s absolute: %s",
+                         opt.name, str(e), exc_info=True)
+
     def validate(self):
-        """Delegates to the tools validate method"""
-        return self.tool.validate()
+        """Delegates to the tools validate method and ensures absolute paths
+        before validation. The rule for absolute paths is that all output
+        options are made absolute relative to the jobs working directory.
+        All input options are made absolute relative to the current working
+        directory.
+        """
+        self._make_absolute()
+        r = self.tool.validate()
+        self._make_absolute()
+        return r
 
     def is_done(self, force=False):
         """Delegates to the tools validate method but also add

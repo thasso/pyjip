@@ -503,16 +503,6 @@ class PythonBlockUtils(object):
         else:
             self.tool.name = name
 
-    def add_output(self, name, value=None):
-        self.tool.options.add(Option(
-            name,
-            option_type=TYPE_OUTPUT,
-            nargs=1,
-            hidden=True
-        ))
-        if value is not None:
-            self.tool.options[name].value = value
-
     def bash(self, command, **kwargs):
         from jip.pipelines import Node
 
@@ -575,7 +565,9 @@ class PythonBlock(Block):
             "bash": utils.bash,
             "job": utils.job,
             "name": utils.name,
-            "add_output": utils.add_output,
+            "add_output": tool.options.add_output,
+            "add_input": tool.options.add_input,
+            "add_option": tool.options.add_option,
             "set": utils.set,
             'utils': utils,
             'profile': profile,

@@ -27,7 +27,7 @@ class Profile(object):
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=0, extra=None,
                  profile=None, prefix=None, temp=False, _load=True, env=None,
-                 tool_name=None):
+                 tool_name=None, working_dir=None):
         self.name = render_template(name)
         self.threads = render_template(threads)
         self.profile = render_template(profile)
@@ -44,6 +44,7 @@ class Profile(object):
         self.extra = extra
         self.job_specs = None
         self.tool_name = tool_name
+        self.working_dir = working_dir
         if profile is not None and _load:
             self.load(profile)
 
@@ -112,6 +113,8 @@ class Profile(object):
             job.temp = self.temp
         if self.extra is not None:
             job.extra = self.extra
+        if self.working_dir is not None:
+            job.working_dir = self.working_dir
 
         # load environment
         if self.env:
@@ -157,7 +160,8 @@ class Profile(object):
     def __call__(self, name=None, threads=None,
                  time=None, queue=None, priority=None,
                  log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=False, extra=None):
+                 profile=None, prefix=None, temp=False, extra=None,
+                 dir=None):
         return self.__class__(
             name=name if name is not None else self.name,
             threads=threads if threads is not None else self.threads,
@@ -172,6 +176,7 @@ class Profile(object):
             prefix=prefix if prefix is not None else self.prefix,
             temp=temp if temp is not None else self.temp,
             extra=extra if extra is not None else self.extra,
+            working_dir=dir if dir is not None else self.working_dir,
             _load=False
         )
 

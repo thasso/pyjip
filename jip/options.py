@@ -7,7 +7,9 @@ populated argpars parser instance.
 """
 import sys
 import re
+import os
 from os.path import exists
+import logging
 
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
@@ -18,9 +20,11 @@ TYPE_OUTPUT = "output"
 # created to access their structure even tough they might not work
 _check_required = True
 
+log = logging.getLogger('jip.options')
+
 
 class ParserException(Exception):
-    """Exception raised by a the Options argument parser"""
+    """Exception raised by the Options argument parser"""
     def __init__(self, message, options=None, status=0):
         """Create a new ParserException.
 
@@ -126,6 +130,22 @@ class Option(object):
 
     def is_dependency(self):
         return self.dependency
+
+    def make_absolute(self, path):
+        """Convert the option values to absolute paths relative to the given
+        parent path.
+
+        :param path: the parent path
+        :type path: string
+        """
+        values = []
+        for v in self._value:
+            if isinstance(v, basestring) and not v.startswith('/'):
+                log.debug("Make option %s absolute to %s",
+                          self.name, path)
+                v = os.path.join(os.path.abspath(path), v)
+            values.append(v)
+        self._value = values
 
     def __add__(self, other):
         return str(self.get()) + other
@@ -307,6 +327,31 @@ class Option(object):
 
 class Options(object):
     """Container instance for a set of options.
+
+    The options container offers a set of static method to create Options
+    instances from docopt options or arparse instances. In addition to
+    creation, the options instance allows for simplified access to options
+    using the options name, for example::
+
+        input = options['input']
+
+    This will assign the :py:class:`jip.options.Option` instance to input.
+    The options instance is also iterable in order to quickly iterate the
+    option instances, i.e.::
+
+        for o in options:
+            print o.name/
+
+    In addition, :py:func:`get_default_input` and
+    :py:func:`get_default_output()` can be used to access the default options
+    configured for input and output.
+    If you are interested in a specify option type, you can use the
+    :py:func:`get_by_type` function to get an iterator over the options of the
+    specified type::
+
+        for inopt in options.get_by_type(TYPE_INPUT):
+            print inopt.name
+
     If a source is specified, this becomes the source instance
     for all options added.
     """
@@ -569,12 +614,12 @@ class Options(object):
 
     def parse(self, args):
         """Parse the given arguments and full the options values.
-        A ParserException is raised if help is requested (-h or --help)
+        A ParserException is raised if help is requested (`-h` or `--help`)
         or if an option error occurs. The exceptions error message
         is set accordingly.
 
         The given args list should contain all command line argument to
-        parse without the programm name
+        parse without the program name.
 
         :param args: the arguments
         :type args: list

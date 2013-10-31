@@ -164,8 +164,8 @@ def show_job_states(jobs, title="Job states"):
     for g in jip.jobs.group(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
-        outs = [f for j in g for f in j.tool.get_output_files()]
-        ins = [f for j in g for f in j.tool.get_input_files()]
+        outs = [_clean_value(f) for j in g for f in j.tool.get_output_files()]
+        ins = [_clean_value(f) for j in g for f in j.tool.get_input_files()]
         state = colorize(job.state, STATE_COLORS[job.state])
         rows.append([name, state, ", ".join(ins), ", ".join(outs)])
     print render_table(["Name", "State", "Inputs", "Outputs"], rows,
@@ -286,6 +286,12 @@ def _clean_value(v):
              for x in v]
     else:
         v = v if not isinstance(v, file) else "<<STREAM>>"
+
+    # make the printed option relative to cwd
+    # to avoid extreme long paths
+    cwd = os.getcwd()
+    if v.startswith(cwd):
+        v = os.path.relpath(v)
     return v
 
 

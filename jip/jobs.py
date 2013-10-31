@@ -14,6 +14,7 @@ import jip.utils as utils
 import jip.pipelines
 import jip.tools
 import jip.executils
+import jip.options
 
 log = jip.logger.getLogger("jip.jobs")
 
@@ -599,11 +600,28 @@ def from_node(node, env=None, keep=False):
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path
-    job.configuration = node._tool.options
     job.working_directory = os.getcwd()
     job.env = env if env is not None else _create_job_env()
     if node._job is not None:
         node._job.apply(job)
+
+    # make output absolute relative to the jobs working directory
+    for opt in node._tool.options.get_by_type(jip.options.TYPE_OUTPUT):
+        try:
+            opt.make_absolute(job.working_directory)
+        except Exception as e:
+            log.info("Unable to make output option %s absolute: %s", opt.name,
+                     str(e), exc_info=True)
+
+    # make input options absolute relative to the current working directory
+    cwd = os.getcwd()
+    for opt in node._tool.options.get_by_type(jip.options.TYPE_INPUT):
+        try:
+            opt.make_absolute(cwd)
+        except Exception as e:
+            log.info("Unable to make input option %s absolute: %s", opt.name,
+                     str(e), exc_info=True)
+    job.configuration = node._tool.options
 
     # check for special options
     if node._tool.options['threads'] is not None:
