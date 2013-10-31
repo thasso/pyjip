@@ -77,7 +77,11 @@ class ValidationError(Exception):
         self.message = message
 
     def __repr__(self):
-        return "%s: %s" % (self.source, self.message)
+        import jip.cli
+        return "%s: %s" % (
+            jip.cli.colorize(self.source, jip.cli.RED),
+            jip.cli.colorize(self.message, jip.cli.YELLOW)
+        )
 
     def __str__(self):
         return self.__repr__()
