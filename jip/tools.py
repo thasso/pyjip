@@ -850,7 +850,7 @@ class Tool(object):
 
     def cleanup(self):
         """The celanup method removes all output files for this tool"""
-        for outfile in self.get_output_files():
+        for outfile in self.get_output_files(sticky=False):
             if exists(outfile):
                 log.warning("Tool cleanup! Removing: %s", outfile)
                 remove(outfile)
