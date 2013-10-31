@@ -811,12 +811,10 @@ class Node(object):
         if isinstance(value, Option):
             # the value is an options, we pass on the Options
             # value and create/update the edge
-            print value.source, self._graph._nodes
             if value.source in self._graph._nodes:
                 node = self._graph._nodes.get(value.source, None)
                 if node is not None:
                     node._tool.options.make_absolute(node._job.working_dir)
-                    print ">>>", value.source, node
             option.dependency = True
             new_value = value.raw() if not append else value.value
             if allow_stream:

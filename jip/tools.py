@@ -582,7 +582,8 @@ class PythonBlock(Block):
             "set": utils.set,
             'utils': utils,
             'profile': profile,
-            'basename': basename
+            'basename': basename,
+            '__file__': tool.path if tool.path else None
         }
 
         # link known tools into the context
