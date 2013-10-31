@@ -281,17 +281,20 @@ def show_job_tree(jobs, title="Job hierarchy"):
 
 
 def _clean_value(v):
-    if isinstance(v, (list, tuple)):
-        v = [x if not isinstance(x, file) else "<<STREAM>>"
-             for x in v]
-    else:
-        v = v if not isinstance(v, file) else "<<STREAM>>"
-
+    cwd = os.getcwd()
     # make the printed option relative to cwd
     # to avoid extreme long paths
-    cwd = os.getcwd()
-    if v.startswith(cwd):
-        v = os.path.relpath(v)
+    def __cl(s):
+        if isinstance(s, basestring) and len(s) > 0 and s.startswith(cwd):
+            return os.path.relpath(s)
+        return s
+
+    if isinstance(v, (list, tuple)):
+        v = [_cl(x) if not isinstance(x, file) else "<<STREAM>>"
+             for x in v]
+    else:
+        v = __cl(v) if not isinstance(v, file) else "<<STREAM>>"
+
     return v
 
 
