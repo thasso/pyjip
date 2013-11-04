@@ -465,6 +465,8 @@ class Pipeline(object):
             for j, option in enumerate(options):
                 cloned_tool.options[option.name].value = opts[j]
             cloned_node = self.add(cloned_tool)
+            # apply _job setting
+            cloned_node._job = node._job
             cloned_node._index = current_index
             current_index += 1
             log.debug("Fanout add new node: %s :: %s",
