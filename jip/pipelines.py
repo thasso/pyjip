@@ -6,6 +6,7 @@ from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
 from jip.logger import getLogger
+import jip.tools
 
 log = getLogger('jip.pipelines')
 
@@ -829,6 +830,11 @@ class Node(object):
                        values for the given option
         :type value: bool
         """
+        def _force_stream(target, source):
+            return target.streamable and \
+                source.streamable and \
+                source.is_stream()
+
         # single values
         if isinstance(value, Node):
             # in case the other value is a node, we try to
@@ -845,10 +851,11 @@ class Node(object):
                     node._tool.options.make_absolute(node._job.working_dir)
             option.dependency = True
             new_value = value.raw() if not append else value.value
-            if allow_stream:
+            if allow_stream or _force_stream(option, value):
                 if option.streamable and value.streamable:
                     # switch the value to the default
                     new_value = value.default
+                    allow_stream = True
                 else:
                     allow_stream = False
             if not append:
@@ -963,6 +970,19 @@ class Edge(object):
             raise ValueError("Liked options source != edge.source")
         if not target_option.source == self._target._tool:
             raise ValueError("Liked options target != edge.target")
+
+        if source_option.is_stream() and not target_option.streamable:
+            raise jip.tools.ValidationError(
+                self._target._tool,
+                "You are trying to establish a link between\n"
+                "%s and %s, using %s.%s delegated to %s.%s.\n"
+                "The source is a <<STREAM>> but the target "
+                "does not accept streamed input!\n"
+                "Try to set file name as output for %s." %
+                (self._source, self._target,
+                 self._source, source_option.name,
+                 self._target, target_option.name,
+                 self._source))
 
         link = (source_option, target_option,
                 allow_stream and source_option.streamable and

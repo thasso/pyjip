@@ -241,8 +241,19 @@ class Option(object):
             return ""
         return str(v)
 
+    def is_stream(self):
+        """Return true if the current value is a stream or a list of
+        streams.
+
+        :returns: True if current value is a stream
+        """
+        s = True
+        for v in self._value:
+            s &= self.__is_stream(v)
+        return s
+
     def __is_stream(self, v):
-        """Reaturns true if v is a stream or stream like"""
+        """Returns true if v is a stream or stream like"""
         if v and (isinstance(v, file) or hasattr(v, 'fileno')):
             return True
         return False
