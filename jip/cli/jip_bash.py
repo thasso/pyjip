@@ -51,7 +51,9 @@ log = getLogger("jip.cli.jip_bash")
 def main():
     args = parse_args(__doc__, options_first=True)
     pipeline = jip.Pipeline()
-    bash = pipeline.job().run('bash')
+    bash = pipeline.job(
+        args['--name'] if args['--name'] else 'bash'
+    ).run('bash')
     bash.input = sys.stdin if args['--input'] == 'stdin' \
         else args['--input']
     bash.output = sys.stdout if args['--output'] == 'stdout' \
