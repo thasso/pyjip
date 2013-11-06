@@ -25,7 +25,7 @@ def main():
     print "Search paths:"
     print "Current directory: %s" % getcwd()
     print "Jip configuration: %s" % jip.config.get("jip_path", "")
-    print "JIP_PATH variable: %s" % getenv("JIP_ENV", "")
+    print "JIP_PATH variable: %s" % getenv("JIP_PATH", "")
     print ""
     rows = []
     for name, path in jip.scanner.scan_files().iteritems():
@@ -54,6 +54,26 @@ def main():
         if len(description) > 60:
             description = "%s ..." % description[:46]
         rows.append((name, description))
+    print render_table(["Tool", "Description"], rows)
+
+    print ""
+    print "All Tools detected"
+    print "------------------"
+    print ""
+    covered = set([])
+    rows = []
+    for name, p in jip.scanner.scan().iteritems():
+        if name in covered:
+            continue
+        covered.add(name)
+        cls = jip.find(name)
+        help = cls.help()
+        description = "-"
+        if help is not None:
+            description = help.split("\n")[0]
+        if len(description) > 60:
+            description = "%s ..." % description[:46]
+        rows.append((cls.name, description))
     print render_table(["Tool", "Description"], rows)
 
 if __name__ == "__main__":
