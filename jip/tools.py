@@ -32,6 +32,7 @@ import inspect
 from textwrap import dedent
 from os import remove, getcwd, getenv, listdir
 from os.path import exists, basename, dirname, abspath
+import os
 import sys
 import types
 
@@ -298,6 +299,12 @@ class Scanner():
         return clone
 
     def scan(self, path=None):
+        """Searches for scripts and python modules in the configured
+        locations and returns a dictionary of the detected instances
+
+        :param path: optional path value to define a folder to scan
+        :returns: dict of tools
+        """
         log.debug("Searching for JIP tools")
         if self.instances is None:
             self.instances = {}
@@ -305,6 +312,7 @@ class Scanner():
         self.scan_modules()
         for n, m in Scanner.registry.iteritems():
             self.instances[n] = m
+        return self.instances
 
     def scan_files(self, parent=None):
         if parent is None and self.__scanned_files is not None:
@@ -334,7 +342,7 @@ class Scanner():
     def __search(self, folder, pattern, recursive=True):
         log.debug("Searching folder: %s", folder)
         for path in list_dir(folder, recursive=recursive):
-            if pattern.match(path):
+            if pattern.match(path) and os.path.isfile(path):
                 log.debug("Found tool: %s", path)
                 yield path
 
