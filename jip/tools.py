@@ -271,7 +271,7 @@ class Scanner():
         self.__scanned_files = None
 
     def find(self, name, path=None, is_pipeline=False):
-        if exists(name):
+        if exists(name) and os.path.isfile(name):
             ## the passed argument is a file. Try to load it at a
             ## script and add the files directory to the search path
             tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
