@@ -200,5 +200,11 @@ def loads(path, script_class=None, is_pipeline=False):
         lines = "\n".join([l.rstrip() for l in f.readlines()])
         tool = load(lines, script_class=script_class, is_pipeline=is_pipeline)
         tool.path = os.path.abspath(path)
+        if tool.name is None:
+            tool.name = os.path.basename(path)
+            try:
+                tool.name = tool.name[:tool.name.index('.')]
+            except:
+                pass
         return tool
     raise Exception("Error while loading script from %s" % path)
