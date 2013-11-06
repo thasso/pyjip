@@ -101,10 +101,10 @@ class tool(object):
     are optional and allow you to delegate functionality between the actual
     :class:`jip.tool.Tool` implementation and the decorated class.
     """
-    def __init__(self, name, inputs=None, outputs=None, argparse='register',
-                 get_command=None, validate=None, add_outputs=None,
-                 pipeline=None, is_done=None, cleanup=None, help=None,
-                 check_files=None, ensure=None, pytool=False,
+    def __init__(self, name=None, inputs=None, outputs=None,
+                 argparse='register', get_command=None, validate=None,
+                 add_outputs=None, pipeline=None, is_done=None, cleanup=None,
+                 help=None, check_files=None, ensure=None, pytool=False,
                  force_pipeline=False):
         self.name = name
         self.inputs = inputs
@@ -127,6 +127,13 @@ class tool(object):
         self._help = help if help else "help"
 
     def __call__(self, cls):
+        # check the name
+        if self.name is None:
+            if isinstance(cls, types.FunctionType):
+                self.name = cls.func_name
+            else:
+                self.name = cls.__name__
+
         # overwrite the string representation
         if not isinstance(cls, types.FunctionType):
             cls.__repr__ = lambda x: self.name
