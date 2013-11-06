@@ -130,10 +130,10 @@ class Profile(object):
             get_specs()
 
         if _load_specs:
-            if job._tool.name in specs:
+            if job.tool.name in specs:
                 # apply the job spec
                 spec_profile = Profile(threads=self.threads)
-                spec_profile.load_spec(specs[job._tool.name], None)
+                spec_profile.load_spec(specs[job.tool.name], None)
                 spec_profile.apply(job, False, overwrite_threads=True)
 
             if self.tool_name in specs:
@@ -142,15 +142,15 @@ class Profile(object):
                 spec_profile.load_spec(specs[self.tool_name], None)
                 spec_profile.apply(job, False)
                 spec = specs[self.tool_name]
-                if 'jobs' in spec and job._tool.name in spec['jobs']:
+                if 'jobs' in spec and job.tool.name in spec['jobs']:
                     spec_profile = Profile(threads=self.threads)
-                    spec_profile.load_spec(spec['jobs'][job._tool.name], None)
+                    spec_profile.load_spec(spec['jobs'][job.tool.name], None)
                     spec_profile.apply(job, False, overwrite_threads=True)
 
-        if self.job_specs is not None and job._tool.name in self.job_specs:
+        if self.job_specs is not None and job.tool.name in self.job_specs:
             # apply the job spec
             spec_profile = Profile(threads=self.threads)
-            spec_profile.load_spec(self.job_specs[job._tool.name], None)
+            spec_profile.load_spec(self.job_specs[job.tool.name], None)
             spec_profile.apply(job, False, overwrite_threads=True)
 
         if hasattr(job, 'pipe_to'):

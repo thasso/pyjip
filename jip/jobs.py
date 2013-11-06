@@ -414,7 +414,7 @@ def submit(job, silent=False, clean=False, force=False, session=None):
     :param silent: if False, the method will print status messages
     :returns: True if the jobs was submitted
     """
-    log.info("(Re)submitting %s")
+    log.info("(Re)submitting %s", job)
     if not force and job.state == db.STATE_DONE:
         return False
     if len(job.pipe_from) != 0:
@@ -594,9 +594,10 @@ def from_node(node, env=None, keep=False):
     """
     job = jip.db.Job(node._tool)
     tool = node._tool
-    job.pipeline = node._name
+    job.pipeline = node._pipeline
     job.state = jip.db.STATE_HOLD
-    job.name = tool.name
+    #job.name = tool.name
+    job.name = node._name
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path

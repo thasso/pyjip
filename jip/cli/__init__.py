@@ -236,6 +236,8 @@ def show_job_tree(jobs, title="Job hierarchy"):
         edge = "" if not level else (u'\u2514\u2500' if last
                                      else u'\u251C\u2500')
         label = "%s%s" % (edge, job)
+        if level == 0 and job.pipeline:
+            label += " (%s)" % colorize(job.pipeline, BLUE)
 
         # collect other dependencies that are node covered
         # by the tree

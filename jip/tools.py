@@ -508,10 +508,11 @@ class PythonBlockUtils(object):
         return self.pipeline.job(*args, **kwargs)
 
     def name(self, name):
-        if self._pipeline is not None:
-            self._pipeline.name(name)
-        else:
-            self.tool.name = name
+        self.pipeline.name(name)
+        #if self._pipeline is not None:
+            #self._pipeline.name(name)
+        #else:
+            #self.tool.name = name
 
     def bash(self, command, **kwargs):
         from jip.pipelines import Node

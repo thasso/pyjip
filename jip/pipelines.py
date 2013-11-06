@@ -76,7 +76,9 @@ class Pipeline(object):
 
     def add(self, tool):
         if not tool in self._nodes:
-            self._nodes[tool] = Node(tool, self)
+            n = Node(tool, self)
+            n._pipeline = self._name
+            self._nodes[tool] = n
         return self._nodes[tool]
 
     def remove(self, tool):
@@ -597,6 +599,7 @@ class Node(object):
         self.__dict__['_job'] = graph._current_job()
         self.__dict__['_graph'] = graph
         self.__dict__['_name'] = graph._name
+        self.__dict__['_pipeline'] = graph._name
         self.__dict__['_index'] = index
         self.__dict__['_edges'] = set([])
 
@@ -792,7 +795,7 @@ class Node(object):
                                append=append)
 
     def __setattr__(self, name, value):
-        if name in ["_job", "_index"]:
+        if name in ["_job", "_index", "_pipeline"]:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)
