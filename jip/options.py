@@ -856,20 +856,20 @@ class Options(object):
         from jip.vendor import docopt
         from jip.vendor.docopt import Required, Optional, Argument, \
             OneOrMore, Command
-
         inputs = [re.sub(r'^-*', '', s) for s in inputs] if inputs else []
         outputs = [re.sub(r'^-*', '', s) for s in outputs] if outputs else []
         opts = cls(source=source)
+        opts._help = doc
 
         usage_sections = docopt.parse_section('usage:', doc)
         if len(usage_sections) == 0:
             #raise ValueError('"usage:" (case-insensitive) not found.')
+            log.debug("No usage section found")
             return opts
         if len(usage_sections) > 1:
             raise ValueError('More than one "usage:" '
                              '(case-insensitive).')
         opts._usage = usage_sections[0]
-        opts._help = doc
 
         def to_name(pattern):
             """Convert pattern name to option name"""
