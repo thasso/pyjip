@@ -15,6 +15,9 @@ Contents:
    
    cli/index
    api/index
+   templates
+   examples
+   getting_started
 
 Installation
 ------------
@@ -57,6 +60,8 @@ Alternatively, you can also install the JIP into your home folder with `pip` by
 appending the `--user` option::
 
     $~> pip install jip --user
+
+.. _jip_configuration:
 
 Configuration and setup
 =======================
@@ -132,7 +137,7 @@ The main parts of the JIP tool and pipeline documentation are structured as
 small hands on tutorials. The examples will guide you through basic tool
 creation and execution as well as pipeline creation and manipulation.
 
-* `Create your first tool<tut_first_tool>`_
+* :ref:`Create your first tool <tut_first_tool>`
 
 
 Indices and tables

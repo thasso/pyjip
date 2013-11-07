@@ -99,7 +99,11 @@ class Option(object):
                     self.nargs = 1
                 else:
                     self.nargs = "*"
-
+        # check default value
+        if self.nargs != 0 and default is not None and \
+           isinstance(default, bool):
+            self.default = None
+        self._value = []
         self.value = value
         ## we set streamable base on the default value
         if self.streamable is None:
@@ -440,7 +444,6 @@ class Options(object):
         """
         return self.add_option(name, value=value, nargs=nargs, hidden=True,
                                type=TYPE_OUTPUT, **kwargs)
-
 
     def add_option(self, name, value=None, nargs=None, hidden=True,
                    type=TYPE_OPTION, **kwargs):

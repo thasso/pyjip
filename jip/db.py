@@ -380,7 +380,7 @@ class Job(Base):
         if self.name is not None:
             return self.name
         else:
-            return "JOB-%s" % (str(self.id) if self.id is not None else "nan")
+            return "JOB-%s" % (str(self.id) if self.id is not None else "0")
 
 
 def init(path=None, in_memory=False):

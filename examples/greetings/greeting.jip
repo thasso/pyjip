@@ -1,0 +1,7 @@
+#!/usr/bin/env jip
+# Send greetings
+# 
+# usage:
+#   greeting <name>
+
+echo "Hello ${name}"

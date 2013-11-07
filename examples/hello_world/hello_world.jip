@@ -1,2 +1,3 @@
 #!/usr/bin/env jip
+#Prints hello world
 echo "Hello world"

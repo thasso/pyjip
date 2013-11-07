@@ -628,6 +628,12 @@ def from_node(node, env=None, keep=False):
         command = cmds
     job.interpreter = interpreter
     job.command = command
+    # check and validate command
+    if command is None:
+        raise ValueError("No command specified by node: %s. If your tool is "
+                         "a python function and you want to run the functions "
+                         "instead of returning a template, decorate the "
+                         "function with @pytool" % (node))
     return job
 
 
@@ -691,12 +697,15 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
 
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
+    log.debug("Creating job environment")
     env = _create_job_env()
     nodes2jobs = {}
     jobs = []
     for node in pipeline.topological_order():
+        log.debug("Creating job for %s", node)
         ## first create jobs
         job = from_node(node, env=env, keep=keep)
+        log.debug("Created job %s", job)
         jobs.append(job)
         nodes2jobs[node] = job
 

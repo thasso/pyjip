@@ -491,6 +491,8 @@ class Block(object):
 
 
 class PythonBlockUtils(object):
+    """Utility functions that are exposed in template blocks and template
+    functions"""
 
     def __init__(self, tool, local_env):
         self.tool = tool
@@ -508,6 +510,10 @@ class PythonBlockUtils(object):
         return self._pipeline
 
     def check_file(self, name):
+        """Checks for the existence of a file option.
+
+        :param name: the options name
+        """
         opt = self.tool.options[name]
         if not opt.is_dependency():
             self.tool.options[name].validate()
@@ -596,6 +602,7 @@ class PythonBlock(Block):
             "add_option": tool.options.add_option,
             "set": utils.set,
             'r': render_template,
+            'render_template': render_template,
             'utils': utils,
             'profile': profile,
             'basename': basename,
