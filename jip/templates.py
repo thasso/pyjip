@@ -138,6 +138,8 @@ def else_filter(ctx, value, prefix=None, suffix=None):
 
 @contextfilter
 def name_filter(ctx, value):
+    if isinstance(value, JipUndefined):
+        return "${%s|name}" % (value._undefined_name)
     from os.path import basename
     try:
         value = __resolve_options(ctx, value)
