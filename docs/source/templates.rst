@@ -32,6 +32,7 @@ The JIP API introduces a set of `filters` for template variables and their rende
       ``${output|ext|ext}`` prints ``my``.
     * **suf** Takes a single argument and adds it as a suffix to the option value
     * **pre** Takes a single argument and adds it as a prefix to the option value
+    * **name** Returns the basename of a file
 
 .. _python_context:
 
