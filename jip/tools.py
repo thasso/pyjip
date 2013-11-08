@@ -885,7 +885,9 @@ class Tool(object):
 
     def cleanup(self):
         """The celanup method removes all output files for this tool"""
-        for outfile in self.get_output_files(sticky=False):
+        outfiles = list(self.get_output_files(sticky=False))
+        log.debug("Tool cleanup check files: %s", outfiles)
+        for outfile in outfiles:
             if exists(outfile):
                 log.warning("Tool cleanup! Removing: %s", outfile)
                 remove(outfile)
@@ -906,7 +908,7 @@ class Tool(object):
         :returns: list of option values
         """
         for opt in self.options.get_by_type(TYPE_OUTPUT):
-            if (opt.source is not None and opt.source != self) or \
+            if (opt.source and opt.source != self) or \
                (not sticky and opt.sticky):
                 continue
             values = opt.raw()
@@ -923,7 +925,7 @@ class Tool(object):
         is not None, it has to be equal to this tool.
         """
         for opt in self.options.get_by_type(TYPE_INPUT):
-            if opt.source is not None and opt.source != self:
+            if opt.source and opt.source != self:
                 continue
             values = opt.raw()
             if not isinstance(values, (list, tuple)):
