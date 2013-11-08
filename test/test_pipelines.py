@@ -228,7 +228,7 @@ def test_expand_three_nodes_two_fan_out():
     assert len(p._edges) == 2
     p.expand()
     assert len(p._nodes) == 5
-    assert len(p._edges) == 4
+    assert len(p._edges) == 6
 
 
 # test operators
@@ -273,6 +273,10 @@ def test_right_shift_operator():
     node_1 = p.add(tool_1)
     node_2 = p.add(tool_2)
     node_3 = p.add(tool_3)
+
+    node_1.output = "A"
+    node_2.output = "B"
+    node_3.output = "C"
 
     node_1 >> node_3
     node_2 >> node_3
@@ -325,6 +329,24 @@ def test_three_groups():
     node_1 = p.add(tool_1)
     node_2 = p.add(tool_2)
     node_3 = p.add(tool_3)
+    node_1 >> (node_2 + node_3)
+    groups = list(p.groups())
+    assert len(groups) == 1
+
+
+def test_three_groups_files():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+
+    node_1.output = "A"
+    node_2.output = "B"
+    node_3.output = "C"
+
     node_1 >> (node_2 + node_3)
     groups = list(p.groups())
     assert len(groups) == 3
