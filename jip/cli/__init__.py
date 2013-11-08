@@ -126,17 +126,18 @@ def show_commands(jobs):
         deps = [str(d) for j in g
                 for d in j.dependencies if d not in g]
         name = "|".join(str(j) for j in g)
-        print "### %s -- Interpreter: %s Dependencies: %s" % (
+        print "%s %s -- Interpreter: %s %s" % (
+            colorize("###", YELLOW),
             colorize(name, BLUE),
-            job.interpreter,
-            ",".join(deps)
+            colorize(job.interpreter, GREEN),
+            ("Dependencies: " + colorize(",".join(deps), BLUE)) if deps else ""
         )
         for i, j in enumerate(g):
             if i > 0:
                 if not j.group_from:
                     print "|"
             print j.command
-        print "###"
+        print colorize("###", YELLOW)
 
 
 def show_options(options, title=None, excludes=None, show_defaults=False):
@@ -513,11 +514,14 @@ def submit(script, script_args, keep=False, force=False, silent=False,
                 if p in already_running:
                     if not silent:
                         other = already_running[p]
-                        print "Skipping %s[%s], job %s[%s] in the queue " \
-                              "creates the same output!" % (p,
-                                                            p.pipeline,
-                                                            other,
-                                                            str(other.id))
+                        print "%s %s[%s], job %s[%s] in the queue " \
+                              "creates the same output!" % (
+                                  colorize("Skipping", YELLOW),
+                                  p,
+                                  p.pipeline,
+                                  other,
+                                  str(other.id)
+                              )
                     continue
                 for c in jip.jobs.get_subgraph(p):
                     all_jobs.add(c)
@@ -525,7 +529,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         else:
             # all finished
             if not silent:
-                print "Skipping all jobs, all finished!"
+                print colorize("Skipping all jobs, all finished!", YELLOW)
             return
 
     if len(jobs) == 0:
@@ -544,7 +548,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         name = "|".join(str(j) for j in g)
         if job.state == jip.db.STATE_DONE and not force:
             if not silent:
-                print "Skipping", name
+                print colorize("Skipping %s" % name, YELLOW)
             log.info("Skipping completed job %s", name)
         else:
             log.info("Submitting %s", name)
