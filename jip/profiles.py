@@ -86,9 +86,14 @@ class Profile(object):
         """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
+        r = render_template
+        ctx = {}
+        for o in job.tool.options:
+            ctx[o.name] = o
+
         if self.name is not None:
-            job.name = "%s%s" % ("" if not self.prefix else self.prefix,
-                                 self.name)
+            job.name = r("%s%s" % ("" if not self.prefix else self.prefix,
+                                   self.name), **ctx)
         if self.threads is not None and job.threads is None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
