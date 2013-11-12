@@ -1,147 +1,66 @@
 .. JIP documentation master file
 
-JIP - yet another pipeline system!
-==================================
+JIP Pipeline system
+===================
 JIP is another approach to implement a pipeline system that helps to manage a
 large number of jobs on a compute cluster and simplifies the process of
 creating computational pipelines with dependency support, automatic expansions
 and simplified management of jobs and resources.
+
+Even if you don't care about pipeline and dependencies, JIP offers a set of
+management commands to simplify interactions with your compute cluster,
+allowing you to submit commands quickly, restart and move jobs, edit commands
+interactively, avoid duplicated job submission and more.
+
+Quick start
+-----------
+There is more documentation available and there are a few things you might need
+to understand before you can create more sophisticated work-flows. But here is
+the quick-start to install and configure JIP on your system. Take a look at the
+:ref:`setup guid <setup>` for a more detailed description of the installation 
+and configuration process.
+
+Quick install 
+^^^^^^^^^^^^^
+You can install JIP quickly into your ``$HOME`` folder::
+
+    $~> pip install jip --user
+
+Quick configuration
+^^^^^^^^^^^^^^^^^^^
+JIP reads ``$HOME/.jip/jip.jons`` to load your configuration. Create the file
+with the following content::
+
+    {
+        "cluster": "jip.cluster.Slurm",
+    }
+
+
+JIP Tools by example
+--------------------
+The main parts of the JIP tool and pipeline documentation are structured as
+small hands on tutorials. The examples will guide you through basic tool
+creation and execution as well as pipeline creation and manipulation and 
+execution
+
+* :ref:`Hello world <hello_world>`
+
 
 Contents:
 ---------
 
 .. toctree::
    :maxdepth: 2 
-   
+  
+   setup
+   templates
+   getting_started
    cli/index
    api/index
-   templates
-   examples
-   getting_started
-
-Installation
-------------
-The JIP system is mainly implemented in Python and can be installed from either
-the JIP `GitHub repository <http://github.com/thasso/pyjip>`_ or directly through
-pypi. 
-
-Install from GitHub
-^^^^^^^^^^^^^^^^^^^
-In order to install JIP from the Github repository, you have to check out the
-code and run the install script::
-
-    $~> git clone https://github.com/thasso/pyjip
-    $~> cd jip
-    $~/jip> python setup.py install
-
-This will install JIP system wide, but you need to have administrative 
-privileges to do so. If you do not have root permissions or you do not want to 
-install JIP system wide, you can append the `--user` option to the install
-command::
-    
-    $~/jip> python setup.py install --user
-
-This will install into you home folder.
-
-.. note::
-    You might have to update your `PATH` variable to include
-    `$HOME/.local/bin`. This is the default install location for `--user` mode.
-
-Install from pypi
-^^^^^^^^^^^^^^^^^
-The pypi python repository contains tools and libraries written in Python and
-provides an easy way to install such packages. An easy way to install a package
-from pypi is using the `pip` package manager. You can install JIP system wide
-with `pip`::
-
-    $~> pip install jip
-
-Alternatively, you can also install the JIP into your home folder with `pip` by
-appending the `--user` option::
-
-    $~> pip install jip --user
-
-.. _jip_configuration:
-
-Configuration and setup
-=======================
-After installation, you should have the `jip` command line tool available to
-interact with the system. This command can be seen as the master and control
-command to work with jip tools, pipelines, and jobs from the command line. JIP
-comes with a set of :ref:`JIP command line utilities<cli>`. Almost all of the
-commands at hand will work out of the box, but some might need a little bit of
-configuration before you can use them on your system. The *JIP configuration*
-is stored in two location on your system:
-
-`$INSTALL_DIR/bin/jip.json`:
-    You can put a global configuration just next to the `jip` executable. This
-    configuration file will always be loaded and evaluated for all calls to the 
-    command line utilities. In case you use the Python API directly and, you 
-    might have to specify the path to the global configuration file explicitly.
-
-`$HOME/.jip/jip.json`:
-    In order to provide user-level configuration, you can create a `.jip` 
-    folder in your :envvar:`$HOME` directory and put a `jip.json` configuration 
-    file there. This file will be evaluated automatically for both, calls to 
-    the command line utilities as well as any calls done using the Python API
-    directly. The file will extend and overwrite any global configuration.
-
-Here is an example of a JIP configuration file::
-
-    {
-        "db": "sqlite:///home/thasso/.jip/jobs.db",
-        "jip_path": "",
-        "jip_modules": [],
-        "cluster": "jip.cluster.Slurm",
-        "profiles": {
-            "default": {
-                "queue": "project",
-                "max_time": "3h"
-            }
-        }
-    }
-
-The configuration can cover the following entries:
-
-`db`: Database location. The path or URL to connect to the JIP database. The
-    JIP database is used to store runtime information about jobs submitted to a
-    compute cluster. By default, :command:`jip` puts the database into
-    `$HOME/.jip/jipbs.db` and uses an embedded sqlite database.
-
-`jip_path`: Colon separated path or locations for jip tools.  You can put a
-    colon separated list of folder here. All folders in this list will be searched
-    for tools.
-
-`jip_modules`: List of python modules. Put a list of module names here to 
-    specify locations of JIP tools that are implemented in a Python module. 
-    For examples::
-        
-        ...
-        "jip_modules":["my.tools"]
-        ...
-
-    With this configuration, JIP will load the `my.tools` python module to 
-    search for tools. Please note that `my.tools` module must be available
-    on your :envvar:`PYTHONPATH`. 
-
-`cluster`: name of a class that implements :py:class:`jip.cluster.Cluster`.
-    When used in a cluster environment, the specified class is used to interact
-    with your grid system on the lower level. 
-
-`profiles`: list of profiles that can be used to configure jobs on a cluster 
-
-
-Jip Tools by example
-====================
-The main parts of the JIP tool and pipeline documentation are structured as
-small hands on tutorials. The examples will guide you through basic tool
-creation and execution as well as pipeline creation and manipulation.
-
-* :ref:`Create your first tool <tut_first_tool>`
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
