@@ -44,10 +44,12 @@ creation and execution as well as pipeline creation and manipulation and
 execution
 
 * :ref:`Hello world <hello_world>`
+* :ref:`Command line argument <tut_arguments>`
+* :ref:`Validation <tut_validation>`
 
 
-Contents:
----------
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2 
