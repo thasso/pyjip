@@ -90,10 +90,11 @@ class Profile(object):
         ctx = {}
         for o in job.tool.options:
             ctx[o.name] = o
-
-        if self.name is not None:
-            job.name = r("%s%s" % ("" if not self.prefix else self.prefix,
-                                   self.name), **ctx)
+        name = self.name
+        if not name:
+            name = job._tool.name
+        job.name = r("%s%s" % ("" if not self.prefix else self.prefix,
+                               name), **ctx)
         if self.threads is not None and job.threads is None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)

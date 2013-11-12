@@ -47,10 +47,13 @@ def main():
     if confirm("Are you sure you want "
                "to cancel %d jobs" % len(jobs),
                False):
+        ## update states
         for job in jobs:
-            jip.jobs.cancel(job,
-                            clean_logs=args['--clean'],
-                            silent=False)
+            job.state = jip.db.STATE_CANCELED
+        session.commit()
+
+        for job in jobs:
+            jip.jobs.cancel(job, clean_logs=args['--clean'], silent=False)
         session.commit()
         session.close()
 

@@ -17,6 +17,7 @@ from jip.logger import getLogger
 import jip.jobs
 import jip.db
 from . import parse_args
+import sys
 
 log = getLogger("jip.cli.jip_exec")
 
@@ -35,6 +36,7 @@ def main():
     except Exception as e:
         log.error("Error executing job %s: %s",
                   args['<id>'], str(e), exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

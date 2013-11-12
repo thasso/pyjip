@@ -5,7 +5,7 @@ wrappers around common actions.
 from datetime import datetime
 import os
 import sys
-from signal import signal, SIGTERM, SIGINT
+from signal import signal, SIGTERM, SIGINT, SIGUSR1, SIGUSR2
 
 import jip.logger
 import jip.cluster
@@ -242,15 +242,21 @@ def _setup_signal_handler(job, session=None):
     :param session: optional database session
     """
     def handle_signal(signum, frame):
-        jip.jobs.set_state(job, jip.db.STATE_FAILED)
+        log.warn("Signal %s received, going to fail state", signum)
+        set_state(job, jip.db.STATE_FAILED, session=session)
         if session:
             session.commit()
             session.close()
+        sys.exit(1)
+    log.debug("Setting up signal handler for %s", job)
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
+    signal(SIGUSR1, handle_signal)
+    signal(SIGUSR2, handle_signal)
 
 
-def set_state(job, new_state, update_children=True, cleanup=True):
+def set_state(job, new_state, update_children=True, cleanup=True,
+              session=None):
     """Transition a job to a new state.
 
     The new job state is applied to the job and its embedded
@@ -267,6 +273,17 @@ def set_state(job, new_state, update_children=True, cleanup=True):
     :param cleanup: if True the tool cleanup is performed for canceled or
                     failed
     """
+    ## if the new state is STATE_FAILED and we have a session
+    ## get a fresh copy of the job. If it was canceled, keep
+    ## the canceled state
+    if session and new_state == db.STATE_FAILED:
+        #fresh = db.find_job_by_id(session, job.id)
+        log.debug("%s | fetched fresh copy: %s -> %s", job, job, job.state)
+        session.refresh(job, ['state'])
+        if job.state == db.STATE_CANCELED:
+            log.info("%s | job was canceled, preserving CANCELED state", job)
+            new_state = db.STATE_CANCELED
+
     ## create a database session
     log.info("%s | set state [%s]=>[%s]", job, job.state, new_state)
 
@@ -285,6 +302,11 @@ def set_state(job, new_state, update_children=True, cleanup=True):
         if not job.keep_on_fail and job.tool:
             log.info("Cleaning job %s after failure", str(job))
             job.tool.cleanup()
+        else:
+            log.info("Skipped job cleanup for %s", job)
+    else:
+        log.debug("Skipped job cleanup! Cleanup: %s, state %s",
+                  cleanup, job.state)
 
     # check embedded children of this job
     if update_children:
@@ -351,7 +373,7 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True):
     :param clean_job: if True, the job results will be removed
     :param silent: if False, the method will print status messages
     """
-    if not job.state in db.STATES_ACTIVE:
+    if not job.state in db.STATES_ACTIVE and job.state != db.STATE_CANCELED:
         return
 
     if not silent:
@@ -597,10 +619,16 @@ def from_node(node, env=None, keep=False):
     job.pipeline = node._pipeline
     job.state = jip.db.STATE_HOLD
     #job.name = tool.name
-    job.name = node._name
+    job.name = node._job.name
+    if job.name is None:
+        job.name = node._name
     if job.name is None:
         job.name = node._tool._job_name
         node._job.name = job.name
+    if job.name is None:
+        job.name = node._tool.name
+        node._job.name = job.name
+
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path

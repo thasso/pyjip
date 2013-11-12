@@ -124,7 +124,7 @@ class Job(Base):
     threads = Column(Integer, default=1)
     # maximum memory assigned to a job
     max_memory = Column(Integer, default=0)
-    # maximum wall clock time assigned to a job
+    # maximum wall clock time assigned to a job in minutes
     max_time = Column(Integer, default=0)
     # the jobs working directory
     working_directory = Column(String(1024), default=getcwd())

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from subprocess import Popen, PIPE
-import sys
 import os
+import re
 
 import jip
 from jip.logger import getLogger
@@ -40,13 +40,18 @@ def from_name(name):
 
 
 class Cluster(object):
-    def __init__(self):
-        """Initialize a cluster"""
-        pass
+    """Base class for cluster integrations.
 
+    In order to add support for a cluster engine or if you want
+    to customize how jobs are submitted to your compute cluster, extend this
+    class.
+
+    """
     def list(self):
         """A list of all active job id's that are currently queued or
-        running
+        running in the cluster.
+
+        :returns: list of job ids of active jobs
         """
         raise Exception("Not implemented")
 
@@ -54,7 +59,11 @@ class Cluster(object):
         pass
 
     def cancel(self, job):
-        """Cancel the given job"""
+        """Cancel the given job
+
+        :param job: the job instance
+        :type job: `jip.db.Job`
+        """
         pass
 
     def update(self, job):
@@ -67,7 +76,14 @@ class Cluster(object):
         """Resolve cluster specific file pattern to get the
         actual path. For example, slurm used %j on the command
         line as a place-holder for the job id. This method
-        resolves those cluster specifc place-holders
+        resolves those cluster specifc place-holders to return
+        the full path to the lgo file.
+
+        :param job: the job instance
+        :type job: `jip.db.Job`
+        :param path: log file name
+        :type path: string
+        :returns: resolved log file replacing any placeholders
         """
         return path
 
@@ -166,211 +182,111 @@ class Slurm(Cluster):
         return "Slurm"
 
 
-#     def list(self):
-#         jobs = {}
-#         params = [self.squeue, "-h", "-o", "%i,%t"]
-#         if self.list_args is not None:
-#             params.extend(self.list_args)
-#
-#         process = subprocess.Popen(params,
-#                                    stdout=subprocess.PIPE,
-#                                    stderr=subprocess.PIPE,
-#                                    shell=False)
-#         for l in process.stdout:
-#             jid, state = l.strip().split(",")
-#             js = Cluster.STATE_QUEUED
-#             if state == "R":
-#                 js = Cluster.STATE_RUNNING
-#             jobs[jid] = js
-#         err = "".join([l for l in process.stderr])
-#         if process.wait() != 0:
-#             raise ClusterException("Error while submitting job:\n%s" % (err))
-#         return jobs
-#
-#     def _submit(self, script, max_time=None, name=None,
-#                 max_mem=None, threads=1, queue=None, priority=None, tasks=1,
-#                 dependencies=None, working_dir=None, extra=None, logdir=None):
-#         params = [self.sbatch]
-#
-#         if logdir is None:
-#             logdir = os.getcwd()
-#         logdir = os.path.abspath(logdir)
-#
-#         stdout_file = os.path.join(logdir, "slurm-%j.out")
-#         stderr_file = os.path.join(logdir, "slurm-%j.err")
-#
-#
-#
-#         self._add_parameter(params, "-t", max_time,
-#                             lambda x: x is None or int(x) <= 0)
-#         self._add_parameter(params, "-p", queue)
-#         self._add_parameter(params, "--qos", priority)
-#         self._add_parameter(params, "-c", threads,
-#                             lambda x: x is None or int(x) <= 0)
-#         self._add_parameter(params, "--mem-per-cpu", max_mem,
-#                             lambda x: x is None or int(x) <= 0)
-#         self._add_parameter(params, "-D", working_dir)
-#         self._add_parameter(params, "-d", dependencies, prefix="afterok:",
-#                             to_list=":")
-#         self._add_parameter(params, "-d", dependencies, prefix="afterok:",
-#                             to_list=":")
-#         self._add_parameter(params, "-J", name)
-#         self._add_parameter(params, "-e", stderr_file)
-#         self._add_parameter(params, "-o", stdout_file)
-#         self._add_parameter(params, value=extra)
-#
-#         process = subprocess.Popen(params,
-#                                    stdin=subprocess.PIPE,
-#                                    stdout=subprocess.PIPE,
-#                                    stderr=subprocess.PIPE,
-#                                    shell=False)
-#
-#         process.stdin.write(script)
-#         process.stdin.close()
-#         out = "".join([l for l in process.stdout])
-#         err = "".join([l for l in process.stderr])
-#         if process.wait() != 0:
-#             raise ClusterException("Error while submitting job:\n%s" % (err))
-#         job_id = out.strip().split(" ")[3]
-#
-#         # calculate the full name to the log files
-#         stdout_file = os.path.join(logdir, "slurm-%s.out" % job_id)
-#         stderr_file = os.path.join(logdir, "slurm-%s.err" % job_id)
-#
-#         feature = Feature(jobid=job_id, stdout=stdout_file, stderr=stderr_file)
-#         return feature
-#
-#     def wait(self, jobid, check_interval=360):
-#         if jobid is None:
-#             raise ClusterException("No job id specified! Unable to check"
-#                                    "  job state!")
-#
-#         while True:
-#             process = subprocess.Popen([self.squeue, '-h', '-j', str(jobid)],
-#                                        stderr=subprocess.PIPE,
-#                                        stdout=subprocess.PIPE)
-#             (out, err) = process.communicate()
-#             if process.wait() != 0 or len(out.strip()) == 0:
-#                 return
-#             else:
-#                 time.sleep(check_interval)
-#
-# class SunGrid(Cluster):
-#     """SGE extension of the Cluster implementation
-#
-#     The SGE implementation sends jobs to the cluster using
-#     the `qsub` command line tool. The job parameter are paseed
-#     to `qsub` as they are. Note that:
-#     """
-#
-#     def __init__(self, qsub="qsub", qstat="qstat", list_args=None):
-#         """Initialize the SGE cluster.
-#
-#         Parameter
-#         --------
-#         qsub -- path to the qsub command. Defaults to 'qsub'
-#         qstat -- path to the qstat command. Defaults to 'qstat'
-#         """
-#         self.qsub = qsub
-#         self.qstat = qstat
-#         self.list_args = list_args
-#
-#     def list(self):
-#         jobs = {}
-#         params = [self.qstat, "-u", os.getenv('USER')]
-#         if self.list_args is not None:
-#             params.extend(self.list_args)
-#
-#         process = subprocess.Popen(params,
-#                                    stdout=subprocess.PIPE,
-#                                    stderr=subprocess.PIPE,
-#                                    shell=False)
-#         for l in process.stdout:
-#             fields = [x for x in l.strip().split(" ") if x]
-#             js = Cluster.STATE_QUEUED
-#             if len(fields) > 4 and fields[4] == "r":
-#                 js = Cluster.STATE_RUNNING
-#             jobs[fields[0]] = js
-#         err = "".join([l for l in process.stderr])
-#         if process.wait() != 0:
-#             raise ClusterException("Error while submitting job:\n%s" % (err))
-#         return jobs
-#
-#     def _submit(self, script, max_time=None, name=None,
-#                 max_mem=None, threads=1, queue=None, priority=None, tasks=1,
-#                 dependencies=None, working_dir=None, extra=None, logdir=None):
-#         params = [self.qsub]
-#
-#         if logdir is None:
-#             logdir = os.getcwd()
-#         logdir = os.path.abspath(logdir)
-#
-#         if working_dir is None:
-#             working_dir = os.path.abspath(os.getcwd())
-#
-#         self._add_parameter(params, "-q", queue)
-#         self._add_parameter(params, None, ['-pe', 'smp', str(threads)],
-#                             lambda x: x[2] == None or int(x[2] <= 0))
-#         self._add_parameter(params, "-N", name)
-#         self._add_parameter(params, '-l',['h_rt', str(self._parse_time(max_time))],
-#                             lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
-#         self._add_parameter(params, '-l', ['virtual_free', str(max_mem)],
-#                             lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
-#         self._add_parameter(params,value="-V")
-#         self._add_parameter(params, "-wd", working_dir,
-#                             lambda x: not os.path.exists(str(x)))
-#         self._add_parameter(params, "-hold_jid", dependencies,
-#                             to_list=",")
-#         self._add_parameter(params, "-e", logdir)
-#         self._add_parameter(params, "-o", logdir)
-#         self._add_parameter(params, value=extra)
-#
-#         process = subprocess.Popen(params,
-#                                    stdin=subprocess.PIPE,
-#                                    stdout=subprocess.PIPE,
-#                                    stderr=subprocess.PIPE,
-#                                    shell=False)
-#
-#         process.stdin.write(script)
-#         process.stdin.close()
-#         out = "".join([l for l in process.stdout])
-#         err = "".join([l for l in process.stderr])
-#         if process.wait() != 0:
-#             raise ClusterException("Error while submitting job:\n%s" % (err))
-#         import re
-#         expr = 'Your job (?P<job_id>.+) .+ has been submitted'
-#         match = re.search(expr, out)
-#         job_id = match.group('job_id')
-#
-#         # calculate the full name to the log files
-#         stdout_file = os.path.join(logdir, "%s.o%s" % (name, job_id))
-#         stderr_file = os.path.join(logdir, "%s.e%s" % (name, job_id))
-#
-#         feature = Feature(jobid=job_id, stdout=stdout_file, stderr=stderr_file)
-#         return feature
-#
-#     def wait(self, jobid, check_interval=360):
-#         if jobid is None:
-#             raise ClusterException("No job id specified! Unable to check"
-#                                    "  job state!")
-#
-#         while True:
-#             process = subprocess.Popen([self.qstat, '-j', str(jobid)],
-#                                        stderr=subprocess.PIPE,
-#                                        stdout=subprocess.PIPE)
-#             (out, err) = process.communicate()
-#             if process.wait() != 0 or len(out.strip()) == 0:
-#                 return
-#             else:
-#                 time.sleep(check_interval)
-#
-#     def _parse_time(self, time):
-#         if time is None:
-#             return time
-#         t = map(lambda x: x or '0', time.split(':'))
-#         if len(t) is 1:
-#             return time
-#         if len(t) is not 3:
-#             raise ValueError('SunGrid: Invalid time string format')
-#         return int(t[0])*3600 + int(t[1])*60 + int(t[2])
-#
+class SGE(Cluster):
+    """SGE extension of the Cluster implementation
+
+    The SGE implementation sends jobs to the cluster using
+    the `qsub` command line tool. The job parameter are paseed
+    to `qsub` as they are. Note that:
+    """
+
+    def __init__(self):
+        """Initialize the SGE cluster.
+
+        """
+        self.qsub = 'qsub'
+        self.qstat = 'qstat'
+
+    def resolve_log(self, job, path):
+        if path is None:
+            return None
+        return path.replace("$JOB_ID", str(job.job_id))
+
+    def cancel(self, job):
+        if job is None or job.job_id is None:
+            return
+        cmd = ['qdel', str(job.job_id)]
+        Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
+    def list(self):
+        jobs = {}
+        params = [self.qstat, "-u", os.getenv('USER')]
+        process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
+        jobs = []
+        for l in process.stdout:
+            fields = [x for x in l.strip().split(" ") if x]
+            try:
+                long(fields[0])
+            except:
+                continue
+            jobs.append(fields[0])
+            err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ValueError("Error while listing jobs:\n%s" % (err))
+        return jobs
+
+    def update(self, job):
+        job.hosts = os.getenv("HOSTNAME", "")
+
+    def __repr__(self):
+        return "SGE"
+
+    def submit(self, job):
+        """Submit the given job to the SGE cluster"""
+        job_cmd = job.get_cluster_command()
+        cmd = [self.qsub, "-V", '-notify']
+        #TODO: configure parallel environment
+        #if job.threads and job.threads > 1:
+            #cmd.extend(["-c", str(job.threads)])
+
+        if job.max_time > 0:
+            cmd.extend(["-l", 's_rt=%s' % str(job.max_time * 60)])
+        if job.priority:
+            cmd.extend(["-p", str(job.priority)])
+        if job.queue:
+            cmd.extend(["-q", str(job.queue)])
+        if job.working_directory:
+            cmd.extend(["-wd", job.working_directory])
+        if job.max_memory > 0:
+            cmd.extend(["-l", 'virtual_free=%s' % str(job.max_memory)])
+        if job.extra is not None:
+            cmd.extend(job.extra)
+        if job.name or job.pipeline:
+            name = job.name if job.name else ""
+            if job.pipeline:
+                if name:
+                    name = name + "-" + job.pipeline
+                else:
+                    name = job.pipeline
+            cmd.extend(["-N", name])
+
+        cwd = job.working_directory if job.working_directory is not None \
+            else os.getcwd()
+        if job.stderr is None:
+            job.stderr = os.path.join(cwd, "sge-$JOB_ID.err")
+        if job.stdout is None:
+            job.stdout = os.path.join(cwd, "sge-$JOB_ID.out")
+        cmd.extend(["-o", job.stdout])
+        cmd.extend(["-e", job.stderr])
+        # dependencies
+        if len(job.dependencies) > 0:
+            deps = set([])
+            for dep in [d for d in job.dependencies if d.job_id]:
+                deps.add(str(dep.job_id))
+            if len(deps) > 0:
+                cmd.extend(['-hold_jid', ",".join(deps)])
+        log.debug("Submitting job with :%s %s", cmd, job_cmd)
+        process = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        process.stdin.write("exec %s" % job_cmd)
+        process.stdin.close()
+        out = "".join([l for l in process.stdout])
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise SubmissionError("%s\n"
+                                  "Executed command:\n%s\n" % (
+                                      err,
+                                      " ".join(cmd)
+                                  ))
+        expr = 'Your job (?P<job_id>.+) .+ has been submitted'
+        match = re.search(expr, out)
+        job.job_id = match.group('job_id')
