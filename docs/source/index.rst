@@ -32,7 +32,7 @@ JIP reads ``$HOME/.jip/jip.jons`` to load your configuration. Create the file
 with the following content::
 
     {
-        "cluster": "jip.cluster.Slurm",
+        "cluster": "jip.cluster.Slurm"
     }
 
 

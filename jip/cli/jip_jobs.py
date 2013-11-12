@@ -22,7 +22,7 @@ Options:
 
 Columns supported for output:
     ID          The internal job id
-    C-ID        The job id assigned by the clsuter
+    C-ID        The job id assigned by the cluster
     Name        The jobs name
     Pipeline    The name of the pipeline
     State       The jobs current state
