@@ -322,7 +322,8 @@ class Pipeline(object):
         operations on nodes with singleton options that are populated with
         list.
         An exception is raised in case a node has more than one option that
-        should be expanded and the number of configured elements is not the same.
+        should be expanded and the number of configured elements is not the
+        same.
 
         :param validate: disable validation by setting this to false
         """
@@ -414,14 +415,16 @@ class Pipeline(object):
             # make sure the node WAS valid, otherwise the node
             # and its validation capabilities will be lost
             #
-            # if validation is disable, exceptions are catched and not raised here
+            # if validation is disable, exceptions are catched and not raised
+            # here
             try:
                 node._tool.validate()
             except Exception as err:
                 if validate:
                     raise
                 else:
-                    log.debug("Node validation failed, but validaton is disabled: %s", err)
+                    log.debug("Node validation failed, but validaton is "
+                              "disabled: %s", err)
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 

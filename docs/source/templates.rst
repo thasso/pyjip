@@ -33,6 +33,8 @@ The JIP API introduces a set of `filters` for template variables and their rende
     * **suf** Takes a single argument and adds it as a suffix to the option value
     * **pre** Takes a single argument and adds it as a prefix to the option value
     * **name** Returns the basename of a file
+    * **parent** Return the name of the parent directory of a given file path
+    * **re** Takes two arguments for search and replace
 
 .. _python_context:
 

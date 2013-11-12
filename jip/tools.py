@@ -530,6 +530,7 @@ class PythonBlockUtils(object):
 
     def name(self, name):
         self.pipeline.name(name)
+        self.tool._job_name = name
         #if self._pipeline is not None:
             #self._pipeline.name(name)
         #else:
@@ -704,6 +705,7 @@ class Tool(object):
         """
         #: the tools name
         self.name = name
+        self._job_name = None
         #: path to the tools source file
         self.path = None
         self._options = None

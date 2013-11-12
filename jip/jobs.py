@@ -598,6 +598,9 @@ def from_node(node, env=None, keep=False):
     job.state = jip.db.STATE_HOLD
     #job.name = tool.name
     job.name = node._name
+    if job.name is None:
+        job.name = node._tool._job_name
+        node._job.name = job.name
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path

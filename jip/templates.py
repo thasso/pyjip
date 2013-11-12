@@ -154,10 +154,64 @@ def name_filter(ctx, value):
 
 
 @contextfilter
-def ext_filter(ctx, value):
+def parent_filter(ctx, value):
+    """Returns the name of the parent directory of the given file path
+
+    :param ctx: the context
+    :param value: the file path
+    :returns: the name of the parent directory
+    """
+    if isinstance(value, JipUndefined):
+        return "${%s|parent}" % (value._undefined_name)
+    from os.path import dirname
+    try:
+        value = __resolve_options(ctx, value)
+
+        if not isinstance(value, Option):
+            v = str(value)
+        else:
+            v = value.get()
+        return dirname(v)
+    except:
+        return value
+
+
+@contextfilter
+def replace_filter(ctx, value, search, replace):
+    """Replaces all hits of the pattern woth the replacement string
+
+    :param ctx: the context
+    :param value: the source value
+    :param search: the search pattern
+    :param replace: the replacement string
+    :returns: the new string
+    """
+    if isinstance(value, JipUndefined):
+        return "${%s|replace('%s', '%s')}" % (value._undefined_name,
+                                              search, replace)
+    try:
+        value = __resolve_options(ctx, value)
+        if not isinstance(value, Option):
+            v = str(value)
+        else:
+            v = value.get()
+        return v.replace(search, replace)
+    except:
+        return value
+
+
+@contextfilter
+def ext_filter(ctx, value, splitter='.'):
+    """Cut away the last file extension splitted by `splitter`.
+    The default splitter is ``.``
+
+    :param ctx: the context
+    :param value: the file path
+    :param splitter: the splitter
+    """
     try:
         if isinstance(value, JipUndefined):
-            return "${%s|ext}" % (value._undefined_name)
+            return "${%s|ext('%s')}" % (value._undefined_name, splitter)
         if not isinstance(value, Option):
             script = ctx.get('tool', None)
             if script:
@@ -170,7 +224,7 @@ def ext_filter(ctx, value):
         else:
             v = value.get()
         try:
-            i = str(v).rindex(".")
+            i = str(v).rindex(splitter)
             if i > 0:
                 return str(v)[:i]
         except:
@@ -190,6 +244,8 @@ environment.filters['name'] = name_filter
 environment.filters['ext'] = ext_filter
 environment.filters['suf'] = suf_filter
 environment.filters['pre'] = pre_filter
+environment.filters['parent'] = parent_filter
+environment.filters['re'] = replace_filter
 
 
 def render_values(options, ctx):
