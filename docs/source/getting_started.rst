@@ -17,6 +17,8 @@ used to implement a tool in your scripting language of choice. In addition to
 *jip scripts*, you can use python module to implement tools using parts of the
 jip API. Lets start with a classical example: *Hello world*.
 
+.. _hello_world:
+
 Hello world
 ^^^^^^^^^^^
 In order to create your first jip script, create a file `hello_world.jip` with

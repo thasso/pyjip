@@ -36,10 +36,12 @@ The JIP API introduces a set of `filters` for template variables and their rende
     * **parent** Return the name of the parent directory of a given file path
     * **re** Takes two arguments for search and replace
 
+
+
 .. _python_context:
 
 The Python context
-==================
+------------------
 Within a jip script, within template blocks, and in python blocks like
 *validate* or *pipeline*, a set of functions is already exposed to simplify
 certain tasks that have to be done quiet often, for example, checking for the
