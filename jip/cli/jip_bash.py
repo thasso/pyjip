@@ -2,7 +2,7 @@
 """
 Wrap a bash command in a jip script
 
-Please not that this command is indendet to work on single file input/output.
+Please not that this command is indented to work on single file input/output.
 You can specify more that one input file and the command will run independently
 on all inputs. The 'output' options is used for pipes explicitly. If you do not
 want to pipe your output, but handle output yourself, use the 'outfile'

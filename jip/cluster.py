@@ -183,19 +183,35 @@ class Slurm(Cluster):
 
 
 class SGE(Cluster):
-    """SGE extension of the Cluster implementation
+    """SGE extension of the Cluster implementation.
 
-    The SGE implementation sends jobs to the cluster using
-    the `qsub` command line tool. The job parameter are paseed
-    to `qsub` as they are. Note that:
+    The SGE submission can be configured using the global jip configuration.
+    The implementation looks for a dictionary ``sge`` and supports the
+    following settings:
+
+        * ``threads_pe`` the name of the parallel environment used to submit
+            multi-threaded jobs
+
+        * ``qsub`` path to the qsub command
+
+        * ``qstat`` path to the qstat command
+
+        * ``qdel`` path to the qdel command
+
+    You do not have to specify the command options if the commands are
+    available in your path, but the ``threads_pe`` option has to be specified
+    to be able to submit multi-threaded jobs.
     """
 
     def __init__(self):
         """Initialize the SGE cluster.
 
         """
-        self.qsub = 'qsub'
-        self.qstat = 'qstat'
+        sge_cfg = jip.config.get("sge", {})
+        self.qsub = sge_cfg.get('qsub', 'qsub')
+        self.qstat = sge_cfg.get('qstat', 'qstat')
+        self.qdel = sge_cfg.get('qdel', 'qdel')
+        self.threads_pe = sge_cfg.get('threads_pd', None)
 
     def resolve_log(self, job, path):
         if path is None:
@@ -205,7 +221,7 @@ class SGE(Cluster):
     def cancel(self, job):
         if job is None or job.job_id is None:
             return
-        cmd = ['qdel', str(job.job_id)]
+        cmd = [self.qdel, str(job.job_id)]
         Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
 
     def list(self):
@@ -235,12 +251,18 @@ class SGE(Cluster):
         """Submit the given job to the SGE cluster"""
         job_cmd = job.get_cluster_command()
         cmd = [self.qsub, "-V", '-notify']
-        #TODO: configure parallel environment
-        #if job.threads and job.threads > 1:
-            #cmd.extend(["-c", str(job.threads)])
 
         if job.max_time > 0:
             cmd.extend(["-l", 's_rt=%s' % str(job.max_time * 60)])
+        if job.threads and job.threads > 1:
+            if not self.threads_pe:
+                raise SubmissionError("You are trying to submit a threaded "
+                                      "job, but no parallel environment is "
+                                      "configured. Please set a "
+                                      "'threads_pe' value and specify the "
+                                      "environment that should be used for "
+                                      "threaded jobs.")
+            cmd.extend(["-pe", "%s %d" % (self.threads_pe, job.threads)])
         if job.priority:
             cmd.extend(["-p", str(job.priority)])
         if job.queue:

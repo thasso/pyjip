@@ -20,20 +20,50 @@ the quick-start to install and configure JIP on your system. Take a look at the
 :ref:`setup guid <setup>` for a more detailed description of the installation 
 and configuration process.
 
-Quick install 
-^^^^^^^^^^^^^
+Installation 
+^^^^^^^^^^^^
 You can install JIP quickly into your ``$HOME`` folder::
 
     $~> pip install jip --user
 
-Quick configuration
-^^^^^^^^^^^^^^^^^^^
-JIP reads ``$HOME/.jip/jip.jons`` to load your configuration. Create the file
-with the following content::
+Configuration
+^^^^^^^^^^^^^
+JIP reads ``$HOME/.jip/jip.json`` to load your configuration. Create the file
+with the following content.
+
+For a slurm cluster::
 
     {
         "cluster": "jip.cluster.Slurm"
     }
+
+For an SGE cluster::
+
+    {
+        "cluster": "jip.cluster.SGE"
+        "sge" : {
+            "threads_pe": "threads"
+        }
+    }
+
+Please note that for SGE, in order to submit multi-threaded jobs, you have to 
+specify the parallel environment that is configured for threaded jobs.
+
+Execute a job
+^^^^^^^^^^^^^
+You can run or submit a bash command using the `jip bash <jip_bash>` command.
+For example::
+
+    $> jip bash -c hostname
+
+This will run ``hostname`` locally. Add the ``-s`` option to submit the command
+as a job to your cluster::
+
+    $> jip bash -s -c hostname
+
+You can check the status of the job with `jip jobs <jip_jobs>`::
+
+    $> jip jobs
 
 
 JIP Tools by example

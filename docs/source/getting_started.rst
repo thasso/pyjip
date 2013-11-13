@@ -63,7 +63,9 @@ this::
     # Prints hello world
     echo "Hello world"
 
-The first line of your comment is treated as the description of your tool, but in addition to a single line, you are encouraged to write more. This *help* is available to all tools when you run them with the `-h` options. For example::
+The first line of your comment is treated as the description of your tool, but
+in addition to a single line, you are encouraged to write more. This *help* is
+available to all tools when you run them with the `-h` options. For example::
 
     $> ./hello_world.jip -h
     Prints hello world
@@ -121,7 +123,7 @@ loaded from python modules directly. Lets create a python module
     #!/usr/bin/env python
     from jip import *
 
-    @tool()
+    @pytool()
     def hello_world():
         """Prints hello world in a python module"""
         print "Hello world"

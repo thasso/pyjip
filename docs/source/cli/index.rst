@@ -9,6 +9,7 @@ JIP bundles a set of command line utilities.
    :maxdepth: 2
           
    jip
+   jip_jobs
    jip_tools
    jip_profiles
    jip_bash
