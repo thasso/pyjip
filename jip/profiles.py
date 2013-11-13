@@ -90,7 +90,9 @@ class Profile(object):
         ctx = {}
         for o in job.tool.options:
             ctx[o.name] = o
-        name = self.name
+        name = job.name
+        if not name:
+            name = self.name
         if not name:
             name = job._tool.name
         job.name = r("%s%s" % ("" if not self.prefix else self.prefix,
