@@ -142,7 +142,7 @@ class Cluster(object):
         """Cancel the given job
 
         :param job: the job instance
-        :type job: `jip.db.Job`
+        :type job: :class:`jip.db.Job`
         """
         raise NotImplementedError()
 
@@ -166,7 +166,7 @@ class Cluster(object):
         path to the log file.
 
         :param job: the job instance
-        :type job: `jip.db.Job`
+        :type job: :class:`jip.db.Job`
         :param path: log file name
         :type path: string
         :returns: resolved log file replacing any placeholders
