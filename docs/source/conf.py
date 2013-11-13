@@ -101,7 +101,7 @@ html_theme_path = ['_themes']
 # documentation.
 html_theme_options = {
     'index_logo': False,
-    'github_fork': 'thasso/pyscript'
+    'github_fork': 'thasso/pyjip'
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
