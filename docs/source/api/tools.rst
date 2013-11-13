@@ -5,6 +5,7 @@ jip.tools
 
 .. autoclass:: jip.tools.Tool
     :members:
+    :member-order: groupwise
 
     .. automethod:: __init__
 

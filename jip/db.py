@@ -1,21 +1,31 @@
 #!/usr/bin/env python
-"""This modue contains the object model that is used to store
-Jobs in the database
+"""JIP jobs that are submitted to a compute cluster are stored in
+a Database that is accessible for all running jobs. This is the current
+way how jobs can populate their state.
+
+JIP uses `SQLAlchemy <http://www.sqlalchemy.org/>`_ as an abstraction layer to
+the database. By default, a user specific `sqlite` database is used to store
+the data, but you can use any valid database URL in your :ref:`configuration
+<jip_configuration>`.
+
+This module contains a few helper functions that to be able to create a
+database session, and the main :class:Job class that is used as a container
+to store jobs in the database.
 """
-import datetime
-import sys
-import os
 from os import getcwd
+import datetime
+import os
 import subprocess
+import sys
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
 from sqlalchemy import Text, Boolean, PickleType
 from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
+
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
-import jip.options
 
 log = getLogger('jip.db')
 
@@ -28,13 +38,19 @@ db_in_memory = False
 
 Base = declarative_base()
 
-# available jobs states
-STATE_QUEUED = "Queued"  # queued job waiting for execution
-STATE_DONE = "Done"  # succesfully completed job
-STATE_FAILED = "Failed"  # failed job
-STATE_HOLD = "Hold"  # Job is submitted but on hold
-STATE_RUNNING = "Running"  # job is currently running
-STATE_CANCELED = "Canceled"  # job was canceled
+
+#: Job is submitted but on hold
+STATE_HOLD = "Hold"
+#: Job is submitted to the compute cluster and is queued for execution
+STATE_QUEUED = "Queued"
+#: Job execution successfully completed
+STATE_DONE = "Done"
+#: Job execution failed
+STATE_FAILED = "Failed"
+#: Job is currently running
+STATE_RUNNING = "Running"
+#: Job was canceled by the user
+STATE_CANCELED = "Canceled"
 
 # job states for jobs that are finished
 STATES_FINISHED = [STATE_DONE, STATE_FAILED, STATE_CANCELED]
@@ -61,10 +77,10 @@ job_pipes = Table("job_pipes", Base.metadata,
                          ForeignKey("jobs.id"), primary_key=True))
 
 job_groups = Table("job_groups", Base.metadata,
-                  Column("source", Integer,
-                         ForeignKey("jobs.id"), primary_key=True),
-                  Column("target", Integer,
-                         ForeignKey("jobs.id"), primary_key=True))
+                   Column("source", Integer,
+                          ForeignKey("jobs.id"), primary_key=True),
+                   Column("target", Integer,
+                          ForeignKey("jobs.id"), primary_key=True))
 
 
 class Job(Base):
@@ -85,78 +101,99 @@ class Job(Base):
 
     ## general properties
     #
-    # The primary job id
+    #: The primary job id
     id = Column(Integer, primary_key=True)
-    # the remote job id
+    #: The remote job id set after submission to a remote cluster
     job_id = Column(String(128))
-    # optional name of the job. Names
-    # are used to create stdout and stderr log
-    # file for a job.
+    #: User specified name for the job
     name = Column(String(256))
-    # store an optional project name
+    #: Optional user specified project name
     project = Column(String(256))
-    # store an optional pipeline name to group jobs
+    #: Optional pipeline name to group jobs
     pipeline = Column(String(256))
-    # path to the jip script that created this job
+    #: Absolute path to the JIP script that created this job
+    #: this is currently only set for JIP script, not for
+    #: tools that are loaded from a python module
     path = Column(String(1024))
-    # tool name
+    #: Name of the tool
     tool_name = Column(String(256))
-    # a job can be archived to be able to
-    # hide finished jobs but keep their information
+    #: A job can be archived to be able to
+    #: hide finished jobs but keep their information. This is indicated
+    #: by this field
     archived = Column(Boolean, default=False)
-    # mark a job as temporary
+    #: This is used to mark jobs as temporary. Temporary jobs are
+    #: can be handled differently when jobs or pipeline are restarted
+    #: or a global cleanup function is called
     temp = Column(Boolean, default=False)
-
-    # times, dates and state and execution states
+    #: Create data of the job
     create_date = Column(DateTime, default=datetime.datetime.now())
+    #: Start date of the job
     start_date = Column(DateTime)
+    #: Finished data of the jobs
     finish_date = Column(DateTime)
+    #: Current job state. See `job states <job_states>` for more information
     state = Column(String, default=STATE_QUEUED)
+    #: optional name of the host that executes this job. This has to be set
+    #: by the cluster implementation at runtime. If the cluster implementation
+    #: does not support this, the field might not be set.
     hosts = Column(String(256))
-
-    # partitions, queues, priority and account
+    #: Stores the name of the ``queue`` this job will be submitted to.
+    #: Interpretation of this field depends on the cluster implementation
     queue = Column(String(256))
+    #: Stores the priority assigned to the job. Interpretation of this
+    #: field depends on the cluster implementation
     priority = Column(String(256))
+    #: Account information assigned to the job
     account = Column(String(256))
-    # execution properties
-    #
-    # number of threads assigned to a job
+    #: Number of threads assigned to a job. Defaults to 1
     threads = Column(Integer, default=1)
-    # maximum memory assigned to a job
+    #: Maximum memory assigned to a job in MB
     max_memory = Column(Integer, default=0)
-    # maximum wall clock time assigned to a job in minutes
+    #: Maximum wall clock time assigned to a job in Minutes
     max_time = Column(Integer, default=0)
-    # the jobs working directory
+    #: The jobs working directory. This defaults to the current
+    #: working directory
     working_directory = Column(String(1024), default=getcwd())
-    # the jobs stdout log file. This can contain
-    # place holders like %J that are filled with the
-    # job id to create the final path. The cluster implementation
-    # should provide a way to translate a string in conjuntion
-    # with a job_id to a full path
+    #: The jobs ``stdout`` log file. This can contain
+    #: place holders like ``%J`` that are filled, for example,  with the
+    #: job id to create the final path. The cluster implementation
+    #: provides a way to
+    #: :py:meth:`resolve a path <jip.cluster.Cluster.resolve_log>`.
     stdout = Column(String(1024))
-    # stderr log file. Same rules as for stdout apply
+    #: The jobs ``stderr`` log file. This can contain
+    #: place holders like ``%J`` that are filled, for example,  with the
+    #: job id to create the final path. The cluster implementation
+    #: provides a way to
+    #: :py:meth:`resolve a path <jip.cluster.Cluster.resolve_log>`.
     stderr = Column(String(1024))
-    # this holds parts of the job environment
-    # to allow clean restarts and moves of a job
-    # even though the users current environment setting
-    # has changed
+    #: Stores parts of the job environment
+    #: to allow clean restarts and moves of a Job
+    #: even though the users current environment setting
+    #: has changed. See :py:func:`~jip.jobs.create_job_env` for more
+    #: information about the environment stored by default.
     env = deferred(Column(PickleType))
-    # keep or delete outputs if the job fails
+    #: If explicitly set to True, Job output will not be removed in a
+    #: cleanup step after a job failed or was canceled.
     keep_on_fail = Column(Boolean, default=False)
-    # the main job command template
+    #: The fully rendered job command that will be executed by this job
+    #: **NOTE** that is is the final command executed buy the jobs, **NOT**
+    #: the command that is send to the cluster. You can get the command
+    #: send to the cluster using the py:meth:`jip.db.Job.get_cluster_command`
+    #: method of the job.
     command = deferred(Column(Text))
-    # the interpreter that will be used to run the command
+    #: The interpreter that will be used to run the command
     interpreter = deferred(Column(String(128)))
-    # the configuration that is used to populate the command template
+    #: The configuration that is used to populate the command template. This
+    #: stores a version of the tools :py:class:`~jip.options.Options` instance
     configuration = deferred(Column(PickleType))
-    # output files that were moved out of the configuration in order
-    # to support a dispatcher pipe that writes to the files
-    # in this list as well as to the stdin of pipe_to jobs
+    #: Stores output files that were moved out of the configuration in order
+    #: to support a dispatcher pipe that writes to the files
+    #: in this list as well as to the ``stdin`` of other jobs
     pipe_targets = deferred(Column(PickleType))
-    # extra configuration stores an array of additional parameters
-    # passed during job submission
+    #: Extra configuration stored as an array of additional parameters
+    #: passed during job submission to the cluster implementation
     extra = deferred(Column(PickleType))
-    # dependencies
+    #: General job dependencies dependencies
     dependencies = relationship("Job",
                                 lazy="joined",
                                 join_depth=1,
@@ -201,20 +238,28 @@ class Job(Base):
         self.stream_out = sys.stdout
 
     def get_pipe_targets(self):
-        """Returns a list of output files where the stdout content
+        """Returns a list of output files where the ``stdout`` content
         of this job will be written to if the jobs output stream is also
         piped to some other process.
+
+        :returns: list of output file or empty list
         """
         return self.pipe_targets if self.pipe_targets else []
 
     def is_stream_source(self):
         """Returns True if this job has child jobs that receive the
-        output stream of this job"""
+        output stream of this job
+
+        :returns: True if the job pipes its data to another job
+        """
         return len(self.pipe_to) > 0
 
     def is_stream_target(self):
         """Returns True if this job takes the output stream of at least
-        one parent as input
+        one parent as input.
+
+        :returns: True if this Job receives its data as a stream from another
+                  job
         """
         return len(self.pipe_from) > 0
 
@@ -240,24 +285,26 @@ class Job(Base):
         return self._tool
 
     def terminate(self):
+        """Terminate a currently running process that executes this job.
+        NOTE that this method does **NOT** perform any cleanup operations
+        or state updates, it simply terminates the underlying process.
         """
-        Terminate a currently running process that executes this job
-        """
-        if self._process is not None:
+        if self._process is not None and self._process.poll() is None:
+            # terminate the job
+            self._process.terminate()
+            # check if the job is dead. if not
+            # sleep for a moment and check again.
             if self._process.poll() is None:
-                self._process.terminate()
-                if self._process.poll() is None:
-                    # give it 5 seconds to cleanup and exit
-                    import time
-                    for t in [0.01, 0.02, 0.05, 0.10, 1, 2]:
-                        time.sleep(t)
-                        if self._process.poll() is not None:
-                            break
-
-                    if self._process.poll() is None:
-                        # kill it
-                        import signal
-                        os.kill(self.process._popen.pid, signal.SIGKILL)
+                # give it 5 seconds to cleanup and exit
+                import time
+                for t in [0.01, 0.02, 0.05, 0.10, 1, 2]:
+                    time.sleep(t)
+                    if self._process.poll() is not None:
+                        break
+                else:
+                    # nothing worked, kill the job
+                    import signal
+                    os.kill(self.process._popen.pid, signal.SIGKILL)
 
     def _load_job_env(self):
         """Load the job environment"""
@@ -271,10 +318,13 @@ class Job(Base):
 
     def run(self):
         """Execute a single job. Note that no further checks on the
-        job are performed and this method assumed that the jobs stream_in
+        job are performed and this method assumes that the jobs stream_in
         and stream_out are properly connected.
 
-        NOTE that this method does not wait for the job's process to finish!
+        .. note: This method does not wait for the job's process to finish!
+
+        :returns: the process
+        :raises Exception: if the interpreter was not found
         """
         log.info("%s | start", self)
         self._load_job_env()
@@ -306,8 +356,10 @@ class Job(Base):
             raise err
 
     def get_cluster_command(self):
-        """Returns the commen that should be executed on the
-        cluster to run this job
+        """Returns the command that should send to the
+        cluster to run this job.
+
+        :returns: the command send to the cluster
         """
         if db_in_memory or db_path is None:
             return """jip exec %d""" % (self.id)
@@ -362,10 +414,12 @@ class Job(Base):
         return True
 
     def get_output_files(self):
-        """Yields a list of all output files for the configuraiton
+        """Yields a list of all output files for the configuration
         of this job. Only TYPE_OUTPUT options are considered
         whose values are strings. If a source for the option
         is not None, it has to be equal to this tool.
+
+        :returns: list of output files
         """
         import jip.options
         for opt in self.configuration.get_by_type(jip.options.TYPE_OUTPUT):
@@ -384,6 +438,15 @@ class Job(Base):
 
 
 def init(path=None, in_memory=False):
+    """Initialize the database.
+
+    This takes a valid SQLAlchemy database URL or a path to a file
+    and creates the database. If a file path is given, a sqlite database
+    is created.
+
+    :param path: database url or path to a file
+    :param in_memory: if set to True, an in-memory database is created
+    """
     from sqlalchemy import create_engine as slq_create_engine
     from sqlalchemy.orm import sessionmaker
     from os.path import exists, dirname, abspath
@@ -436,6 +499,13 @@ def init(path=None, in_memory=False):
 
 
 def create_session(embedded=False):
+    """Creates and return a new `SQAlchemy session
+    <http://docs.sqlalchemy.org/en/latest/orm/session.html#sqlalchemy.orm.session.Session>_`
+    instance and initializes the database if the DB was not initialized.
+
+    :param embedded: start the database in embedded mode :returns: a new
+                     SQLAlchemy session
+    """
     if engine is None:
         init(in_memory=embedded)
     return Session()
@@ -444,6 +514,14 @@ def create_session(embedded=False):
 def find_job_by_id(session, id):
     """Find a job by its id. This assumes the database was
     initialized before.
+
+    See :py:func:`create_session` if you need a session instance.
+
+    :param session: the database session
+    :type session: Session
+    :param id: the job id
+    :returns: the job
+    :rtype: :class:`jip.db.Job`
     """
     query = session.query(Job).filter(Job.id == id)
     return query.one()

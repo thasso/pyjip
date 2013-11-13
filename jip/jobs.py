@@ -514,7 +514,7 @@ def run(job, session=None):
 ################################################################
 # Job creation
 ################################################################
-def _create_job_env():
+def create_job_env():
     """Create a dictionary that will contain the job environment
 
     :returns: dictionary that contains the job environmnt
@@ -633,7 +633,7 @@ def from_node(node, env=None, keep=False):
     job.tool_name = tool.name
     job.path = tool.path
     job.working_directory = os.getcwd()
-    job.env = env if env is not None else _create_job_env()
+    job.env = env if env is not None else create_job_env()
     if node._job is not None:
         node._job.apply(job)
 
@@ -729,7 +729,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
     log.debug("Creating job environment")
-    env = _create_job_env()
+    env = create_job_env()
     nodes2jobs = {}
     jobs = []
     for node in pipeline.topological_order():

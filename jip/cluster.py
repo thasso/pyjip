@@ -38,6 +38,11 @@ Please take a look at the :py:meth:`Cluster.resolve_log` function on how log
 file names are handles. Within submission, if you update these fields, you are
 encouraged to include place-holders in the file names.
 
+.. note:: You can get the command that should be send to the
+          cluster using :py:meth:`jip.db.Job.get_cluster_command`! Please
+          do **NOT** try to send the Jobs ``command`` directly. Job execution
+          has to go through JIP in order to provide all functionality.
+
 If you need to pass specific configuration to your cluster, **DO NOT** use
 mandatory initializer parameters. The cluster module has to be able to
 instantiate your class without any parameter. You can however use keyword
@@ -132,6 +137,16 @@ class Cluster(object):
         Usually, you want to update the jobs :py:attr:`jip.db.Job.job_id`
         attribute and store the remote job id.
 
+        Please note that the Jobs ``extra`` field contains an array of
+        additional parameters that are compatible with the cluster. The array
+        of parameters should be passes `as is` to the command used for job
+        submission.
+
+        **NOTE** that you can get the command that should be send to the
+        cluster using :py:meth:`jip.db.Job.get_cluster_command`! Please
+        do **NOT** try to send the Jobs ``command`` directly. Job execution
+        has to go through JIP in order to provide all functionality.
+
         :param job: the job
         :type job: :class:`jip.db.Job`
         :raises SubmissionError: if the submission failed
@@ -181,7 +196,9 @@ class Slurm(Cluster):
     the `sbatch` command line tool. The job parameter are passed
     to `sbatch` as they are, but please note that:
 
-        * max_mem is passed as --mem-per-cpu
+        * **max_mem** is passed as --mem-per-cpu
+        * **queue** is used as the Slurm partition parameter
+        * **priority** is used as the Slurm `QOS` parameter
 
     The implementation supports a ``slurm`` configuration block in the
     JIP configuration, which can be used to customize the paths to the

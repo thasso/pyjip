@@ -14,12 +14,13 @@ you want to dig deeper and see how things are created.
 .. toctree::
    :maxdepth: 2
           
-   jobs
-   tools
-   options
-   config
-   cluster
-   utils
-   executils
    cli
+   cluster
+   config
+   db
+   executils
+   jobs
+   options
+   tools
+   utils
 
