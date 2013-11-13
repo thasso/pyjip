@@ -17,6 +17,8 @@ you want to dig deeper and see how things are created.
    jobs
    tools
    options
+   config
+   cluster
    utils
    executils
    cli
