@@ -37,6 +37,12 @@ For a slurm cluster::
         "cluster": "jip.cluster.Slurm"
     }
 
+For a PBS/torque cluster::
+
+    {
+        "cluster": "jip.cluster.PBS"
+    }
+
 For an SGE cluster::
 
     {
