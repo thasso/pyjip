@@ -47,6 +47,7 @@ import jip
 import jip.options
 import jip.tools
 import jip.cli
+import jip.cluster
 from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
 
@@ -73,6 +74,10 @@ def main():
 Check your search paths and your jip configuration to include and
 find tool definitions that are not in any default paths.
 """
+        sys.exit(1)
+    except jip.cluster.ClusterImplementationError as notFound:
+        log.debug("Cluster not found: %s", str(notFound), exc_info=True)
+        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
         sys.exit(1)
 
 

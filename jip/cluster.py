@@ -103,6 +103,11 @@ class SubmissionError(Exception):
     pass
 
 
+class ClusterImplementationError(Exception):
+    """Exception raised in case the cluster class could not be loaded"""
+    pass
+
+
 class Cluster(object):
     """Base class for cluster integrations.
 
@@ -442,12 +447,22 @@ def get():
 
     :returns: the Cluster instance
     :rtype: :py:class:`~jip.cluster.Cluster`
+    :raises ClusterImplementationError: if the specified cluster implementation
+                                        could not be loaded
     """
     name = jip.config.get("cluster", None)
     if name is None:
-        raise LookupError("No cluster configuration found! Please put "
-                          "your config file in $HOME/.jip/jip.json")
-    return from_name(name)
+        raise ClusterImplementationError(
+            "No cluster configuration found! Please put "
+            "your config file in $HOME/.jip/jip.json")
+    try:
+        return from_name(name)
+    except:
+        raise ClusterImplementationError(
+            "Error while loading cluster implementation. "
+            "Loading '%s' failed. Please make sure that "
+            "the class exists and is available in your "
+            "PYTHONPATH." % name)
 
 
 def from_name(name):
