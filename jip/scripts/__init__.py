@@ -58,4 +58,4 @@ class bash(object):
     """
 
     def get_command(self):
-        return "bash", """(${cmd})${output|arg(">")}"""
+        return "bash", """(${cmd})${output|arg("> ")}"""

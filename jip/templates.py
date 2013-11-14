@@ -105,7 +105,7 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
         suffix = suffix if suffix is not None else ""
         # we add a space between the prefix and the value if there was
         # no user specified prefix and we used the values get_opt()
-        space = "" if (original is None) else " "
+        space = "" if (original is not None or not v) else " "
         return "%s%s%s%s" % (prefix, space, v, suffix)
     except:
         return value
