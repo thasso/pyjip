@@ -574,7 +574,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
                     # submission to the cluster
                     other.job_id = job.job_id
             _session.commit()
-    except jip.cluster.SubmissionError:
+    except:
         submission_failure()
         raise
 

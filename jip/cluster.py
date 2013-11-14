@@ -365,7 +365,7 @@ class SGE(Cluster):
             except:
                 continue
             jobs.append(fields[0])
-            err = "".join([l for l in process.stderr])
+        err = "".join([l for l in process.stderr])
         if process.wait() != 0:
             raise ValueError("Error while listing jobs:\n%s" % (err))
         return jobs
@@ -488,7 +488,7 @@ class PBS(Cluster):
             except:
                 continue
             jobs.append(fields[0])
-            err = "".join([l for l in process.stderr])
+        err = "".join([l for l in process.stderr])
         if process.wait() != 0:
             raise ValueError("Error while listing jobs:\n%s" % (err))
         return jobs
@@ -561,6 +561,146 @@ class PBS(Cluster):
                                   ))
         expr = '(?P<job_id>.+)'
         match = re.search(expr, out)
+        job.job_id = match.group('job_id')
+
+
+class LSF(Cluster):
+    """LSF extension of the Cluster implementation.
+
+    The LSF submission can be configured using the global jip configuration.
+    The implementation looks for a dictionary ``lsf`` and supports the
+    following settings:
+
+        * ``bsub`` path to the bsub command
+
+        * ``bjobs`` path to the bjobs command
+
+        * ``bkill`` path to the bkill command
+
+        * ``limits`` specify either KB, MB, GB depending on how your
+          LSF instance is interpreting memory limits (``LSF_UNIT_FOR_LIMITS``).
+          By default we assume that memory limits are specified in KB.
+
+    You do not have to specify the command options if the commands are
+    available in your path.
+    """
+
+    def __init__(self):
+        sge_cfg = jip.config.get("lsf", {})
+        self.bsub = sge_cfg.get('bsub', 'bsub')
+        self.bjobs = sge_cfg.get('bjobs', 'bjobs')
+        self.bkill = sge_cfg.get('bkill', 'bkill')
+        self.limits = sge_cfg.get('limits', 'KB')
+        if self.limits not in ['KB', 'MB', 'GB']:
+            raise ValueError("Unknown memory limit format: %s. "
+                             "Only [KB|MB|GB] are supported" % self.limits)
+
+    def resolve_log(self, job, path):
+        if path is None:
+            return None
+        return path.replace("%J", str(job.job_id))
+
+    def cancel(self, job):
+        if job is None or job.job_id is None:
+            return
+        cmd = [self.bkill, str(job.job_id)]
+        Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
+    def list(self):
+        jobs = {}
+        params = [self.bjobs]
+        process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
+        jobs = []
+        for l in process.stdout:
+            fields = [x for x in l.strip().split(" ") if x]
+            try:
+                long(fields[0])
+            except:
+                continue
+            jobs.append(fields[0])
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ValueError("Error while listing jobs:\n%s" % (err))
+        return jobs
+
+    def update(self, job):
+        job.hosts = os.getenv("HOSTNAME", "")
+
+    def __repr__(self):
+        return "LSF"
+
+    def submit(self, job):
+        job_cmd = job.get_cluster_command()
+        cmd = [self.bsub]
+
+        if job.priority:
+            cmd.extend(["-sp", str(job.priority)])
+        if job.queue:
+            cmd.extend(["-q", str(job.queue)])
+        ## I only have openlava to test this and open lava does
+        ## not seem to have this option for bsub. We
+        ## add a workaround in jip_exec to switch working directories
+        ## for the process.
+        #if job.working_directory:
+            #cmd.extend(["-cwd", job.working_directory])
+        if job.threads > 1:
+            cmd.extend(['-n', str(job.threads), '-R', 'span[hosts=1]'])
+        if job.max_memory > 0:
+            limit = job.max_memory
+            if self.limits == "KB":
+                limit = limit * 1024
+            elif self.limits == "GB":
+                limit = limit * 1024 * 1024
+            cmd.extend(["-M", str(limit)])
+        if job.max_time > 0:
+            cmd.extend(["-W", str(job.max_time)])
+
+        if job.extra is not None:
+            cmd.extend(job.extra)
+
+        if job.name or job.pipeline:
+            name = job.name if job.name else ""
+            if job.pipeline:
+                if name:
+                    name = name + "-" + job.pipeline
+                else:
+                    name = job.pipeline
+            cmd.extend(["-J", name])
+
+        cwd = job.working_directory if job.working_directory is not None \
+            else os.getcwd()
+        if job.stderr is None:
+            job.stderr = os.path.join(cwd, "lsf-%J.err")
+        if job.stdout is None:
+            job.stdout = os.path.join(cwd, "lsf-%J.out")
+        cmd.extend(["-o", job.stdout])
+        cmd.extend(["-e", job.stderr])
+
+        # dependencies
+        if len(job.dependencies) > 0:
+            deps = set([])
+            for dep in [d for d in job.dependencies if d.job_id]:
+                deps.add(str(dep.job_id))
+            if len(deps) > 0:
+                cmd.extend(['-w', " && ".join(["%s" % i for i in deps])])
+        cmd.append(job_cmd)
+        log.debug("Submitting job with :%s %s", cmd, job_cmd)
+        # because I can not find a way to specify the working directory at
+        # least in openlava, make sure bsub is executed in the working
+        # directory of the job.
+        process = Popen(cmd, stdout=PIPE, stderr=PIPE,
+                        cwd=job.working_directory)
+        out = "".join([l for l in process.stdout])
+        err = "".join([l for l in process.stderr])
+        expr = 'Job <(?P<job_id>.+)> is submitted.*'
+        match = re.search(expr, out)
+        if process.wait() != 0 or not match:
+            raise SubmissionError("%s\n"
+                                  "Executed command:\n%s\n%s\n" % (
+                                      out,
+                                      err,
+                                      " ".join(cmd)
+                                  ))
         job.job_id = match.group('job_id')
 
 

@@ -100,11 +100,12 @@ def arg_filter(ctx, value, prefix=None, suffix=None):
             return ""
 
         v = value.get()
+        original = prefix
         prefix = prefix if prefix is not None else value.get_opt()
         suffix = suffix if suffix is not None else ""
-        # we add a space between the prefix and the value iff the prefix is
-        # not empty and does not end in space and the value is not empty
-        space = "" if (prefix == "" or v == "" or prefix[-1] == " ") else " "
+        # we add a space between the prefix and the value if there was
+        # no user specified prefix and we used the values get_opt()
+        space = "" if (original is None) else " "
         return "%s%s%s%s" % (prefix, space, v, suffix)
     except:
         return value

@@ -18,6 +18,7 @@ import jip.jobs
 import jip.db
 from . import parse_args
 import sys
+import os
 
 log = getLogger("jip.cli.jip_exec")
 
@@ -32,6 +33,15 @@ def main():
         jip.db.init(path=args['--db'])
         session = jip.db.create_session()
         job = jip.db.find_job_by_id(session, args['<id>'])
+        # for LSF implementation, I could only test on openlava, and
+        # that does not seem to support the -cwd option to switch the
+        # working directory. To work around this, and be sure about the
+        # working directory, we switch here
+        if job.working_directory and len(job.working_directory) > 0:
+            log.debug("Switching working directory to: %s",
+                      job.working_directory)
+            os.chdir(job.working_directory)
+
         # load the tool here to have it cached just in case
         # there is a problem at least on PBS where the tool
         # can not be loaded after the signal (which I still don't understand)

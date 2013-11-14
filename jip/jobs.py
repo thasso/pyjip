@@ -453,7 +453,7 @@ def submit(job, silent=False, clean=False, force=False, session=None):
     set_state(job, db.STATE_QUEUED)
     cluster.submit(job)
     if not silent:
-        print "Submitted", job.job_id
+        print "Submitted %s with remote id %s" % (job.id, job.job_id)
 
     # recursively apply the newly assigned job id to
     # all embedded jobs

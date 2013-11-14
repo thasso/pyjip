@@ -31,25 +31,31 @@ Configuration
 JIP reads ``$HOME/.jip/jip.json`` to load your configuration. Create the file
 with the following content.
 
-For a slurm cluster::
+For a *Slurm* cluster::
 
     {
         "cluster": "jip.cluster.Slurm"
     }
 
-For a PBS/torque cluster::
+For a *PBS/torque* cluster::
 
     {
         "cluster": "jip.cluster.PBS"
     }
 
-For an SGE cluster::
+For an *SGE/OGE/Gridengine* cluster::
 
     {
         "cluster": "jip.cluster.SGE"
         "sge" : {
             "threads_pe": "threads"
         }
+    }
+
+For an *Platform LSF* or *Openlava* cluster::
+
+    {
+        "cluster": "jip.cluster.LSF"
     }
 
 Please note that for SGE, in order to submit multi-threaded jobs, you have to 
