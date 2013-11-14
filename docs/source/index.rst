@@ -96,6 +96,7 @@ Contents
    setup
    templates
    getting_started
+   examples/index
    cli/index
    api/index
 
