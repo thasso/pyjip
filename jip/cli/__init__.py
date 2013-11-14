@@ -189,7 +189,7 @@ def show_job_profiles(jobs, title="Job profiles"):
             job.queue,
             job.priority,
             job.threads,
-            timedelta(seconds=job.max_time * 60),
+            timedelta(seconds=job.max_time * 60) if job.max_time else None,
             job.max_memory,
             job.account,
             os.path.relpath(job.working_directory)
@@ -543,26 +543,40 @@ def submit(script, script_args, keep=False, force=False, silent=False,
             print "%d jobs stored but not submitted" % (len(jobs))
         return
 
-    for g in jip.jobs.group(jobs):
-        job = g[0]
-        name = "|".join(str(j) for j in g)
-        if job.state == jip.db.STATE_DONE and not force:
-            if not silent:
-                print colorize("Skipping %s" % name, YELLOW)
-            log.info("Skipping completed job %s", name)
-        else:
-            log.info("Submitting %s", name)
-            jip.jobs.set_state(job, jip.db.STATE_QUEUED)
-            cluster.submit(job)
-            if not silent:
-                print "Submitted", job.job_id
-        if len(g) > 1:
-            for other in g[1:]:
-                # we only submit the parent jobs but we set the job
-                # id so dependencies are properly resolved on job
-                # submission to the cluster
-                other.job_id = job.job_id
+    def submission_failure():
+        """Helper to delete submitted jobs in case of a submission error"""
+        log.info("Submission error occured, perform cleanup"
+                 " on already submitted jobs")
+        for j in jobs:
+            jip.jobs.delete(j, session=_session, clean_logs=True, silent=True)
         _session.commit()
+        pass
+
+    try:
+        for g in jip.jobs.group(jobs):
+            job = g[0]
+            name = "|".join(str(j) for j in g)
+            if job.state == jip.db.STATE_DONE and not force:
+                if not silent:
+                    print colorize("Skipping %s" % name, YELLOW)
+                log.info("Skipping completed job %s", name)
+            else:
+                log.info("Submitting %s", name)
+                jip.jobs.set_state(job, jip.db.STATE_QUEUED)
+                cluster.submit(job)
+                if not silent:
+                    print "Submitted %s with remote id %s" % (job.id,
+                                                              job.job_id)
+            if len(g) > 1:
+                for other in g[1:]:
+                    # we only submit the parent jobs but we set the job
+                    # id so dependencies are properly resolved on job
+                    # submission to the cluster
+                    other.job_id = job.job_id
+            _session.commit()
+    except jip.cluster.SubmissionError:
+        submission_failure()
+        raise
 
     _session.commit()
     if session is None:

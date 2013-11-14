@@ -42,13 +42,13 @@ def show_log(job, cluster, args):
     both = not args["--error"] and not args["--output"]
     if both or args["--output"]:
         stdout = cluster.resolve_log(job, job.stdout)
-        if exists(stdout):
+        if stdout and exists(stdout):
             _tail(job, stdout, lines=int(args["--lines"]),
                   cmd="tail" if not args["--head"] else "head")
 
     if both or args["--error"]:
         stderr = cluster.resolve_log(job, job.stderr)
-        if exists(stderr):
+        if stderr and exists(stderr):
             _tail(job, stderr, lines=int(args["--lines"]),
                   cmd="tail" if not args["--head"] else "head",
                   is_error=True)

@@ -1199,6 +1199,7 @@ class ScriptTool(Tool):
 
     @classmethod
     def from_file(cls, path, is_pipeline=False):
+        log.debug("Load script from file: %s", path)
         from jip.parser import loads
         s = loads(path, script_class=cls, is_pipeline=is_pipeline)
         return s

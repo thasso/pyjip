@@ -442,6 +442,128 @@ class SGE(Cluster):
         job.job_id = match.group('job_id')
 
 
+class PBS(Cluster):
+    """PBS/Torque extension of the Cluster implementation.
+
+    The PBS submission can be configured using the global jip configuration.
+    The implementation looks for a dictionary ``pbs`` and supports the
+    following settings:
+
+        * ``qsub`` path to the qsub command
+
+        * ``qstat`` path to the qstat command
+
+        * ``qdel`` path to the qdel command
+
+    You do not have to specify the command options if the commands are
+    available in your path.
+    """
+
+    def __init__(self):
+        sge_cfg = jip.config.get("pbs", {})
+        self.qsub = sge_cfg.get('qsub', 'qsub')
+        self.qstat = sge_cfg.get('qstat', 'qstat')
+        self.qdel = sge_cfg.get('qdel', 'qdel')
+
+    def resolve_log(self, job, path):
+        if path is None:
+            return None
+        return path.replace("$PBS_JOBID", str(job.job_id))
+
+    def cancel(self, job):
+        if job is None or job.job_id is None:
+            return
+        cmd = [self.qdel, str(job.job_id)]
+        Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+
+    def list(self):
+        jobs = {}
+        params = [self.qstat, "-u", os.getenv('USER')]
+        process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
+        jobs = []
+        for l in process.stdout:
+            fields = [x for x in l.strip().split(" ") if x]
+            try:
+                long(fields[0])
+            except:
+                continue
+            jobs.append(fields[0])
+            err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ValueError("Error while listing jobs:\n%s" % (err))
+        return jobs
+
+    def update(self, job):
+        job.hosts = os.getenv("HOSTNAME", "")
+
+    def __repr__(self):
+        return "PBS/Torque"
+
+    def submit(self, job):
+        job_cmd = job.get_cluster_command()
+        cmd = [self.qsub, '-V']
+
+        if job.priority:
+            cmd.extend(["-p", str(job.priority)])
+        if job.queue:
+            cmd.extend(["-q", str(job.queue)])
+        if job.working_directory:
+            cmd.extend(["-w", job.working_directory])
+        if job.threads > 1:
+            cmd.extend(['-l', 'nodes=1:ppn=%d' % job.threads])
+        if job.max_memory > 0:
+            cmd.extend(["-l", 'mem=%smb' % str(job.max_memory)])
+        if job.max_time > 0:
+            cmd.extend(["-l", 'walltime=%s' % str(job.max_time * 60)])
+
+        if job.extra is not None:
+            cmd.extend(job.extra)
+
+        if job.name or job.pipeline:
+            name = job.name if job.name else ""
+            if job.pipeline:
+                if name:
+                    name = name + "-" + job.pipeline
+                else:
+                    name = job.pipeline
+            cmd.extend(["-N", name])
+
+        cwd = job.working_directory if job.working_directory is not None \
+            else os.getcwd()
+        if job.stderr is None:
+            job.stderr = os.path.join(cwd, "pbs-$PBS_JOBID.err")
+        if job.stdout is None:
+            job.stdout = os.path.join(cwd, "pbs-$PBS_JOBID.out")
+        cmd.extend(["-o", job.stdout])
+        cmd.extend(["-e", job.stderr])
+
+        # dependencies
+        if len(job.dependencies) > 0:
+            deps = set([])
+            for dep in [d for d in job.dependencies if d.job_id]:
+                deps.add(str(dep.job_id))
+            if len(deps) > 0:
+                cmd.extend(['-W', 'depend=%s' % (",".join(
+                    ["afterok:%s" % i for i in deps]
+                ))])
+
+        log.debug("Submitting job with :%s %s", cmd, job_cmd)
+        process = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        process.stdin.write("%s" % job_cmd)
+        process.stdin.close()
+        out = "".join([l for l in process.stdout])
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise SubmissionError("%s\n"
+                                  "Executed command:\n%s\n" % (
+                                      err,
+                                      " ".join(cmd)
+                                  ))
+        expr = '(?P<job_id>.+)'
+        match = re.search(expr, out)
+        job.job_id = match.group('job_id')
+
+
 def get():
     """Returns the currently configured cluster instance.
 

@@ -79,6 +79,10 @@ find tool definitions that are not in any default paths.
         log.debug("Cluster not found: %s", str(notFound), exc_info=True)
         print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
         sys.exit(1)
+    except jip.cluster.SubmissionError as notFound:
+        log.debug("Submission error: %s", str(notFound), exc_info=True)
+        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
+        sys.exit(1)
 
 
 def _main():
