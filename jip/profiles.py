@@ -88,8 +88,10 @@ class Profile(object):
         """
         for k, v in args.iteritems():
             k = re.sub("^-+", "", k)
+            k = re.sub("-", "_", k)
             if v and hasattr(self, k):
                 setattr(self, k, v)
+        ## handle tasks per node explicitly
 
     def apply(self, job, _load_specs=True, overwrite_threads=False):
         """Apply this profile to a given job and all its ambedded children
