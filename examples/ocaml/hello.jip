@@ -9,7 +9,6 @@
 #   -o, --output <output>  The output
 #                          [default: stdout]
 
-
 #%begin command ocaml
 let o = ${output|arg('open_out "', '"')|else("stdout")};;
 Printf.fprintf o "Dear ${name}\n\n";;
