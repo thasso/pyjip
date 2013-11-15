@@ -96,8 +96,34 @@ class ToolNotFoundException(Exception):
 # decorators
 #########################################################
 class tool(object):
-    """The @jip.tool decorator can be used to turn classes into valid JIP
-    tools. The only mandatory parameter is the tool name. All other paramters
+    """Decorate functions and classes as tools.
+
+    The @jip.tool decorator turns classes and functions into valid JIP
+    tools. The simplest way to use this decorator is to annotate a python
+    function that returns a string. This string is then interpreted as a
+    JIP script template. The functions docstring is used, similar to
+    JIP scripts, to parse command line options and tool input and
+    output parameters. For example::
+
+        @tool()
+        def mytool():
+            '''\
+            Send a greeting
+
+            usage:
+                mytool <name>
+            '''
+            return 'echo "hello ${name}'"
+
+    This create a single *bash* interpreted script and exposes a tool,
+    `mytool`, into the JIP environment. You can use the decorators
+    arguments to further customize the tool specification, i.e. specify
+    a different name. If you want to use a different interpreter, you can
+    return a tuple where the first element is the interpreter name and the
+    second is the script template.
+
+
+    The only mandatory parameter is the tool name. All other paramters
     are optional and allow you to delegate functionality between the actual
     :class:`jip.tool.Tool` implementation and the decorated class.
     """
@@ -522,8 +548,8 @@ class PythonBlockUtils(object):
         """Set an options value"""
         self.tool.options[name].value = value
 
-    def run(self, name, **kwargs):
-        return self.pipeline.run(name, **kwargs)
+    def run(self, _name, **kwargs):
+        return self.pipeline.run(_name, **kwargs)
 
     def job(self, *args, **kwargs):
         return self.pipeline.job(*args, **kwargs)
