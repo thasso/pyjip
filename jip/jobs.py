@@ -227,7 +227,7 @@ def _update_from_cluster_state(job):
     try:
         cluster = jip.cluster.get()
         cluster.update(job)
-    except LookupError:
+    except jip.cluster.ClusterImplementationError:
         pass
     except:
         log.warn("Error while calling cluster update for job!",
@@ -503,7 +503,7 @@ def run(job, session=None):
         session.commit()
 
     success = True
-    for dispatcher_node in dispatcher_nodes:
+    for dispatcher_node in reversed(dispatcher_nodes):
         success &= dispatcher_node.wait()
 
     if session:
