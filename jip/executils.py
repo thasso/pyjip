@@ -35,6 +35,8 @@ executable units that can be started with their `run` methods. They will
 run asynchroniously and you have to use the nodes `wait` method to wait
 for termination.
 """
+import sys
+
 import jip.db
 from jip.logger import getLogger
 import jip.cluster
@@ -130,15 +132,15 @@ def _sort_dispatcher_nodes(nodes):
 
 
 class DispatcherNode(object):
-    """Node element of a dispatcher graph that handles pipes betwee jobs.
-    A dispacher node wraps around a single job in a dispatcher graph and
+    """Node element of a dispatcher graph that handles pipes between jobs.
+    A dispatcher node wraps around a single job in a dispatcher graph and
     is able to execute the job and wait for its termination.
     """
     def __init__(self, job=None):
-        """Create a new disaptcher node
+        """Create a new dispatcher node
 
         :param job: the job
-        :type job: `jip.db.Job`
+        :type job: :class:`jip.db.Job`
         """
         self.sources = set([])
         self.targets = set([])
@@ -162,6 +164,18 @@ class DispatcherNode(object):
                                 self.sources)) > 0
         if has_groups:
             for job in self.sources:
+                default_in = None
+                try:
+                    default_in = job.configuration.get_default_input()
+                except LookupError:
+                    pass
+                # open default input stream, just in case
+                if job.stream_in == sys.stdin and \
+                    default_in and \
+                    default_in.streamable and \
+                        default_in.get():
+                    job.stream_in = open(default_in.get())
+                    log.info("Open jobs input stream on %s", default_in.get())
                 jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
                 p = job.run()
                 self.processes.append(p)
@@ -173,6 +187,18 @@ class DispatcherNode(object):
             # no targets, just run the source jobs
             # as they are
             for job in self.sources:
+                default_in = None
+                try:
+                    default_in = job.configuration.get_default_input()
+                except LookupError:
+                    pass
+                # open default input stream, just in case
+                if job.stream_in == sys.stdin and \
+                    default_in and \
+                    default_in.streamable and \
+                        default_in.get():
+                    job.stream_in = open(default_in.get())
+                    log.info("Open jobs input stream on %s", default_in.get())
                 jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
                 self.processes.append(job.run())
             return
@@ -204,6 +230,7 @@ class DispatcherNode(object):
         success = True
         for process, job in zip(self.processes, self.sources):
             try:
+                log.debug("%s | waiting for process to finish", job)
                 ret_state = process.wait()
                 new_state = STATE_DONE if ret_state == 0 else STATE_FAILED
                 if ret_state != 0:
@@ -290,9 +317,9 @@ class _FanOut(_FanDirect):
             i, o = os.pipe()
             i = os.fdopen(i, 'r')
             o = os.fdopen(o, 'w')
+            log.debug("%s | set stream_in to dispatcher pipe :: %s", target, i)
             target.stream_in = i
             outputs.append(o)
-
         jip.jobs.set_state(source, STATE_RUNNING, update_children=False)
         process = source.run()
         inputs.append(process.stdout)
@@ -301,7 +328,14 @@ class _FanOut(_FanDirect):
         empty = [None] * (num_targets - 1)
         # start the dispatcher
         direct_outs = [open(f, 'wb') for f in direct_outs]
-        dispatch_fanout(inputs + empty, outputs, direct_outs + empty)
+        log.debug("%s | fanout: %d targets", source, len(outputs))
+        ins = inputs + empty
+        douts = direct_outs + empty
+        while len(ins) < len(outputs):
+            ins.append(None)
+        while len(douts) < len(outputs):
+            douts.append(None)
+        dispatch_fanout(ins, outputs, douts)
         return processes
 
 
