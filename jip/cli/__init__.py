@@ -102,7 +102,8 @@ def show_dry(jobs, options=None, profiles=False):
     # print job options
     #############################################################
     for job in jobs:
-        show_options(job.configuration, "Job - %s" % str(job))
+        show_options(job.restore_configuration(),
+                     "Job - %s" % str(job))
     #############################################################
     # print job states
     #############################################################

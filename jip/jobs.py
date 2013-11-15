@@ -302,6 +302,10 @@ def set_state(job, new_state, update_children=True, cleanup=True,
             log.error("Job termination raised an exception", exc_info=True)
         if not job.keep_on_fail and job.tool:
             log.info("Cleaning job %s after failure", str(job))
+            # restore teh tools original configuration, resetting any pipe
+            # targets. These files must also be passed to the tool and
+            # the only way to do so is by restoring the original configuraiton
+            job.restore_configuration()
             job.tool.cleanup()
         else:
             log.info("Skipped job cleanup for %s", job)
@@ -503,8 +507,16 @@ def run(job, session=None):
         session.commit()
 
     success = True
+    # we collect the state of all job in the dipatcher first
+    # a single failuer will caise ALL nodes/jobs in that dipatcher
+    # to be marked as failed
     for dispatcher_node in reversed(dispatcher_nodes):
         success &= dispatcher_node.wait()
+    # get the new state and update all jobs
+    new_state = db.STATE_DONE if success else db.STATE_FAILED
+    for dispatcher_node in reversed(dispatcher_nodes):
+        for job in dispatcher_node.sources:
+            jip.jobs.set_state(job, new_state, update_children=False)
 
     if session:
         session.commit()

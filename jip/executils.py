@@ -220,23 +220,20 @@ class DispatcherNode(object):
                          % (num_sources, num_targets))
 
     def wait(self):
-        """Blocks until this nodes process is terminated and set the jobs
-        state.
+        """Blocks until this nodes process is terminated and returns
+        True if the process terminated with 0.
 
         :returns: True if the job finished successfully
         """
-        from jip.db import STATE_DONE, STATE_FAILED
         # check the processes
         success = True
         for process, job in zip(self.processes, self.sources):
             try:
                 log.debug("%s | waiting for process to finish", job)
                 ret_state = process.wait()
-                new_state = STATE_DONE if ret_state == 0 else STATE_FAILED
                 if ret_state != 0:
                     success = False
                 log.info("%s | finished with %d", job, ret_state)
-                jip.jobs.set_state(job, new_state, update_children=False)
             except OSError as err:
                 if err.errno != 10:
                     raise

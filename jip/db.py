@@ -275,6 +275,29 @@ class Job(Base):
         """
         return len(self.pipe_from) > 0
 
+    def restore_configuration(self):
+        """**Modifies** the tools configuration to the state **before** any
+        options were changed to support pipes.
+
+        .. warning: This modifies the configuration!
+
+        :returns: original configuration
+        :rtype: :class:`jip.options.Options`
+        """
+        if not self.pipe_targets:
+            return self.configuration
+        for ot in self.pipe_targets:
+            if isinstance(ot, basestring):
+                try:
+                    def_out = self.configuration.get_default_output()
+                    log.debug('%s | restoring configuration, setting %s=%s',
+                              self, def_out.name, ot)
+                    def_out.set(ot)
+                    break
+                except:
+                    pass
+        return self.configuration
+
     @property
     def tool(self):
         """Get the tool instance that is associated with this job. If
@@ -433,6 +456,9 @@ class Job(Base):
         whose values are strings. If a source for the option
         is not None, it has to be equal to this tool.
 
+        In addition, any pipe_targets are yield as well as the configuraiton
+        might already been changed to stream.
+
         :returns: list of output files
         """
         import jip.options
@@ -441,6 +467,10 @@ class Job(Base):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:
+                if isinstance(value, basestring):
+                    yield value
+        if self.pipe_targets:
+            for value in self.pipe_targets:
                 if isinstance(value, basestring):
                     yield value
 
