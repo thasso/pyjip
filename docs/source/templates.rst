@@ -35,6 +35,8 @@ The JIP API introduces a set of `filters` for template variables and their rende
     * **name** Returns the basename of a file
     * **parent** Return the name of the parent directory of a given file path
     * **re** Takes two arguments for search and replace
+    * **else** Takes a single argument and outputs it if the passed in value is
+      either a file stream or evaluates to False.
 
 
 

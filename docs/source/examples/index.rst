@@ -7,4 +7,5 @@ Examples
    :maxdepth: 2
           
    flux_validation
+   hello_ocaml
 

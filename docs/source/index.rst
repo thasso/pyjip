@@ -100,8 +100,9 @@ Contents
    :maxdepth: 2 
   
    setup
-   templates
    getting_started
+   tools_and_pipeline
+   templates
    examples/index
    cli/index
    api/index
