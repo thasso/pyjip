@@ -107,6 +107,8 @@ class Job(Base):
     job_id = Column(String(128))
     #: User specified name for the job
     name = Column(String(256))
+    #: stores the user name of the user that submitted the job
+    user = Column(String(256))
     #: Optional user specified project name
     project = Column(String(256))
     #: Optional pipeline name to group jobs
@@ -147,6 +149,16 @@ class Job(Base):
     account = Column(String(256))
     #: Number of threads assigned to a job. Defaults to 1
     threads = Column(Integer, default=1)
+    #: Number of tasks assigned to a job. Defaults to 0
+    tasks = Column(Integer, default=0)
+    #: Number of nodes assigned to a job.
+    #: This is stored as a string in order to support node ranges.
+    #: Defaults to None
+    nodes = Column(String(256))
+    #: Number of tasks per node. Defaults to 0
+    tasks_per_node = Column(Integer, default=0)
+    #: Environment name (used for example as SGE parallel environment)
+    environment = Column(String(1024))
     #: Maximum memory assigned to a job in MB
     max_memory = Column(Integer, default=0)
     #: Maximum wall clock time assigned to a job in Minutes

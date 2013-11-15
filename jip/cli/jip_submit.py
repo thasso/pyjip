@@ -3,9 +3,10 @@
 Submit a jip script to a remote cluster
 
 usage: jip-submit [-f] [-k] [-P <profile>] [-s <spec>] [-t <time>] [-q <queue>]
-                  [-p <prio>] [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
-                  [-o <out>] [-e <err>] [-H] [--dry] [--show]
-                  <tool> [<args>...]
+                  [-p <prio>] [-A <account>] [-m <mem>] [-n <name>]
+                  [-o <out>] [-e <err>] [-C <threads>] [-T <tasks>]
+                  [-N <nodes>] [--tasks-per-node <n>] [-E <pe>]
+                  [-H] [--dry] [--show] <tool> [<args>...]
 
 Options:
   -f, --force              force command execution
@@ -17,7 +18,19 @@ Options:
   -q, --queue <queue>      Job queue
   -p, --priority <prio>    Job priority
   -A, --account <account>  The account to use for submission
-  -C, --threads <cpus>     Number of CPU's assigned to the job
+  -C, --threads <threads>  Number of threads for each task. If you do not
+                           request > 1 taks, this is the number of CPU's
+                           assigned to the job.
+  -T, --tasks <tasks>      Number of requested tasks. In case you submit MPI
+                           jobs, this is the number of MPI CPU's the job
+                           request
+  -N, --nodes <nodes>      Number of nodes assigned to the job
+  --tasks-per-node <n>     If supported by your grid engine, you can use this
+                           to specify how many tasks should be scheduled on
+                           each requested node
+  -E, --environment <pe>   Specify an environment if your grid engine supports
+                           it. For SGE, this is translated to the parallel
+                           environment
   -m, --mem <mem>          Max memory assigned to the job
   -n, --name <name>        Job name
   -o, --out <out>          Stdout log file

@@ -3,6 +3,7 @@
 wrappers around common actions.
 """
 from datetime import datetime
+import getpass
 import os
 import sys
 from signal import signal, SIGTERM, SIGINT, SIGUSR1, SIGUSR2
@@ -601,18 +602,20 @@ def _create_jobs_for_group(nodes, nodes2jobs):
 
 
 def from_node(node, env=None, keep=False):
-    """Create and return a :class:`jip.db.Job` instance
-    from a given pipeline node. A dictinary with the jobs environment can
-    be passed here to avoid creating the environment for each job.
+    """Create and return a :class:`jip.db.Job` instance from a
+    :class:`~jip.pipelines.Node`.
+
+    A dictinary with the jobs environment can be passed here to avoid creating
+    the environment for each job.
 
     :param node: the node
-    :type node: `jip.pipelines.Node`
+    :type node: :class:`jip.pipelines.Node`
     :param env: the environment stored for the job. If None, this will be
                 generated.
     :param keep: keep the jobs output on failuer
     :type keep: bool
     :returns: the created job
-    :rtype: `jip.db.Job`
+    :rtype: :class:`jip.db.Job`
     """
     job = jip.db.Job(node._tool)
     tool = node._tool
@@ -628,6 +631,9 @@ def from_node(node, env=None, keep=False):
     if job.name is None:
         job.name = node._tool.name
         node._job.name = job.name
+
+    # get current user
+    job.user = getpass.getuser()
 
     job.keep_on_fail = keep
     job.tool_name = tool.name

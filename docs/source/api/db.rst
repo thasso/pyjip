@@ -21,6 +21,7 @@ job is fetched from the database.
 .. autoattribute:: jip.db.Job.id
 .. autoattribute:: jip.db.Job.job_id
 .. autoattribute:: jip.db.Job.name
+.. autoattribute:: jip.db.Job.user
 .. autoattribute:: jip.db.Job.project
 .. autoattribute:: jip.db.Job.pipeline
 .. autoattribute:: jip.db.Job.path
@@ -36,6 +37,10 @@ job is fetched from the database.
 .. autoattribute:: jip.db.Job.priority
 .. autoattribute:: jip.db.Job.account
 .. autoattribute:: jip.db.Job.threads
+.. autoattribute:: jip.db.Job.nodes
+.. autoattribute:: jip.db.Job.tasks
+.. autoattribute:: jip.db.Job.tasks_per_node
+.. autoattribute:: jip.db.Job.environment
 .. autoattribute:: jip.db.Job.max_memory
 .. autoattribute:: jip.db.Job.max_time
 .. autoattribute:: jip.db.Job.working_directory

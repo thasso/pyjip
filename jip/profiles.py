@@ -23,13 +23,17 @@ class Profile(object):
     """A Profile contains cluster and runtime specific information about
     a job.
     """
-    def __init__(self, name=None, threads=None,
-                 time=None, queue=None, priority=None,
-                 log=None, out=None, account=None, mem=0, extra=None,
-                 profile=None, prefix=None, temp=False, _load=True, env=None,
-                 tool_name=None, working_dir=None):
+    def __init__(self, name=None, threads=None, nodes=None, tasks=None,
+                 tasks_per_node=None, environment=None, time=None, queue=None,
+                 priority=None, log=None, out=None, account=None, mem=0,
+                 extra=None, profile=None, prefix=None, temp=False, _load=True,
+                 env=None, tool_name=None, working_dir=None):
         self.name = render_template(name)
+        self.environment = render_template(environment)
+        self.nodes = render_template(nodes)
         self.threads = render_template(threads)
+        self.tasks = render_template(tasks)
+        self.tasks_per_node = render_template(tasks_per_node)
         self.profile = render_template(profile)
         self.queue = render_template(queue)
         self.time = render_template(time)
@@ -63,6 +67,11 @@ class Profile(object):
         profile = profiles[profile_name]
 
         self.threads = profile.get('threads', self.threads)
+        self.nodes = profile.get('nodes', self.nodes)
+        self.tasks = profile.get('tasks', self.tasks)
+        self.tasks_per_node = profile.get('tasks_per_node',
+                                          self.tasks_per_node)
+        self.environment = profile.get('environment', self.environment)
         self.time = profile.get('time', self.time)
         self.queue = profile.get('queue', self.queue)
         self.priority = profile.get('priority', self.priority)
@@ -102,7 +111,15 @@ class Profile(object):
                 job.threads = max(int(self.threads), job.threads)
             else:
                 job.threads = int(self.threads)
-
+        # TODO: add the same override logic as for threads
+        if self.nodes is not None:
+            job.nodes = self.nodes
+        if self.tasks is not None:
+            job.tasks = self.tasks
+        if self.tasks_per_node is not None:
+            job.tasks_per_node = self.tasks_per_node
+        if self.environment is not None:
+            job.environment = self.environment
         if self.queue is not None:
             job.queue = self.queue
         if self.priority is not None:
@@ -165,14 +182,19 @@ class Profile(object):
             for child in job.pipe_to:
                 self.apply(child)
 
-    def __call__(self, name=None, threads=None,
-                 time=None, queue=None, priority=None,
-                 log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=False, extra=None,
-                 dir=None):
+    def __call__(self, name=None, threads=None, nodes=None, tasks=None,
+                 tasks_per_node=None, environment=None, time=None, queue=None,
+                 priority=None, log=None, out=None, account=None, mem=None,
+                 profile=None, prefix=None, temp=False, extra=None, dir=None):
         return self.__class__(
             name=name if name is not None else self.name,
             threads=threads if threads is not None else self.threads,
+            tasks=tasks if tasks is not None else self.tasks,
+            tasks_per_node=tasks_per_node if tasks_per_node is not None else
+            self.tasks_per_node,
+            environment=environment if environment is not None
+            else self.environment,
+            nodes=nodes if nodes is not None else self.nodes,
             profile=profile if profile is not None else self.profile,
             queue=queue if queue is not None else self.queue,
             time=time if time is not None else self.time,

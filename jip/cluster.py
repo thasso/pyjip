@@ -233,8 +233,16 @@ class Slurm(Cluster):
     def submit(self, job):
         job_cmd = job.get_cluster_command()
         cmd = [self.sbatch, "--wrap", job_cmd]
+        ## request threads tasks and nodes
         if job.threads and job.threads > 0:
             cmd.extend(["-c", str(job.threads)])
+        if job.tasks and job.tasks > 0:
+            cmd.extend(["-n", str(job.tasks)])
+        if job.nodes:
+            cmd.extend(["-N", job.nodes])
+        if job.tasks_per_node:
+            cmd.extend(["--ntasks-per-node", str(job.tasks_per_node)])
+
         if job.max_time > 0:
             cmd.extend(["-t", str(job.max_time)])
         if job.account:
@@ -330,9 +338,30 @@ class SGE(Cluster):
 
         * ``qdel`` path to the qdel command
 
+        * ``mem_limit`` the name of the resource used to specify the memory
+          limit. The default is `virtual_free`. The parameter construction
+          looks like this: ``-l <mem_limit>=<value>`` and the value is the
+          specified memory limit in MB.
+
+        * ``time_limit`` the name of the resource used to specify the time
+          limit. The default is `s_rt`. The parameter construction
+          looks like this: ``-l <time_limit>=<value>`` and the value is
+          the maximum time in seconds.
+
     You do not have to specify the command options if the commands are
     available in your path, but the ``threads_pe`` option has to be specified
     to be able to submit multi-threaded jobs.
+
+    Parallel jobs submissions are handles using the jobs `threads`, `tasks`,
+    and `environment` fields. Note that there is currently no support to
+    specify how parallel jobs are distributed through out a set of nodes. This
+    depends on the configuration of the *queue* and *parallel environment*.
+    If you specify `tasks`, this takes precedence over `threads` and will be
+    used as the parameters for the parallel environment. This is how
+    the ``-pe`` parameter will be constructed::
+
+        -pe <environment> <tasks|threads>
+
     """
 
     def __init__(self):
@@ -341,6 +370,8 @@ class SGE(Cluster):
         self.qstat = sge_cfg.get('qstat', 'qstat')
         self.qdel = sge_cfg.get('qdel', 'qdel')
         self.threads_pe = sge_cfg.get('threads_pd', None)
+        self.mem_limit = sge_cfg.get('mem_limit', 'virtual_free')
+        self.time_limit = sge_cfg.get('time_limit', 's_rt')
 
     def resolve_log(self, job, path):
         if path is None:
@@ -381,16 +412,21 @@ class SGE(Cluster):
         cmd = [self.qsub, "-V", '-notify']
 
         if job.max_time > 0:
-            cmd.extend(["-l", 's_rt=%s' % str(job.max_time * 60)])
+            cmd.extend(["-l", '%s=%s' % (self.time_limit,
+                                         str(job.max_time * 60))])
         if job.threads and job.threads > 1:
-            if not self.threads_pe:
+            if not self.threads_pe and not job.environment:
                 raise SubmissionError("You are trying to submit a threaded "
                                       "job, but no parallel environment is "
                                       "configured. Please set a "
                                       "'threads_pe' value and specify the "
                                       "environment that should be used for "
-                                      "threaded jobs.")
-            cmd.extend(["-pe", "%s %d" % (self.threads_pe, job.threads)])
+                                      "threaded jobs in your configuration "
+                                      "or specify the environment explicitly "
+                                      "(-E, --environment)")
+            env = job.environment if job.environment else self.threds_pe
+            slots = job.tasks if job.tasks > 0 else job.threads
+            cmd.extend(["-pe", env, str(slots)])
         if job.priority:
             cmd.extend(["-p", str(job.priority)])
         if job.queue:
@@ -398,7 +434,9 @@ class SGE(Cluster):
         if job.working_directory:
             cmd.extend(["-wd", job.working_directory])
         if job.max_memory > 0:
-            cmd.extend(["-l", 'virtual_free=%s' % str(job.max_memory)])
+            cmd.extend(["-l", '%s=%s' % (self.mem_limit, str(job.max_memory))])
+        if job.account:
+            cmd.extend(["-A", str(job.account)])
         if job.extra is not None:
             cmd.extend(job.extra)
         if job.name or job.pipeline:
@@ -457,6 +495,16 @@ class PBS(Cluster):
 
     You do not have to specify the command options if the commands are
     available in your path.
+
+    Parallel jobs are allocated using ``-l nodes=<N>:ppn=<M>`` where `N` is
+    the number of nodes and `M` is the jobs `tasks_per_node`, `tasks`, or
+    `threads`, checked in this order for a value > 0. `N` will be set to
+    1 by default.
+    Submitting multi threaded jobs can be achieved simply by specifying the
+    number of threads. The job will request a single node with the M cpus
+    for the job.
+    In order to submit MPI jobs, you have to specify the number of nodes
+    explicitly. The number of `mpinodes` is then ``N*M``.
     """
 
     def __init__(self):
@@ -509,8 +557,16 @@ class PBS(Cluster):
             cmd.extend(["-q", str(job.queue)])
         if job.working_directory:
             cmd.extend(["-w", job.working_directory])
-        if job.threads > 1:
-            cmd.extend(['-l', 'nodes=1:ppn=%d' % job.threads])
+
+        nodes = job.nodes if job.nodes else "1"
+        procs = job.tasks_per_node
+        if procs == 0:
+            procs = job.tasks
+        if procs == 0:
+            procs = job.threads
+        if procs > 0 or job.nodes:
+            cmd.extend(['-l', 'nodes=%s:ppn=%d' % (nodes, procs)])
+
         if job.max_memory > 0:
             cmd.extend(["-l", 'mem=%smb' % str(job.max_memory)])
         if job.max_time > 0:
@@ -583,6 +639,16 @@ class LSF(Cluster):
 
     You do not have to specify the command options if the commands are
     available in your path.
+
+    Parallel jobs are submitted using the ``-n`` options to specify the number
+    of threads/cpus requested. First, the jobs ``tasks`` are checked and used
+    as `N`. If no tasks as specified, the jobs `threads` are used.  In case you
+    specified the jobs threads, the job is submitted to a single node using
+    ``-R span[hosts=1]``. If you specify no `tasks_per_node` exlicitly, but a
+    number of nodes, the number of hosts requested is adjusted accordingly. If
+    `tasks_per_node` are specified, this takes precedence and the job is
+    submitted using ``-R span[ptile=M]`` where `M` is the number of
+    `tasks_per_node`.
     """
 
     def __init__(self):
@@ -643,8 +709,20 @@ class LSF(Cluster):
         ## for the process.
         #if job.working_directory:
             #cmd.extend(["-cwd", job.working_directory])
-        if job.threads > 1:
-            cmd.extend(['-n', str(job.threads), '-R', 'span[hosts=1]'])
+        slots = job.tasks
+        if slots == 0:
+            slots = job.threads
+        if slots > 1:
+            cmd.extend(['-n', str(slots)])
+            if job.tasks == 0:
+                # thread job, always request to span over a single node
+                cmd.extend(['-R', 'span[hosts=1]'])
+            elif job.nodes and job.tasks_per_node == 0:
+                # number of nodes was specified explicitly
+                cmd.extend(['-R', 'span[hosts=%s]' % job.nodes])
+            elif job.tasks_per_node > 0:
+                cmd.extend(['-R', 'span[ptile=%s]' % job.tasks_per_node])
+
         if job.max_memory > 0:
             limit = job.max_memory
             if self.limits == "KB":
