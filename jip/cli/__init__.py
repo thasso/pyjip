@@ -604,23 +604,24 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
         name = "|".join(str(j) for j in g)
         if job.state == jip.db.STATE_DONE and not force:
             if not silent:
-                print colorize("Skipping", YELLOW), name
+                print >>sys.stderr, colorize("Skipping", YELLOW), name
         else:
             if not silent:
-                sys.stdout.write(colorize("Running", YELLOW) +
+                sys.stderr.write(colorize("Running", YELLOW) +
                                  " {name:30} ".format(
                                      name=colorize(name, BLUE)
                                  ))
-                sys.stdout.flush()
+                sys.stderr.flush()
             start = datetime.now()
             success = jip.jobs.run(job)
             end = timedelta(seconds=(datetime.now() - start).seconds)
             if success:
                 if not silent:
-                    print colorize(job.state, GREEN), "[%s]" % (end)
+                    print >>sys.stderr, colorize(job.state, GREEN),\
+                        "[%s]" % (end)
             else:
                 if not silent:
-                    print colorize(job.state, RED)
+                    print >>sys.stderr, colorize(job.state, RED)
                 sys.exit(1)
 
 
