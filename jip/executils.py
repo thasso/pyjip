@@ -374,5 +374,12 @@ class _FanIn(_FanDirect):
 
         # start the dispatcher
         direct_outs = [open(f, 'wb') for f in direct_outs]
-        dispatch_fanin(inputs, outputs + empty, direct_outs)
+
+        log.debug("%s | fanin: %d sources", source, len(inputs))
+        outs = outputs + empty
+        while len(outs) < len(inputs):
+            outs.append(None)
+        while len(direct_outs) < len(inputs):
+            direct_outs.append(None)
+        dispatch_fanin(inputs, outs, direct_outs)
         return processes
