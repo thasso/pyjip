@@ -25,8 +25,9 @@ be usefull if you run the job on a compute cluster.
 
 Usage:
     jip-bash [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
-             [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [--hold]
-             [-O <out>] [-E <err>] [--dry] [--show]
+             [-A <account>] [-C <threads>] [-m <mem>] [-n <name>] [--hold]
+             [-N <nodes>] [-T <tasks>] [--tasks-per-node <n>] [-E <pe>]
+             [-O <out>] [-e <err>] [--dry] [--show]
              [-i <input>...] [-o <output>...] [-f <outfile>...]
              [-s] [--keep] [--force]
              -c <cmd>...
@@ -40,10 +41,20 @@ Options:
     -A, --account <account>  The account to use for submission
     -C, --threads <cpus>     Number of CPU's assigned to the job
                              [default: 1]
+    -T, --tasks <tasks>      Number of requested tasks. In case you submit MPI
+                             jobs, this is the number of MPI CPU's the job
+                             request
+    -N, --nodes <nodes>      Number of nodes assigned to the job
+    --tasks-per-node <n>     If supported by your grid engine, you can use this
+                             to specify how many tasks should be scheduled on
+                             each requested node
+    -E, --environment <pe>   Specify an environment if your grid engine
+                             supports it. For SGE, this is translated to
+                             the parallel environment
     -m, --mem <mem>          Max memory assigned to the job
     -n, --name <name>        Job name
     -R, --reload             Reload and rerender the job command
-    -E, --log <err>          Jobs stderr log file
+    -e, --log <err>          Jobs stderr log file
     -O, --out <out>          Jobs stdout log file
     -i, --input <input>      The scripts input
                              [default: stdin]
