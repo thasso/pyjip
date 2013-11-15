@@ -354,6 +354,8 @@ class Job(Base):
             cmd = [self.interpreter if self.interpreter else "bash"]
             #if self.interpreter_args:
                 #cmd += self.interpreter_args
+            log.debug("%s | starting process with in: %s out: %s", self,
+                      self.stream_in, self.stream_out)
             self._process = subprocess.Popen(
                 cmd + [script_file.name],
                 stdin=self.stream_in,
