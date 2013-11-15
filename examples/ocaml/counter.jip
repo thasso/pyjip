@@ -1,0 +1,18 @@
+#!/usr/bin/env jip -p
+# Count words and lines
+# 
+# usage: 
+#     counter <name>
+
+# NOTE: we can not use the name variable as its 
+# a reserved variable that holds the pipeline naming
+# utilities
+greetings = run('hello', name=args['name'], output="result.txt")
+line_count = bash('wc -l', input=greetings)
+full_count = bash('wc', input=greetings)
+
+# without explicitly recreating the pipe
+# this will create 3 independent jobs because 'greetings' writes to
+# results.txt. If you remove the output file of 'greetings' and let
+# it write to stdout, the stream pipe is implicit and this is not necessary
+greetings | (line_count + full_count)

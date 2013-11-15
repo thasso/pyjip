@@ -1,0 +1,19 @@
+#!/usr/bin/env jip
+#Send a greeting from ocaml
+#
+# usage:
+#     hello  -n <name> [-o <output>]
+#
+# Options:
+#   -n, --name <name>      Your name
+#   -o, --output <output>  The output
+#                          [default: stdout]
+
+
+#%begin command ocaml
+let o = ${output|arg('open_out "', '"')|else("stdout")};;
+Printf.fprintf o "Dear ${name}\n\n";;
+Printf.fprintf o "From the happy chambers of my spirit,\n";;
+Printf.fprintf o "I send forth to you, my smile.\n";;
+Printf.fprintf o "And, I pray that you shall carry it with you,\n";;
+Printf.fprintf o "as you travel each and every mile.\n";;
