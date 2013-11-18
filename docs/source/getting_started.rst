@@ -1,3 +1,5 @@
+.. _getting_started:
+
 Getting startet
 ===============
 The *getting started* guide covers the basic setup and creation of *jip tools*

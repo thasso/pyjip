@@ -23,6 +23,12 @@ The current JIP release bundles implementation for the following grid engines:
     * `SGE/OGE <http://gridscheduler.sourceforge.net/>`_ are supported using
       the :class:`jip.cluster.SGE` class
 
+    * `PBS/Torque <http://www.adaptivecomputing.com/products/open-source/torque/>`_
+      are supported using the :class:`jip.cluster.PBS` class
+
+    * `Platform LSF <http://www-03.ibm.com/systems/technicalcomputing/platformcomputing/products/lsf/>`_
+      are supported using the :class:`jip.cluster.LSF` class
+
 If you want to implement your own cluster integration, the class to extend from
 is :py:class:`Cluster`. In order to get a working implementation, implement at
 least the :py:meth:`Cluster.submit` function. This will already allow you to

@@ -20,3 +20,9 @@ Implementations
 .. autoclass:: jip.cluster.SGE
     :members:
 
+.. autoclass:: jip.cluster.PBS
+    :members:
+
+.. autoclass:: jip.cluster.LSF
+    :members:
+

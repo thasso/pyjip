@@ -1,5 +1,5 @@
-JIP-API reference documentation
-===============================
+The JIP API 
+===========
 
 The JIP platform is mostly written in Python, except for the stream dispatcher,
 which is written in C and integrated as a Python Extension. This documentation
