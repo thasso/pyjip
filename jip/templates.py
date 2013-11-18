@@ -20,6 +20,8 @@ log = getLogger('jip.templates')
 
 def set_global_context(global_ctx):
     global global_context
+    if not global_ctx:
+        raise
     global_context = global_ctx
 
 
@@ -285,4 +287,6 @@ def render_template(template, **kwargs):
         for k, v in global_context.iteritems():
             if not k in ctx:
                 ctx[k] = v
+    # expose the global context
+    ctx['_ctx'] = global_context
     return tmpl.render(**ctx)

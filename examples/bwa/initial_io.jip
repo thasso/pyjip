@@ -1,16 +1,22 @@
-#!/usr/bin/env jip
+#!/usr/bin/env jip -p
 #
-# initial example of a pipeline script
+# BWA/Samtools pileup
+#
+# Usage:
+#     pileup.jip -i <input> -r <reference> -o <output>
+#
+# Inputs:
+#     -i, --input <input>          The input file
+#     -r, --reference <reference>  The genomic reference
+# Outputs:
+#     -o, --output <output>        The .bcf output file
 
-#%begin pipeline
+out = r("${output|ext}")
 
-out = 'output'
-reference = 'reference.fa'
-infile = 's_1.txt'
-
-align = bash('bwa aln -I -t 8 ${reference} ${infile}') > "${out}.sai"
-sam = bash('bwa samse ${reference} ${input} ${infile}') > '${out}.sam'
-bam = bash('samtools view -bSu ${input} | samtools sort - ${outfile|ext}', outfile='${out}.sorted.bam') 
+ref = bash('bwa index reference.fa', outfile='reference.fa.bwt')
+align = bash('bwa aln -I -t 8 ${ref|ext} ${_ctx.input}') > "${out}.sai"
+sam = bash('bwa samse ${reference} ${align} ${_ctx.input}') > '${out}.sam'
+bam = bash('samtools view -bSu ${sam} | samtools sort - ${outfile|ext}', outfile='${out}.sorted.bam')
 dups = bash('''
 java -Xmx1g -jar /apps/PICARD/1.95/MarkDuplicates.jar \
                             MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000\
@@ -18,11 +24,9 @@ java -Xmx1g -jar /apps/PICARD/1.95/MarkDuplicates.jar \
                             REMOVE_DUPLICATES=true \
                             ASSUME_SORTED=true  \
                             VALIDATION_STRINGENCY=LENIENT \
-                            INPUT=${input} \
-                            OUTPUT=${outfile} 
+                            INPUT=${bam} \
+                            OUTPUT=${outfile}
 ''', outfile="${out}.dedupe.bam")
-index = bash('samtools index ${input}', outfile='${out}.dedupe.bam.bai')
-pileup = bash('samtools mpileup -uf ${reference} ${input|ext} | /apps/SAMTOOLS/0.1.19/bin/bcftools view -bvcg -', output='${out}.bcf')
-
-align >> sam >> bam >> dups >> index >> pileup
+index = bash('samtools index ${dups}', outfile='${out}.dedupe.bam.bai')
+pileup = bash('samtools mpileup -uf ${reference} ${index|ext} | bcftools view -bvcg -', output='${out}.bcf')
 #%end

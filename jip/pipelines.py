@@ -718,44 +718,27 @@ class Node(object):
         return other
 
     def __lshift__(self, other):
-        """Create an edge from the other node to this node and
-        append the default output of the other node to this nodes
-        default input"""
-        inp = self._tool.options.get_default_input()
+        """Create an edge from the other node to this node. No
+        options are delegated.
+        """
         if isinstance(other, _NodeProxy):
             for o in other._nodes:
                 self.__lshift__(o)
+        elif isinstance(other, Node):
+            self._graph.add_edge(self, other)
         else:
-            if not isinstance(other, Option):
-                out = other._tool.options.get_default_output()
-            else:
-                out = other
-                other = self._graph._nodes[out.source]
-            if out is not None and inp is not None:
-                self._set_option_value(inp, out, append=True,
-                                       allow_stream=False)
-            else:
-                # just add an edge
-                self._graph.add_edge(self, other)
+            return self.__lt__(other)
         return self
 
     def __rshift__(self, other):
-        """Create an edge from this node to the other node and
-        set the default output/input options between this node
-        and the other but disable any streaming posibilities on the link
+        """Create an edge from this node to the other node. No
+        options are delegated.
         """
         if isinstance(other, _NodeProxy):
             for o in other._nodes:
                 self.__rshift__(o)
         elif isinstance(other, Node):
-            out = self._tool.options.get_default_output()
-            inp = other._tool.options.get_default_input()
-            if out is not None and inp is not None:
-                other._set_option_value(inp, out, append=True,
-                                        allow_stream=False)
-            else:
-                # just add an edge
-                self._graph.add_edge(self, other)
+            self._graph.add_edge(self, other)
         else:
             return self.__gt__(other)
         return other

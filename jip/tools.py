@@ -585,10 +585,11 @@ class PythonBlockUtils(object):
             if isinstance(v, Node):
                 ctx[k] = OptionWrapper(v,
                                        v._tool.options.get_default_output())
-        # add options
-        #ctx['input'] = bash_node._tool.options['input']
-        #ctx['output'] = bash_node._tool.options['output']
-        #ctx['outfile'] = bash_node._tool.options['outfile']
+        # add options and make sure
+        # the bash tool options take precendenc
+        ctx['input'] = bash_node._tool.options['input']
+        ctx['output'] = bash_node._tool.options['output']
+        ctx['outfile'] = bash_node._tool.options['outfile']
         cmd = render_template(command, **ctx)
         bash_node.cmd = cmd
         return bash_node
@@ -670,7 +671,8 @@ class PythonBlock(Block):
                 e.lineno += self._lineno
             raise
         finally:
-            set_global_context(old_global_context)
+            pass
+            #set_global_context(old_global_context)
 
         # auto naming for tools
         from jip.pipelines import Node
