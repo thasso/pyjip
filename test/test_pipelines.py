@@ -262,7 +262,6 @@ def test_left_shift_operator():
     assert list(node_1.children()) == [node_3]
     assert list(node_2.children()) == [node_3]
     assert list(node_3.children()) == []
-    assert len(node_3._tool.options['input']) == 2
 
 
 def test_right_shift_operator():
@@ -284,7 +283,6 @@ def test_right_shift_operator():
     assert list(node_1.children()) == [node_3]
     assert list(node_2.children()) == [node_3]
     assert list(node_3.children()) == []
-    assert len(node_3._tool.options['input']) == 2
     for e in node_3._edges:
         for link in e._links:
             assert not link[2]
@@ -331,7 +329,7 @@ def test_three_groups():
     node_3 = p.add(tool_3)
     node_1 >> (node_2 + node_3)
     groups = list(p.groups())
-    assert len(groups) == 1
+    assert len(groups) == 3
 
 
 def test_three_groups_files():

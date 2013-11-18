@@ -725,7 +725,7 @@ class Node(object):
             for o in other._nodes:
                 self.__lshift__(o)
         elif isinstance(other, Node):
-            self._graph.add_edge(self, other)
+            self._graph.add_edge(other, self)
         else:
             return self.__lt__(other)
         return self
