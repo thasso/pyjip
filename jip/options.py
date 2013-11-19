@@ -49,25 +49,29 @@ class ParserException(Exception):
 
 class Option(object):
     """A script option covers the most basic information about a
-    script option. This covers the following attributes::
-
-        name         a unique name that is used to identify the option
-        short        the short representation, i.e -a
-        long         the long representation, i.e --name
-        type         optional type
-        nargs        number of arguments, supports 0, 1, + and *
-        default      optional default value
-        value        list of current values for this option
-        required     the option needs to be specified
-        hidden       the option is hidden on the command line
-        join         optional join character for list options
-        streamable   true if this option can take a stream as input
-        option_type  the option type, one of TYPE_OPTION, TYPE_INPUT,
-                     TYPE_OUTPUT
-        sticky       sticky can be applied to an option to mark it as
-                     ignored when job/tool cleanup is performed
+    script option.
 
     Please note that values are always represented as a list.
+
+    :param name: the options name
+    :param short: the short option name, i.e, ``-h``
+    :param long: the long options name, i.e., ``--help``
+    :param type: the values type, for example, ``int`` or ``string``
+    :param nargs: number of supported arguments. Supports ``0`` for boolean
+                  options, ``1`` for options that take a single value, ``+``
+                  for options that take at least on argument, and ``*`` for
+                  options that take none or more arguments.
+    :param default: the options default value
+    :param value: the options initial value
+    :param required: set to True to make the option non-mandatory
+    :param hidden: mark the option as hidden
+    :param join: specify a string that is used to join list of elements
+                 for string representations
+    :param streamable: enable streams for this option
+    :param option_type: the option type, one of :attr:`TYPE_INPUT`,
+                        :attr:`TYPE_OUTPUT` or :attr:`TYPE_OPTION`
+    :param sticky: mark the option as sticky. Sticky option values are
+                   ignored during a cleanup
     """
     def __init__(self, name, short=None, long=None, type=None, nargs=None,
                  default=None, value=None, required=False, streamable=None,
@@ -413,8 +417,8 @@ class Options(object):
         :param hidden: set this to False to create a visible option
         :param kwargs: all additional keyword argumnents are passed to the
                        new option as they are
-        :returns option: the added option
-        :rtype: Option
+        :returns: the added option
+        :rtype: :class:`jip.options.Option`
         """
         return self.add_option(name, value=value, nargs=nargs, hidden=True,
                                type=TYPE_INPUT, **kwargs)
@@ -439,8 +443,8 @@ class Options(object):
         :param hidden: set this to False to create a visible option
         :param kwargs: all additional keyword argumnents are passed to the
                        new option as they are
-        :returns option: the added option
-        :rtype: Option
+        :returns: the added option
+        :rtype: :class:`jip.options.Option`
         """
         return self.add_option(name, value=value, nargs=nargs, hidden=True,
                                type=TYPE_OUTPUT, **kwargs)
@@ -466,8 +470,8 @@ class Options(object):
         :param hidden: set this to False to create a visible option
         :param kwargs: all additional keyword argumnents are passed to the
                        new option as they are
-        :returns option: the added option
-        :rtype: Option
+        :returns: the added option
+        :rtype: :class:`jip.options.Option`
         """
         if nargs is None:
             nargs = 1

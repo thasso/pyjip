@@ -3,14 +3,100 @@
 #
 # usage:
 #     template_vars.jip -i <input> [-o <output>] [-b]
-
+#
 # Options:
 #     -i, --input <input>    A single input file
-#     -o, --input <output>   Output file
+#     -o, --output <output>  Output file
 #                            [default: stdout]
 #     -b, --boolean          A boolean option
 
-# print the variables
-echo ${input}
-echo ${output}
-echo ${boolean}
+echo "========================================="
+echo "Raw value are printed as they are, except"
+echo "stream and boolean options."
+echo ""
+echo "RAW INPUT   : ${input}"
+echo "RAW OUTPUT  : ${output}"
+echo "RAW BOOLEAN : ${boolean}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'arg' filter without any argument"
+echo "prefixs the value with its option if"
+echo "the value is not a stream or evaluates to"
+echo "true."
+echo ""
+echo "RAW INPUT   : ${input|arg}"
+echo "RAW OUTPUT  : ${output|arg}"
+echo "RAW BOOLEAN : ${boolean|arg}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'arg' filter with arguments can be"
+echo "used to add custom prefixes and suffixed"
+echo "to the value is not a stream or evaluates"
+echo "to true."
+echo ""
+echo "RAW INPUT   : ${input|arg('--prefix ', ';suffix')}"
+echo "RAW OUTPUT  : ${output|arg('>')}"
+echo "RAW BOOLEAN : ${boolean|arg('--yes')}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'pre' and 'suf' filter can also be"
+echo "used to add a prefix or a suffix."
+echo ""
+echo "RAW INPUT   : ${input|pre('--prefix ')|suf(';suffix')}"
+echo "RAW OUTPUT  : ${output|pre('>')}"
+echo "RAW BOOLEAN : ${boolean|suf('yes')}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'name' filter returns the base name"
+echo "of a file or directory"
+echo ""
+echo "RAW INPUT   : ${input|name}"
+echo "RAW OUTPUT  : ${output|name}"
+echo "RAW BOOLEAN : ${boolean|name}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'parent' filter returns the path to"
+echo "the parent folder of a file or directory"
+echo ""
+echo "RAW INPUT   : ${input|parent}"
+echo "RAW OUTPUT  : ${output|parent}"
+echo "RAW BOOLEAN : ${boolean|parent}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'ext' filter cuts away the last file"
+echo "extension. By default, the extension is"
+echo "detcted by '.', but you can specify a"
+echo "custom split character"
+echo ""
+echo "RAW INPUT   : ${input|ext}"
+echo "RAW OUTPUT  : ${output|ext('_')}"
+echo "RAW BOOLEAN : ${boolean|ext}"
+echo "========================================="
+
+echo "========================================="
+echo "The 'else' filter can be used to insert a"
+echo "string in case the value evaluates to "
+echo "a stream or false."
+echo ""
+echo "RAW INPUT   : ${input|else('-')}"
+echo "RAW OUTPUT  : ${output|else('default')}"
+echo "RAW BOOLEAN : ${boolean|else('--no')}"
+echo "========================================="
+
+echo "========================================="
+echo "The 're' filter can be used for search"
+echo "and replace on the value. Regular"
+echo "expressions are supported."
+echo ""
+echo "RAW INPUT   : ${input|re('setup', 'replaced')}"
+echo "RAW OUTPUT  : ${output|re('.py$', '.txt')}"
+echo "RAW BOOLEAN : ${boolean|re('no', 'effect')}"
+echo "========================================="
+
+

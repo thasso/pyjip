@@ -606,6 +606,10 @@ class Node(object):
         self.__dict__['_index'] = index
         self.__dict__['_edges'] = set([])
 
+    @property
+    def job(self):
+        return self._job
+
     def children(self):
         """Get all children of this node"""
         for edge in [e for e in self._edges if e._source == self]:

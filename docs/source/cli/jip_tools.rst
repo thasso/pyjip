@@ -1,4 +1,4 @@
-.. _jip_tools:
+.. _jip_tools_cmd:
 
 jip tools - list available tools
 ================================

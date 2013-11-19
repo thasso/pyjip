@@ -301,7 +301,7 @@ class Job(Base):
     @property
     def tool(self):
         """Get the tool instance that is associated with this job. If
-        the tool is not set, it will be loaded using the :ref:`jip.find()`
+        the tool is not set, it will be loaded using the :py:func:`jip.find`
         function
         """
         if not self._tool:
@@ -544,7 +544,7 @@ def init(path=None, in_memory=False):
 
 def create_session(embedded=False):
     """Creates and return a new `SQAlchemy session
-    <http://docs.sqlalchemy.org/en/latest/orm/session.html#sqlalchemy.orm.session.Session>_`
+    <http://docs.sqlalchemy.org/en/latest/orm/session.html#sqlalchemy.orm.session.Session>`_
     instance and initializes the database if the DB was not initialized.
 
     :param embedded: start the database in embedded mode :returns: a new

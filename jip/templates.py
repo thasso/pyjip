@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-"""The JIP templates module wraps around the template
-engine used and allows to render job templates.
-The module exposes a single :ref:`render_template()` function
-that takes the template string and renders it using the given keyword
-arguments.
+"""The JIP templates module wraps around the jinja2 template
+engine used and allows to render job templates and other strings.
+
+The module stores a global context that is used during script evaluation
+and implements the JIP filter functions. The template environment
+is stored as a global reverence and the template engine is exposed
+throght the :py:func:`render_template` function.
 """
 
 from jinja2 import Environment, Undefined, contextfilter
@@ -57,12 +59,17 @@ def __resolve_options(ctx, value):
 def suf_filter(ctx, value, suffix=None):
     try:
         value = __resolve_options(ctx, value)
+        if not isinstance(value, Option):
+            if not value:
+                return ""
+            v = str(value)
+            suffix = suffix if suffix is not None else ""
+            return "%s%s" % (v, suffix)
 
-        if isinstance(value, Option):
-            value = value.get()
-        if not value:
+        if value.to_cmd() == "":
             return ""
-        v = str(value)
+
+        v = value.get()
         suffix = suffix if suffix is not None else ""
         return "%s%s" % (v, suffix)
     except:
@@ -73,13 +80,18 @@ def suf_filter(ctx, value, suffix=None):
 def pre_filter(ctx, value, prefix=None):
     try:
         value = __resolve_options(ctx, value)
+        if not isinstance(value, Option):
+            if not value:
+                return ""
+            v = str(value)
+            prefix = prefix if prefix is not None else ""
+            return "%s%s" % (prefix, v)
 
-        if isinstance(value, Option):
-            value = value.get()
-        if not value:
+        if value.to_cmd() == "":
             return ""
-        v = str(value)
-        prefix = prefix if prefix is not None else ""
+
+        v = value.get()
+        prefix = prefix if prefix is not None else value.get_opt()
         return "%s%s" % (prefix, v)
     except:
         return value
@@ -190,15 +202,16 @@ def replace_filter(ctx, value, search, replace):
     :returns: the new string
     """
     if isinstance(value, JipUndefined):
-        return "${%s|replace('%s', '%s')}" % (value._undefined_name,
-                                              search, replace)
+        return "${%s|re('%s', '%s')}" % (value._undefined_name,
+                                         search, replace)
     try:
         value = __resolve_options(ctx, value)
         if not isinstance(value, Option):
             v = str(value)
         else:
             v = value.get()
-        return v.replace(search, replace)
+        import re
+        return re.sub(search, replace, v)
     except:
         return value
 

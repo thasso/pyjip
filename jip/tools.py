@@ -518,7 +518,11 @@ class Block(object):
 
 class PythonBlockUtils(object):
     """Utility functions that are exposed in template blocks and template
-    functions"""
+    functions
+
+    The block utilities store a reference to the *local* and *global*
+    environment, to the current *tool* and to the current *pipeline*.
+    """
 
     def __init__(self, tool, local_env):
         self.tool = tool
@@ -536,33 +540,134 @@ class PythonBlockUtils(object):
         return self._pipeline
 
     def check_file(self, name):
-        """Checks for the existence of a file option.
+        """Checks for the existence of a file referenced by an options.
+
+        Please note that this doe **not** take a file name, but the name
+        of an option. This function is preferred over a simple check
+        using ``os.path.exists()`` because it also checks for job dependencies.
+        This is important because a mandatory file might not *yet* exist
+        within the context of a pipeline, but it will be created at runtime
+        in a previous step.
 
         :param name: the options name
+        :returns: True if the file exists or the file is created by another
+                  job that will run before this options job is executed.
+        :rtype: boolean
         """
         opt = self.tool.options[name]
         if not opt.is_dependency():
             self.tool.options[name].validate()
 
     def set(self, name, value):
-        """Set an options value"""
+        """Set an options value.
+
+        :param name: the options name
+        :type name: string
+        :param value: the new value
+        """
         self.tool.options[name].value = value
 
     def run(self, _name, **kwargs):
+        """Searches for a tool with the specified name and adds it as a
+        new :py:class:`~jip.pipelines.Node` to the current pipeline.
+        All specified keyword argument are passed as option values to
+        the tool.
+
+        Delegates to the pipelines :py:meth:`jip.pipelines.Pipeline.run`
+        method.
+
+        :param _name: the name of the tool
+        :type _name: string
+        :param kwargs: additional argument passed to the tool as options
+        :returns: a new node that executes the specified tool and is added
+                  to the current pipeline
+        :rtype: :py:class:`jip.pipelines.Node`
+        """
         return self.pipeline.run(_name, **kwargs)
 
     def job(self, *args, **kwargs):
+        """Create and returns a new :class:`~jip.pipelines.Job`.
+
+        The job instance can be used to customize the execution environment
+        for *the next* job. For example::
+
+            job("Test", threads=2).run('mytool', ...)
+
+        This is a typical usage in a pipeline context, where a new job
+        environment is created and then applied to a new 'mytool' pipeline
+        node.
+
+        :param args: job arguments
+        :param kwargs: job keyword arguments
+        :returns: a new job instance
+        :rtype: :class:`jip.pipelines.Job`
+        """
         return self.pipeline.job(*args, **kwargs)
 
     def name(self, name):
+        """Set the runtime name of a pipeline.
+        The runtime name of the pipeline is stored in the database and is
+        used as a general identifier for a pipeline run.
+
+        **Note** that this set the name of the *pipeline* if used in a pipeline
+        context, otherwise it set the name of the tool/job.
+        Within a pipeline context, you can be changed using a :py:func:`job`::
+
+            job("my job").run(...)
+
+        or after the node was created:
+
+            myrun = run(...)
+            myrun.job.name = "my job"
+
+        :param name: the name of the pipeline
+        :type name: string
+        """
         self.pipeline.name(name)
         self.tool._job_name = name
-        #if self._pipeline is not None:
-            #self._pipeline.name(name)
-        #else:
-            #self.tool.name = name
 
     def bash(self, command, **kwargs):
+        """Create a *bash* job that executes a bash command.
+
+        This us a fast way to build pipelines that execute shell commands. The
+        functions wraps the given command string in the *bash tool* that
+        is defined with ``input``, ``output``, and ``outfile``. Input and
+        output default to stdin and stdout. Note that you can access your
+        local context within the command string. Take for example the following
+        pipeline script::
+
+            name = "Joe"
+            bash("echo 'Hello ${name}'")
+
+        This will work as expected. The command template can access local
+        variables. Please keep in mind that the tools context takes precedence
+        over the script context. That means that::
+
+            input="myfile.txt"
+            bash("wc -l ${input}")
+
+        in this example, the command ``wc -l`` will be rendered and wait for
+        input on stdin. The bash command has an ``input`` option and that takes
+        precedence before the globally defined ``input`` variable. This is true
+        for ``input``, ``output``, and ``outfile``, even if they are not
+        explicitly set.
+        You can however access variables defined in the global context using
+        the `_ctx`::
+
+            input="myfile.txt"
+            bash("wc -l ${_ctx.input}")
+
+        will indeed render and execute ``wc -l myfile.txt``.
+
+        :param command: the bash command to execute
+        :type command: string
+        :param kwargs: arguments passed into the context used to render the
+                       bash command. ``input``, ``output``, and ``outfile`` are
+                       passed as options to the *bash* tool that is used to
+                       run the command
+        :returns: a new pipeline node that represents the bash job
+        :rtype: :class:`jip.pipelines.Node`
+        """
         from jip.pipelines import Node
 
         bash_node = self.pipeline.run('bash', cmd=command, **kwargs)
@@ -586,7 +691,7 @@ class PythonBlockUtils(object):
                 ctx[k] = OptionWrapper(v,
                                        v._tool.options.get_default_output())
         # add options and make sure
-        # the bash tool options take precendenc
+        # the bash tool options take precedence
         ctx['input'] = bash_node._tool.options['input']
         ctx['output'] = bash_node._tool.options['output']
         ctx['outfile'] = bash_node._tool.options['outfile']

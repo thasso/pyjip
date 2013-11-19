@@ -309,6 +309,10 @@ table.field-list th {
     padding: 0 0.8em 0 0;
 }
 
+table.field-list .field-name{
+    font-size: 0.9em;
+}
+
 table.field-list td {
     padding: 0;
 }
@@ -346,6 +350,8 @@ pre {
     padding: 7px 30px;
     margin: 15px -30px;
     line-height: 1.3em;
+    overflow-y: scroll;
+    max-height: 600px;
 }
 
 dl pre, blockquote pre, li pre {
@@ -391,6 +397,16 @@ a.footnote-reference:hover {
 
 a:hover tt {
     background: #EEE;
+}
+
+.method {
+    border-top: 1px solid #DDD;
+    padding-top: 10px;
+}
+
+.class {
+    border-top: 1px solid #555;
+    padding-top: 10px;
 }
 
 

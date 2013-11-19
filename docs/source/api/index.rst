@@ -21,6 +21,7 @@ you want to dig deeper and see how things are created.
    executils
    jobs
    options
+   pipelines
    templates
    tools
    utils
