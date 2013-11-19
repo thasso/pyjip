@@ -96,7 +96,7 @@ class ToolNotFoundException(Exception):
 # decorators
 #########################################################
 class tool(object):
-    """Decorate functions and classes as tools.
+    """Decorate functions and classes and convert them to tools.
 
     The @jip.tool decorator turns classes and functions into valid JIP
     tools. The simplest way to use this decorator is to annotate a python
@@ -107,7 +107,7 @@ class tool(object):
 
         @tool()
         def mytool():
-            '''\
+            '''
             Send a greeting
 
             usage:
@@ -122,15 +122,49 @@ class tool(object):
     return a tuple where the first element is the interpreter name and the
     second is the script template.
 
+    :param name: specify a tool name. If no name is specified, the name
+                 of the decorated function or class is used as the tool
+                 name
+    :param inputs: specify a list of option names that are treated
+                   as input options
+    :param outputs: specify a list of option names that are treated as output
+                    options
+    :param argparse: specify the name of the function or a function reference
+                     that take an ``ArgumentParser`` instance and populates
+                     it. This takes precedence over the doc string if the
+                     function exists.
 
-    The only mandatory parameter is the tool name. All other paramters
-    are optional and allow you to delegate functionality between the actual
-    :class:`jip.tool.Tool` implementation and the decorated class.
+    :param get_command: name of the function or a function reference that
+                        implements the tools ``get_command`` function
+    :param validate: name of the function or a function reference that
+                     implements the tools ``validate`` function
+    :param run: name of the function or a function reference that
+                implements the tools ``run`` function
+    :param pipeline: name of the function or a function reference that
+                     implements the tools ``pipeline`` function
+    :param is_done: name of the function or a function reference that
+                    implements the tools ``is_done`` function
+    :param cleanup: name of the function or a function reference that
+                    implements the tools ``cleanup`` function
+    :param help: name of the function or a function reference that
+                 implements the tools ``help`` function
+    :param add_outputs: takes a list of values to add hidden output
+                        options
+    :param check_files: takes a list of option names that will be passed
+                        through file checks on validation
     """
     def __init__(self, name=None, inputs=None, outputs=None,
-                 argparse='register', get_command=None, validate=None,
-                 add_outputs=None, pipeline=None, is_done=None, cleanup=None,
-                 help=None, check_files=None, ensure=None, pytool=False,
+                 argparse='register', get_command='get_command',
+                 validate='validate',
+                 run='run',
+                 pipeline='pipeline',
+                 is_done='is_done',
+                 cleanup='cleanup',
+                 help='help',
+                 add_outputs=None,
+                 check_files=None,
+                 ensure=None,
+                 pytool=False,
                  force_pipeline=False):
         self.name = name
         self.inputs = inputs
@@ -151,6 +185,7 @@ class tool(object):
         self._get_command = get_command if get_command else "get_command"
         self._cleanup = cleanup if cleanup else "cleanup"
         self._help = help if help else "help"
+        self._run = run if run else "run"
 
     def __call__(self, cls):
         # check the name
@@ -252,6 +287,9 @@ class tool(object):
 
     def cleanup(self, wrapper, instance):
         return self.__call_delegate(self._cleanup, wrapper, instance)
+
+    def run(self, wrapper, instance):
+        return self.__call_delegate(self._run, wrapper, instance)
 
     def help(self, wrapper, instance):
         return self.__call_delegate(self._help, wrapper, instance)
@@ -934,6 +972,15 @@ class Tool(object):
                                               value)
 
     def validation_error(self, message, *args):
+        """Quickly raise a validation error with a custom message.
+
+        This function simply raises a ValidationError. You can use it
+        in a custom validation implementation to quickly fail the validation
+
+        :param message: the message
+        :param args: argument interpolated into the message
+        :raises ValidationError: always
+        """
         raise ValidationError(self, message % args)
 
     def ensure(self, option_name, check, message=None):
@@ -1201,14 +1248,14 @@ class PythonTool(Tool):
         self.instance.options = self.options
         self.instance.tool_instance = self
         if isinstance(self.instance, types.FunctionType):
-            # check if the function takes a paramter
+            # check if the function takes a parameter
             argspec = inspect.getargspec(self.instance)
             if len(argspec[0]) > 0:
                 self.instance(self)
             else:
                 self.instance()
         else:
-            self.instance()
+            self.decorator.run(self, self.instance)
 
     def validate(self):
         if self._add_outputs is not None:

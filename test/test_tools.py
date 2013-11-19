@@ -210,3 +210,85 @@ def test_tool_decorator_delegate_validate_to_external_method():
     assert test_tool.cleanup() == "delegated_cleanup:infile.txt"
     assert test_tool.help() == "delegated_help:infile.txt"
     assert test_tool.get_command() == ('inter', "delegated_cmd:infile.txt")
+
+
+def test_tool_decorator_options_for_templates():
+    @jip.tool()
+    def mytool():
+        """
+        usage:
+            tool -i <input>
+        options:
+            -i, --input <input>  The input
+        """
+        return "run on ${input}"
+
+    t = find('mytool')
+    assert t
+    assert t.options['input'] is not None
+    t.options['input'] = 'data.txt'
+    assert t.get_command()[1] == 'run on data.txt'
+
+
+def test_tool_decorator_options_for_functions():
+    data = []
+
+    @jip.pytool()
+    def mytool(self):
+        """
+        usage:
+            tool -i <input>
+        options:
+            -i, --input <input>  The input
+        """
+        assert isinstance(self, jip.tools.Tool)
+        # but we have the helpers
+        assert hasattr(self, 'args')
+        assert hasattr(self, 'options')
+        #assert hasattr(self, 'tool_instance')
+        assert hasattr(self, 'check_file')
+        assert hasattr(self, 'ensure')
+        assert hasattr(self, 'validation_error')
+        data.append(self.options['input'].get())
+
+    t = find('mytool')
+    assert t
+    assert t.options['input'] is not None
+    t.options['input'] = 'data.txt'
+    t.run()
+    assert data[0] == 'data.txt'
+
+
+def test_tool_class_decorator_options_for_functions():
+    data = []
+    validated = []
+
+    @jip.pytool()
+    class mytool(object):
+        """
+        usage:
+            tool <name>
+        """
+        def validate(self):
+            validated.append(True)
+
+        def run(self):
+            # in call implementation, we are not a tool instance
+            assert isinstance(self, mytool)
+            # but we have the helpers
+            assert hasattr(self, 'args')
+            assert hasattr(self, 'options')
+            assert hasattr(self, 'tool_instance')
+            assert hasattr(self, 'check_file')
+            assert hasattr(self, 'ensure')
+            assert hasattr(self, 'validation_error')
+            data.append(self.options['name'].get())
+
+    t = find('mytool')
+    assert t
+    assert t.options['name'] is not None
+    t.options['name'] = 'data.txt'
+    t.validate()
+    t.run()
+    assert data[0] == 'data.txt'
+    assert validated[0]

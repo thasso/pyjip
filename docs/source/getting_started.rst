@@ -119,57 +119,8 @@ that is used to identify the interpreter.
 
 You could of course set the interpreter to python and write python code to
 implement the tool functionality, but there is an alternative way. Tools can be
-loaded from python modules directly. Lets create a python module
-`hello_world.py` and implement our example::
-
-    #!/usr/bin/env python
-    from jip import *
-
-    @pytool()
-    def hello_world():
-        """Prints hello world in a python module"""
-        print "Hello world"
-
-All we have to do here is decorate a function with the
-:py:class:`jip.tools.pytool` decorator exported in the `jip` package. This
-allows us to treat a single python function as a tool implementation. In order
-to integrate the module, we have to either configure the :ref:`jip_modules
-<jip_configuration>` jip configuration or export the :envvar:`JIP_MODULES`
-environment variable. For example::
-
-    $> JIP_MODULES=hello_world.py jip tools
-
-Implementing tools in python modules allows you to group and organize your
-tools using standard python modules, but you are no longer able to have them
-exposed as single commands to your shell. You have to use the :ref:`jip run
-<jip_run>` command to execute a tool implemented in a python modules. To run
-the hello world example, try the following::
-
-    $> JIP_MODULES=hello_world.py jip run hello_world
-
-If you use python modules to organize your tools, you might encounter
-situations where it would be much easier to just execute a single line of bash
-rather than implementing the full execution in python. The latter can by quiet
-tricky sometimes and a lot of things from the python standard library might get
-involved. There is however a simpler way where you can use a python function
-(or class, see TODO) to create an interpreted script. For this purpose, jip
-contains the :py:class:`jip.tools.tool` decorator. You can decorate a function
-with ``@tool()`` and return a template string that is then treated in the same
-way jip script content would be interpreted. Your function can either return a
-single string, which will be interpreted using bash, or a tuple where you
-specify first the interpreter and then the actual script template. Take a look
-at the following examples::
-
-    @tool()
-    def hello_world():
-        return "echo 'hello world'"
-
-    @tool()
-    def hello_perl():
-        return "perl", """
-        use strict;
-        print "Hello World\n"
-        """
+implemented in python module using the :ref:`JIP API and decorators
+<jip_tool_modules>`.
 
 .. _tut_arguments:
 

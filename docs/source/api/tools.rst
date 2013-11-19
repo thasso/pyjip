@@ -3,6 +3,19 @@ jip.tools
 
 .. automodule:: jip.tools
 
+Decorators
+----------
+.. autoclass:: jip.tools.tool
+    :members:
+
+.. autoclass:: jip.tools.pytool
+    :members:
+
+.. autoclass:: jip.tools.pipeline
+    :members:
+
+Tool classes
+------------
 .. autoclass:: jip.tools.Tool
     :members:
     :member-order: groupwise
@@ -15,16 +28,19 @@ jip.tools
 .. autoclass:: jip.tools.PythonTool
     :members:
 
+Blocks and Block utilities
+--------------------------
 .. autoclass:: jip.tools.PythonBlock
     :members:
 
 .. autoclass:: jip.tools.PythonBlockUtils
     :members:
 
-.. autoclass:: jip.tools.tool
-    :members:
-
+Tool Scanner
+------------
 .. autoclass:: jip.tools.Scanner
     :members:
 
+Exceptions
+----------
 .. autoexception:: jip.tools.ValidationError

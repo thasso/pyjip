@@ -11,9 +11,179 @@ Tools
 Scripts
 ^^^^^^^
 
+.. _jip_tool_modules:
+
 Modules
 ^^^^^^^
+In addition to JIP scripts, tools and pipeline can also be implemented in
+python modules directly, using the JIP API and the available :ref:`decorators
+<decorators>`. 
 
+Tool can be loaded from python modules directly. Here is an example of how you
+could implement a simple `hello world` example as a python function. Create a
+python module `hello_world.py` and add the following content::
+
+    #!/usr/bin/env python
+    from jip import *
+
+    @pytool()
+    def hello_world():
+        """Prints hello world in a python module"""
+        print "Hello world"
+
+All we have to do here is decorate a function with the
+:py:class:`jip.tools.pytool` decorator exported in the `jip` package. This
+allows us to treat a single python function as a tool implementation. In order
+to integrate the module, we have to either configure the :ref:`jip_modules
+<jip_configuration>` jip configuration or export the :envvar:`JIP_MODULES`
+environment variable. For example::
+
+    $> JIP_MODULES=hello_world.py jip tools
+
+Implementing tools in python modules allows you to group and organize your
+tools using standard python modules, but you are no longer able to have them
+exposed as single commands to your shell. You have to use the :ref:`jip run
+<jip_run>` command to execute a tool implemented in a python modules. To run
+the hello world example, try the following::
+
+    $> JIP_MODULES=hello_world.py jip run hello_world
+
+If you use python modules to organize your tools, you might encounter
+situations where it would be much easier to just execute a single line of bash
+rather than implementing the full execution in python. The latter can by quiet
+tricky sometimes and a lot of things from the python standard library might get
+involved. There is however a simpler way where you can use a python function
+(or class, see TODO) to create an interpreted script. For this purpose, jip
+contains the :py:class:`jip.tools.tool` decorator. You can decorate a function
+with ``@tool()`` and return a template string that is then treated in the same
+way jip script content would be interpreted. Your function can either return a
+single string, which will be interpreted using bash, or a tuple where you
+specify first the interpreter and then the actual script template. Take a look
+at the following examples::
+
+    @tool()
+    def hello_world():
+        return "echo 'hello world'"
+
+    @tool()
+    def hello_perl():
+        return "perl", """
+        use strict;
+        print "Hello World\n"
+        """
+
+.. _decorators:
+
+Decorators
+^^^^^^^^^^
+The :py:mod:`jip.tools` module provides a set of decorators that can be 
+applied to `function` and `classes` in order to transform the decorated 
+instance into a jip tool or pipeline. The following decorators are available:
+
+    :class:`@tool <jip.tools.tool>`
+        Apply this to classes and functions that return a string (for
+        functions) or implement a ``get_command`` method that returns a string
+        (for classes). The returned string is interpreted as a jip script
+        template. The function can also return a tupel (``interpreter``,
+        ``template``) to indicate an interpreter other than ``bash``.
+
+    :class:`@pytool <jip.tools.pytool>`
+        Apply this to functions or classes. Decorated functions are executed as
+        jip tools, decorated classes are expected to implement a ``run`` method
+        that is then executed as a tool.
+
+    :class:`@pipeline <jip.tools.pipeline>` 
+        Apply this to functions or classes. Functions must return return a 
+        :class:`jip.pipelines.Pipeline` instance or a pipeline script. Classes 
+        must implement a ``pipeline`` function that returns the 
+        pipeline instance or a pipeline script.
+
+Function annotation is the most simple and also the most limited way to 
+implement a JIP tool. You do not have a way to customize the tool validation.
+That said, implementing jip tools as python functions is straight forward and
+easy to do::
+
+    @pytool()
+    def greetings():
+        print "Greetings fellow pythoniast"
+
+In this case the tool execution itself is implemented in python. Alternatively,
+you can also use the ``@tool`` annotation and return a template string or
+a tuple to specify the interpreter and the template string::
+
+    @tool()
+    def greetings():
+        return "bash", "echo 'Greetings bash user'"
+
+In case you use ``@tool``, you can access the tools 
+:py:attr:`jip.tools.Tool.options` as in any JIP script from :ref:`the context 
+<python_context>`. On the other hand, if you use the `@pytool` decorator and
+implement a python function that is executed as a tool directly, you can
+access the tool instance as a parameter::
+
+    @pytool()
+    def greeting(self):
+        """
+        usage:
+            greeting <name>
+        """
+        assert isinstance(self, jip.tools.Tool)
+        print "Greetings", self.options['name'].get() 
+
+Here, ``self`` is the actual tool instance created by the decorator and 
+populated with the options.
+
+An alternative approach, and suitable when you deal with more complex tools, is
+to implement the tool not as a function but as a class. This enables you to 
+add more than just the ``run`` or ``get_command`` functions, but also provide
+a ``validate`` implementation and even customize other parts of the tool
+implementation. Here is the python implementation of the greetings tool::
+
+    @pytool()
+    class greetings(object):
+        """
+        usage:
+            greetings <name>
+        """
+        def validate(self):
+            if self.options['name'] == 'Joe':
+                self.validation_error("Sorry joe, I don't like your shoes.")
+
+        def run(self):
+            # we are not a tool instance
+            assert isinstance(self, greetings)
+            # but we can access it
+            assert hasattr(self, 'tool_instance')
+
+            # and we habe the helpers directly available
+            assert hasattr(self, 'args')
+            assert hasattr(self, 'options')
+            assert hasattr(self, 'check_file')
+            assert hasattr(self, 'ensure')
+            assert hasattr(self, 'validation_error')
+            print "Greetings", self.args['name']
+
+As you can see from the example above, you can override most of the functions
+provided by the tool implementation. If you use a class based approach, a 
+few helper functions and variable are injected into your custom class. You
+always have access to:
+
+    args
+        the option values in a read-only dictionary
+    options
+        the :class:`tool options <jip.options.Options>`
+    check_file
+        the options :py:meth:`~jip.options.Options.check_file` function to
+        quickly check file parameters
+    validation_error
+        access the tools :py:meth:`~jip.tools.Tool.validation_error` function
+        to be able to raise error quickly
+
+Please take a look at the documentation of the :class:`@tool <jip.tools.tool>`
+decorator. There are options you can pass to the decorator to customize how 
+your class is converted to a tool and change, for example, names of the 
+functions that are to map between your implementation and the 
+:class:`~jip.tools.Tool` class.
 
 JIP Pipelines
 -------------

@@ -1,9 +1,89 @@
 #!/usr/bin/env pythons
-"""The options module contains the classes and functions
-to wrap script/tool options. The Options class is a container
-for a set of options and provides class functions to
-load options from either a docstring (from_docopt) or from a
-populated argpars parser instance.
+"""This module contains the essential parts to handle tool and pipeline
+options both within the python API as well as from the command line.
+
+The module provides access to two classes:
+
+    :class:`jip.options.Option`
+        wraps a single option and its value
+
+    :class:`jip.options.Options`
+        represents a set of options and provides indexed access to the
+        options instances
+
+The options are typically used to represent tool and pipeline inputs, outputs,
+and options. Because the JIP system needs to be able to identify which files
+are consumed and which files are created by a given tool, this information is
+encoded in the ``Option`` instance in their :attr:`~jip.options.Option.option_type`
+attribute. The following types are supported:
+
+.. attribute:: TYPE_INPUT
+
+    Option type to identify input options
+
+.. attribute:: TYPE_OUTPUT
+
+    Option type to identify output options
+
+.. attribute:: TYPE_OPTION
+
+    Option type to identify general options
+
+The :class:`Options` instance can be created manually or auto-generated from
+either a string or an ``argparse.ArgumentParser`` instance. The string parsing
+is done using a slightly modified version of the `docopt <http://docopt.org>`_
+library in order to support input and output blocks. You can use the
+:meth:`Options.from_docopt` function to parse a docopt string::
+
+    import sys
+    from jip.options import Options
+
+    opts = Options.from_docopt('''
+    My tool description
+
+    Usage:
+        tool -i <input> -o <output> [-b]
+
+    Inputs:
+        -i, --input <input>     The input
+                                [default: stdin]
+
+    Outputs:
+        -o, --output <output>  The output
+                                [default: stdout]
+
+    Options:
+        -b, --boolean           A boolean flag
+    ''')
+
+    assert opts['input'].raw() == sys.stdin
+    assert opts['output'].raw() == sys.stdout
+
+In this example, we created all three option blocks, ``Inputs:``, ``Outputs:``,
+and ``Options:`` explicitly. The parser also detects inputs and output by their
+option name and if their default value is set to ``sys.stdin`` or
+``sys.stdout``.
+
+The same options can also be created using pythons
+``argparse.ArgumentParser``::
+
+    import argparse
+    parser = argparse.ArgumentParser("tool")
+    parser.add_argument('-i', '--input', default=sys.stdin)
+    parser.add_argument('-o', '--output', default=sys.stdout)
+    parser.add_argument('-b', '--boolean', action="store_true")
+
+    opts = Options.from_argparse(parser, inputs=['input'], outputs=['output'])
+    assert opts['input'].raw() == sys.stdin
+    assert opts['output'].raw() == sys.stdout
+
+We again specify the inputs and outputs explicitly, but this time in the call
+to the ``from_argparse`` method. There is currently no way other than the
+option name and its default value to indicate inputs and output using
+argparse other than specifying them explicitly. If you are using the JIP
+library as an API, it likely that you define your tool functions or classes
+using the :ref:`decorators <decorators>`. These all allow you to specify the
+input and output options explicitly.
 """
 import sys
 import re
@@ -48,10 +128,29 @@ class ParserException(Exception):
 
 
 class Option(object):
-    """A script option covers the most basic information about a
-    script option.
+    """This class manages a single option of a JIP :class:`~jip.tools.Tool`.
 
-    Please note that values are always represented as a list.
+    The option instance itself it usually wrapped and accessed through a
+    :class:`~jip.options.Options` instance, and provides the basic
+    functionality to work with its value and its command line representation.
+
+    The most commonly used properties of an option are its ``name`` and its
+    ``value``. In addition the option instance carries various other
+    information, for example,the option type, its value type, its multiplicity.
+
+    Internally, each instance can carry a set of values, independent of its
+    multiplicity (*nargs*) setting. In fact, option value are always stored
+    in a list. This is used in pipeline extensions and expansions and you
+    should keep it in mind when accessing the option value.
+
+    Access can be done in three different ways. The most prominent one is the
+    options :py:meth:`get` method, which returns a string representation of the
+    options value. Please read the methods description to understand the
+    translation rules.
+
+    The Options constructor will automatically translate a value set to the
+    string ``stdin``, ``stdout`` or ``stderr`` to the corresponding system
+    streams.
 
     :param name: the options name
     :param short: the short option name, i.e, ``-h``
@@ -137,10 +236,18 @@ class Option(object):
         return len(self._value) if self._value is not None else 0
 
     def is_dependency(self):
+        """Returns true if this options value is coming from another tool
+        execution, hence this option depends on another option and the
+        tool containing this option depends on another tool.
+
+        :returns: True if this option has a dependency to another option
+                  from another tool
+        :rtype: boolean
+        """
         return self.dependency
 
     def make_absolute(self, path):
-        """Convert the option values to absolute paths relative to the given
+        """Converts the option values to absolute paths relative to the given
         parent path.
 
         :param path: the parent path
@@ -163,6 +270,16 @@ class Option(object):
 
     @property
     def value(self):
+        """The list of values wrapped by this option.
+
+        The list of values is rendered and resolved on access type. For this,
+        the options ``render_context`` must be set. This context is then used
+        to render any string value as a template.
+
+        :getter: Returns the fully rendered and resolved list of current values
+        :setter: Set the current option value
+        :type: single object or list of objects
+        """
         values = self._value
         set_from_default = False
         if self.default is not None and len(self._value) == 0:
@@ -204,18 +321,57 @@ class Option(object):
         return v
 
     def get_opt(self):
-        """Return the short or long representation of this option"""
+        """Return the short or long representation of this option, starting
+        with the short option. If that is not set, the options long name
+        is returned.
+
+        :returns: options short or long name
+        :rtype: string
+        """
         return self.short if self.short else self.long
 
     def set(self, new_value):
+        """Set the options value
+
+        :param new_value: the new value
+        """
         self.value = new_value
 
     def append(self, value):
+        """Append a value to the list of option values.
+
+        :param value: the value to append
+        """
         list_value = [value] if not isinstance(value, (list, tuple)) else value
         self.value = self._value + list_value
 
     def get(self):
-        """Get the string representation for the current value
+        """Get the string representation for the current value.
+
+        The get method translates the current value in the following way:
+
+            * if the options ``nargs`` is set to ``0`` and the option
+              represents a boolean flag, an empty string is returned
+
+            * if the options ``nargs`` is set to ``1`` and the option should
+              contains a single value but contains more than one value, a
+              ``ValueError`` is raised.
+
+            * if the options ``nargs`` allows for a list of values, each
+              value is resolved independently and the list is joined using the
+              options ``join`` string.
+
+            * if the option is ``required`` and no value is set, an
+              ``ParseException`` is raised.
+
+        Option values are resolved before returned and ``boolean`` values
+        and file streams are resolved to an empty string. All other values
+        are resolved to their string representations.
+
+        :returns: string representation of the current option value
+        :rtype: string
+        :raises ValueError: if the option contains more elements that allowed
+        :raises ParseException: if the option is required but no value is set
         """
         if self.nargs == 0:
             return ""
@@ -231,10 +387,25 @@ class Option(object):
                                       "not set!\n" % (self._opt_string()))
             return self.__resolve(v) if (v or v == 0) else ""
         else:
+            if len(self.value) == 0 and self.required and _check_required:
+                raise ParserException("Option '%s' is required but "
+                                      "not set!\n" % (self._opt_string()))
             return self.join.join([self.__resolve(v) for v in self.value])
 
     def raw(self):
-        """Get raw value(s) not the string representations
+        """Get raw value(s) wrapped by this options.
+
+        No ``require`` checks are performed, but the ``nargs`` setting of this
+        option is checked. If the option represents a boolean flag, this
+        returns True or False, depending on the first available value.
+
+        If the options carries a single value (``nargs == 1``), this first
+        value in the options list is returned. Otherwise the list of values
+        is returned. **Note** that the method returns ``None`` in case no
+        value is set.
+
+        :returns: the raw options value depending on ``nargs`` a single value
+                  or a list of values
         """
         if self.nargs == 0:
             return False if len(self._value) == 0 else bool(self._value[0])
@@ -269,6 +440,8 @@ class Option(object):
     def validate(self):
         """Validate the option and raise a ValueError if the option
         is required but no value is set.
+
+        :raises ValueError: if the option is ``required`` but not set
         """
         if self.required:
             if self.nargs != 0 and len(self.value) == 0:
@@ -276,9 +449,11 @@ class Option(object):
                                  self._opt_string())
 
     def check_file(self):
-        """Validate this options and check that, if the options is not
+        """Validate this option and check that, if the options is not
         set through a dependency, all string values represent existing
-        files
+        files.
+
+        :raises ValueError: if an expected file is not found
         """
         self.validate()
         if not self.is_dependency():
@@ -287,11 +462,14 @@ class Option(object):
                     raise ValueError("File not found: %s" % v)
 
     def check_files(self):
-        """Alias for `check_file`"""
+        """Alias for :py:meth:`check_file`"""
         self.check_file()
 
     def is_list(self):
-        """Return true if this option takes lists of values"""
+        """Return true if this option takes lists of values.
+
+        :returns: True if this option accepts a list of values
+        """
         return self.nargs != 0 and self.nargs != 1
 
     def _opt_string(self):
@@ -306,9 +484,15 @@ class Option(object):
 
     def to_cmd(self):
         """Return the command line representation for this option. An
-        excption is raised if the option setting is not valid. Hidden options
-        are represented as empty string. Boolean options where the value is
-        False or None are represnted as empty string.
+        exception is raised if the option setting is not valid. For example::
+
+            >>> o = Option("input", "-i", "--long", value="data.csv")
+            >>> assert o.to_cmd() == '-s data.csv'
+
+        Hidden options and boolean options where the value is False or None are
+        represented as empty string.
+
+        :returns: the cull command line representation of this option
         """
         if self.hidden:
             return ""
@@ -357,12 +541,12 @@ class Options(object):
 
         input = options['input']
 
-    This will assign the :py:class:`jip.options.Option` instance to input.
-    The options instance is also iterable in order to quickly iterate the
+    This will assign the :py:class:`jip.options.Option` instance to ``input``.
+    The options instance is also iterable in order to quickly go through the
     option instances, i.e.::
 
         for o in options:
-            print o.name/
+            print o.name
 
     In addition, :py:func:`get_default_input` and
     :py:func:`get_default_output()` can be used to access the default options
@@ -374,10 +558,16 @@ class Options(object):
         for inopt in options.get_by_type(TYPE_INPUT):
             print inopt.name
 
+    Option values can also be set directly using the dictionary notation. For
+    example::
+
+        >>>opts['input'] = "data.txt"
+
+    This assigned the value ``data.txt`` to the ``input`` option.
+
     If a source is specified, this becomes the source instance
     for all options added.
     """
-
     def __init__(self, source=None):
         self.options = []
         self._usage = ""
@@ -415,12 +605,12 @@ class Options(object):
                       but a value is provided, the value is inspected to
                       guess a multiplicity.
         :param hidden: set this to False to create a visible option
-        :param kwargs: all additional keyword argumnents are passed to the
+        :param kwargs: all additional keyword arguments are passed to the
                        new option as they are
         :returns: the added option
         :rtype: :class:`jip.options.Option`
         """
-        return self.add_option(name, value=value, nargs=nargs, hidden=True,
+        return self.add_option(name, value=value, nargs=nargs, hidden=hidden,
                                type=TYPE_INPUT, **kwargs)
 
     def add_output(self, name, value=None, nargs=None, hidden=True, **kwargs):
@@ -441,12 +631,12 @@ class Options(object):
                       but a value is provided, the value is inspected to
                       guess a multiplicity.
         :param hidden: set this to False to create a visible option
-        :param kwargs: all additional keyword argumnents are passed to the
+        :param kwargs: all additional keyword arguments are passed to the
                        new option as they are
         :returns: the added option
         :rtype: :class:`jip.options.Option`
         """
-        return self.add_option(name, value=value, nargs=nargs, hidden=True,
+        return self.add_option(name, value=value, nargs=nargs, hidden=hidden,
                                type=TYPE_OUTPUT, **kwargs)
 
     def add_option(self, name, value=None, nargs=None, hidden=True,
@@ -468,7 +658,7 @@ class Options(object):
                       but a value is provided, the value is inspected to
                       guess a multiplicity.
         :param hidden: set this to False to create a visible option
-        :param kwargs: all additional keyword argumnents are passed to the
+        :param kwargs: all additional keyword arguments are passed to the
                        new option as they are
         :returns: the added option
         :rtype: :class:`jip.options.Option`
@@ -484,7 +674,7 @@ class Options(object):
         option = Option(
             name,
             option_type=kwargs.get('option_type', type),
-            default=None,
+            default=kwargs.get('default', None),
             nargs=nargs,
             hidden=hidden,
             **kwargs
@@ -532,6 +722,10 @@ class Options(object):
                          opt.name, str(e), exc_info=True)
 
     def render_context(self, ctx):
+        """Set the options render context to the given context
+
+        :param ctx: the options render context
+        """
         for o in self:
             o.render_context = ctx
 
@@ -540,7 +734,11 @@ class Options(object):
             yield opt
 
     def to_dict(self, raw=False):
-        """Convert the options to a dictionary pointing to the raw values"""
+        """Convert the options to a read-only dictionary pointing to the
+        raw values of the options.
+
+        :returns: read-only dictionary of the options raw values
+        """
         r = {}
         for o in self.options:
             if not raw:
@@ -558,15 +756,28 @@ class Options(object):
 
     def to_cmd(self):
         """Render all non hidden options to a single command line
-        option
+        representation. For example::
+
+            >>> from jip.options import Options
+            >>> opts = Options()
+            >>> opts.add_input("input", short="-i", value="data.in", hidden=False)
+            >>> opts.add_output("output", short="-o", value="data.out", hidden=False)
+            >>> assert opts.to_cmd() == '-i data.in -o data.out'
+
+        :returns: command line representation of all non-hidden options
+        :rtype: string
         """
         return " ".join(filter(lambda x: len(x) > 0,
                                [o.to_cmd() for o in self if not o.hidden]))
 
     def get_default_output(self):
-        """Returns the first output option that is
-        found in the list of options that has a non-null value. If no output
-        option is found, a LookupError is raised
+        """Returns the first output option that is found in the list of options
+        that has a non-null value. If no output option is found, a
+        ``LookupError`` is raised
+
+        :returns: the default output option
+        :rtype: :class:`Option`
+        :raises LookupError: if no default option was found
         """
         for opt in self.get_by_type(TYPE_OUTPUT):
             if opt.value:
@@ -576,9 +787,13 @@ class Options(object):
         raise LookupError("No default output option found")
 
     def get_default_input(self):
-        """Returns the first input option that is
-        found in the list of options. If no input
-        option is found, a LookupError is raised
+        """Returns the first input option that is found in the list of options
+        that has a non-null value. If no input option is found, a
+        ``LookupError`` is raised
+
+        :returns: the default input option
+        :rtype: :class:`Option`
+        :raises LookupError: if no default option was found
         """
         for opt in self.get_by_type(TYPE_INPUT):
             return opt
@@ -587,22 +802,31 @@ class Options(object):
     def get_by_type(self, options_type):
         """Generator function that yields all
         options of the specified type. The type
-        should be one of TYPE_OUTPUT, TYPE_INPUT or
-        TYPE_OPTION.
+        should be one of :attr:`TYPE_OUTPUT`, :attr:`TYPE_INPUT` or
+        :attr:`TYPE_OPTION`.
 
         :param options_type: the type
         :type options_type: string
+        :returns: generator of all options of the specified type
+        :rtype: list of :class:`Option`
         """
         for opt in self.options:
             if opt.option_type == options_type:
                 yield opt
 
     def usage(self):
-        """Returns the usage message"""
+        """Returns the usage message
+
+        :returns: usage message
+        :rtype: string
+        """
         return self._usage
 
     def help(self):
-        """Returns the help message"""
+        """Returns the help message
+        :returns: the help message
+        :rtype: string
+        """
         return self._help
 
     def __index(self, name):
@@ -640,8 +864,8 @@ class Options(object):
         """Adds an options to the options set.
         The source is applied to an option added.
 
-        :para option: the option to add to the set
-        :type option: jip.options.Option
+        :param option: the option to add to the set
+        :type option: :class:`Option`
         """
         i = self.__index(option.name)
         if i < 0:
@@ -661,7 +885,7 @@ class Options(object):
 
     def parse(self, args):
         """Parse the given arguments and full the options values.
-        A ParserException is raised if help is requested (`-h` or `--help`)
+        A `ParserException` is raised if help is requested (`-h` or `--help`)
         or if an option error occurs. The exceptions error message
         is set accordingly.
 
@@ -800,9 +1024,24 @@ class Options(object):
 
     @classmethod
     def from_argparse(cls, parser, inputs=None, outputs=None, source=None):
-        """Create Options from a given argparse parser
+        """Create Options from a given argparse parser.
+
         The inputs and outputs can be set to options names to
-        set a specific type
+        set a specific type.
+
+        If no input or output options are specified explicitly, options
+        named ``input`` are assigned as the default input and options
+        named ``output`` are assigned as default output output.
+
+        In addition, the default types are checked and options where the
+        default points to ``stdin`` or ``stdout`` are given the type
+        ``TYPE_INPUT`` and ``TYPE_OUTPUT`` respectively.
+
+        :param parser: the argparse instance
+        :param inputs: list of names of ``TYPE_INPUT`` options
+        :param output: list of names of ``TYPE_OUTPUT`` options
+        :returns: a new Options instance
+        :rtype: :class:`Options`
         """
         from StringIO import StringIO
 
@@ -856,9 +1095,34 @@ class Options(object):
 
     @classmethod
     def from_docopt(cls, doc, inputs=None, outputs=None, source=None):
-        """Create Options from a help string using docopt
+        """Create Options from a help string using the docopt parser
+
         The inputs and outputs can be set to options names to
-        set a specific type
+        set a specific type.
+
+        If no input or output options are specified explicitly, options
+        named ``input`` are assigned as the default input and options
+        named ``output`` are assigned as default output output.
+
+        In addition, the default types are checked and options where the
+        default points to ``stdin`` or ``stdout`` are given the type
+        ``TYPE_INPUT`` and ``TYPE_OUTPUT`` respectively.
+
+        Here is an example of how an ``Options`` instance can be created from
+        a doc string::
+
+            Options.from_docopt('''\
+            usage:
+                tool -i <input>
+            options:
+                -i, --input <input>  the input option
+            ''')
+
+        :param parser: the argparse instance
+        :param inputs: list of names of ``TYPE_INPUT`` options
+        :param output: list of names of ``TYPE_OUTPUT`` options
+        :returns: a new Options instance
+        :rtype: :class:`Options`
         """
         from jip.vendor import docopt
         from jip.vendor.docopt import Required, Optional, Argument, \
@@ -906,7 +1170,7 @@ class Options(object):
         outset = set(outputs)
 
         ####################################################################
-        # recursice pattern parser. We iterate the pattern and collect
+        # recursive pattern parser. We iterate the pattern and collect
         # Options and Arguments recursively
         ####################################################################
         docopt_options = {}
