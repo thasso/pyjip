@@ -581,7 +581,7 @@ def _update_node_options(cloned_node):
     """Render out all the options of the given node"""
     ctx = {}
     for o in cloned_node._tool.options:
-        ctx[o.name] = o.raw()
+        ctx[o.name] = o  # o.raw()
     cloned_node._tool.options.render_context(ctx)
     for o in cloned_node._tool.options:
         o.value = o.value

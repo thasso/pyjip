@@ -101,7 +101,6 @@ def pre_filter(ctx, value, prefix=None):
 def arg_filter(ctx, value, prefix=None, suffix=None):
     try:
         value = __resolve_options(ctx, value)
-
         if not isinstance(value, Option):
             if not value:
                 return ""

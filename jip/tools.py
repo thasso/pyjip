@@ -193,6 +193,7 @@ class tool(object):
         self._run = run if run else "run"
 
     def __call__(self, cls):
+        log.debug("Decorated tool or pipeline: %s", cls)
         # check the name
         if self.name is None:
             if isinstance(cls, types.FunctionType):
@@ -452,8 +453,9 @@ class Scanner():
         name, parent_dir = self._guess_module_name(path)
         log.debug("Importing module from file: %s %s %s", name, path,
                   parent_dir)
-        sys.path.append(parent_dir)
-        __import__(name)
+        sys.path.insert(0, parent_dir)
+        mod = __import__(name)
+        log.debug("Imported module from file %s : %s", path, mod)
         #imp.load_source(name, path)
 
     def _guess_module_name(self, path):
