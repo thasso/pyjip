@@ -345,8 +345,9 @@ class Option(object):
         list_value = [value] if not isinstance(value, (list, tuple)) else value
         self.value = self._value + list_value
 
-    def get(self):
-        """Get the string representation for the current value.
+    def get(self, converter=str):
+        """Get a representation for the current value, default to string
+        representation
 
         The get method translates the current value in the following way:
 
@@ -368,6 +369,7 @@ class Option(object):
         and file streams are resolved to an empty string. All other values
         are resolved to their string representations.
 
+        :param converter: the converter function, defaults to ``str``
         :returns: string representation of the current option value
         :rtype: string
         :raises ValueError: if the option contains more elements that allowed
@@ -385,12 +387,15 @@ class Option(object):
             if v is None and self.required and _check_required:
                 raise ParserException("Option '%s' is required but "
                                       "not set!\n" % (self._opt_string()))
-            return self.__resolve(v) if (v or v == 0) else ""
+            return self.__resolve(v, converter=converter) \
+                if (v or v == 0) else converter("")
         else:
             if len(self.value) == 0 and self.required and _check_required:
                 raise ParserException("Option '%s' is required but "
                                       "not set!\n" % (self._opt_string()))
-            return self.join.join([self.__resolve(v) for v in self.value])
+            return self.join.join([
+                self.__resolve(v, converter=converter) for v in self.value
+            ])
 
     def raw(self):
         """Get raw value(s) wrapped by this options.
@@ -413,12 +418,12 @@ class Option(object):
             return self.value[0]
         return None if len(self._value) == 0 else self.value
 
-    def __resolve(self, v):
+    def __resolve(self, v, converter=str):
         """Helper to resolve a single value to its string representation
         """
         if isinstance(v, bool) or self.__is_stream(v):
-            return ""
-        return str(v)
+            return converter("")
+        return converter(v)
 
     def is_stream(self):
         """Return true if the current value is a stream or a list of

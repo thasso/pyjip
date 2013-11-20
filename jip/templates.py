@@ -5,7 +5,7 @@ engine used and allows to render job templates and other strings.
 The module stores a global context that is used during script evaluation
 and implements the JIP filter functions. The template environment
 is stored as a global reverence and the template engine is exposed
-throght the :py:func:`render_template` function.
+thought the :py:func:`render_template` function.
 """
 
 from jinja2 import Environment, Undefined, contextfilter

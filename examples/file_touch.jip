@@ -1,0 +1,15 @@
+#!/usr/bin/env jip
+# Touch a number of files with a common prefix
+#
+# usage:
+#   touch -p <prefix> -c <count> 
+
+#%begin validate
+add_output('output', ["%s_%s" % (p, i) for i in range(1, c.get(int) + 1)])
+#%end
+
+#%begin command 
+for x in ${output}; do
+    echo "Creating file: $x"
+    touch $x
+done

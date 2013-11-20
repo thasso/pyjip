@@ -589,13 +589,13 @@ def _update_node_options(cloned_node):
 
 
 class Node(object):
-    """A node in the pipeline graph. If the node is linked
-    to a :class:`jip.tools.Tool` instance, attributes are resolved
-    using teh tools options and the :class:`jip.options.Option` instances
-    are returned. This mechanism is used to automatically create edges
-    between tools when their options are referenced. These links
-    are stored on the :class:`.Edge`. If no edge exists, one will be
-    created.
+    """A single node in the pipeline graph.
+
+    If the node is linked to a :class:`jip.tools.Tool` instance, attributes are
+    resolved using teh tools options and the :class:`jip.options.Option`
+    instances are returned. This mechanism is used to automatically create
+    edges between tools when their options are referenced. These links are
+    stored on the :class:`.Edge`. If no edge exists, one will be created.
     """
     def __init__(self, tool, graph, index=0):
         self.__dict__['_tool'] = tool
@@ -608,31 +608,58 @@ class Node(object):
 
     @property
     def job(self):
+        """The nodes job profile
+
+        :getter: Returns the nodes job profile
+        :type: :class:`jip.pipelines.Job`
+        """
         return self._job
 
     def children(self):
-        """Get all children of this node"""
+        """Yields a list of all children of this node
+
+        :returns: generator for all child nodes
+        :rtype: generator for :class:`Node`
+        """
         for edge in [e for e in self._edges if e._source == self]:
             yield edge._target
 
-    def outgoing(self):
-        """Get all children of this node"""
-        for edge in [e for e in self._edges if e._source == self]:
-            yield edge
-
     def parents(self):
-        """Get all parents of this node"""
+        """Yields a list of all parent nodes
+
+        :returns: generator for all parent nodes
+        :rtype: generator for :class:`Node`
+        """
         for edge in [e for e in self._edges if e._target == self]:
             yield edge._source
 
+    def outgoing(self):
+        """Yields all outgoing edges of this node
+
+        :returns: generator for all outgoing edges
+        :rtype: generator for :class:`Edge`
+        """
+        for edge in [e for e in self._edges if e._source == self]:
+            yield edge
+
     def incoming(self):
-        """Get all incoming edges"""
+        """Yields all incoming edges of this node
+
+        :returns: generator for all incoming edges
+        :rtype: generator for :class:`Edge`
+        """
         for edge in [e for e in self._edges if e._target == self]:
             yield edge
 
     def get_stream_input(self):
-        """Returns a tuple of  input stream option and the parent or
-        None, None"""
+        """Returns a tuple of an options and a node, where the
+        options supports streams and the node is a parent node of this node. If
+        no such combination exists, a tuple of ``(None, None)`` will be
+        returned.
+
+        :returns: tuple of ``(Option, Node)`` where the option supports
+                  streaming and the Node is a parent node.
+        """
         for inedge in self.incoming():
             l = inedge.get_streaming_link()
             if l is not None:
@@ -641,7 +668,12 @@ class Node(object):
 
     def get_incoming_link(self, option):
         """Find a link in the incoming edges where the target option
-        is the given option"""
+        is the given option
+
+        :param option: the option to search for
+        :type option: :class:`jip.options.Option`
+        :returns: link instance for the given option or None
+        """
         for inedge in self.incoming():
             for link in inedge._links:
                 if link._target == option:
@@ -650,7 +682,12 @@ class Node(object):
 
     def get_outgoing_link(self, option):
         """Find a link in the outgoing edges where the soruce option
-        is the given option"""
+        is the given option
+
+        :param option: the option to search for
+        :type option: :class:`jip.options.Option`
+        :returns: link instance for the given option or None
+        """
         for edge in self.outgoing():
             for link in edge._links:
                 if link._source == option:
@@ -662,7 +699,7 @@ class Node(object):
         node.
 
         :param other: the parent node
-        :type other: Node
+        :type other: :class:`Node`
         """
         self._graph.add_edge(other, self)
 

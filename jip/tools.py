@@ -78,10 +78,15 @@ class ValidationError(Exception):
 
     def __repr__(self):
         import jip.cli
-        return "%s: %s" % (
-            jip.cli.colorize(self.source, jip.cli.RED),
-            jip.cli.colorize(self.message, jip.cli.YELLOW)
-        )
+        if self.source:
+            return "%s: %s" % (
+                jip.cli.colorize(self.source, jip.cli.RED),
+                jip.cli.colorize(self.message, jip.cli.BLUE)
+            )
+        else:
+            return "%s" % (
+                jip.cli.colorize(self.message, jip.cli.RED)
+            )
 
     def __str__(self):
         return self.__repr__()
@@ -596,6 +601,18 @@ class PythonBlockUtils(object):
         if not opt.is_dependency():
             self.tool.options[name].validate()
 
+    def validation_error(self, message, *args):
+        """Quickly raise a validation error with a custom message.
+
+        This function simply raises a ValidationError. You can use it
+        in a custom validation implementation to quickly fail the validation
+
+        :param message: the message
+        :param args: argument interpolated into the message
+        :raises ValidationError: always
+        """
+        raise ValidationError(self.tool, message % args)
+
     def set(self, name, value):
         """Set an options value.
 
@@ -765,6 +782,7 @@ class PythonBlock(Block):
             "opts": tool.options,
             "check_file": utils.check_file,
             "run": utils.run,
+            "validation_error": utils.validation_error,
             "bash": utils.bash,
             "job": utils.job,
             "name": utils.name,

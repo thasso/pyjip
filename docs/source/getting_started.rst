@@ -278,15 +278,17 @@ customize the validation procedure.
 
 Validation
 ----------
-Validation of Tools and Pipelines before execution is important. Especially for
-pipelines and for executions that are moved to a remote compute cluster. Proper
-validation triggers errors such as wrong file names or missing parameters early
-and, more importantly, before the actual submission of the job to a remote
-cluster.
+Validation of Tools and Pipelines before execution is important. Especially if
+executions are moved to a remote compute cluster. You want to avoid submitting
+fail because you had a typo in one of the file names. 
 
-Validation in jip script is done with a `validate` block in your script. Take
+Proper validation triggers errors such as wrong file names or missing
+parameters early and, more importantly, before the actual submission of the job
+to a remote cluster.
+
+Validation in jip script is done with a ``validate`` block in your script. Take
 the *bwa* example from above. We can add a custom file check for the
-`reference` options like this::
+``reference`` options like this::
 
     #%begin validate
     check_file('reference')
@@ -294,5 +296,10 @@ the *bwa* example from above. We can add a custom file check for the
 
 The validate block in JIP are written in python and within a jip script a set
 of functions is already exposed to simplify certain tasks. Take a look at
-:ref:`the python context <python_context>` for a detailed description of all the functions and
-variables that are available by default.
+:ref:`the python context <python_context>` for a detailed description of 
+all the functions and variables that are available in the default context.
+
+You can find more information on :ref:`tools validation and pre-processing
+here. <validation>`
+
+
