@@ -50,7 +50,7 @@ def default_install():
 
 
 def rtd_install():
-    from distutils import setup, Extension
+    from distutils.core import setup, Extension
 
     dispatcher_ext = Extension('jip.dispatcher',
                                ['jip/dispatcher/jip_binding.c',
