@@ -33,9 +33,9 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
    * output. This should raise an exception if something fails
    */  
   PyObject* seq = PySequence_Fast(args, "Expexted the argument list");
-  uint64_t num_sources = 0;
-  uint64_t num_targets_1 = 0;
-  uint64_t num_targets_2 = 0;
+  long num_sources = 0;
+  long num_targets_1 = 0;
+  long num_targets_2 = 0;
   uint64_t len = PySequence_Size(args);
   if(seq == NULL || len != 3){
     PyErr_SetString(PyExc_ValueError, "Expected exactly three arguments!");

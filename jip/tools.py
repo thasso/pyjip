@@ -1300,7 +1300,7 @@ class PythonTool(Tool):
                     self.options[arg].set(value)
 
         r = self.decorator.validate(self, self.instance)
-        #Tool.validate(self)
+        Tool.validate(self)
         return r
 
     def is_done(self):
