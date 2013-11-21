@@ -155,8 +155,7 @@ class DispatcherNode(object):
                             (",".join([str(j) for j in self.targets])))
 
     def run(self):
-        """Run the job wrapped bu this node.
-        """
+        """Run the job wrapped but this node."""
         from jip.db import STATE_RUNNING
         num_sources = len(self.sources)
         num_targets = len(self.targets)

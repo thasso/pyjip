@@ -6,16 +6,50 @@ from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
 from jip.logger import getLogger
+from jip.templates import render_template
 import jip.tools
 
 log = getLogger('jip.pipelines')
 
 
 class Job(Profile):
-    """Container class that wrapps job meta-data"""
+    """Container class that wraps job meta-data.
+
+    The pipeline job extends the general :class:`jip.profiles.Profile`, and
+    extends it in a way that you can create new pipeline nodes from the job.
+    Those nodes will then hold a reference to the profile and all customization
+    on the profile will be applied to the node.
+
+
+    """
     def __init__(self, pipeline=None, **kwargs):
         Profile.__init__(self, **kwargs)
         self._pipeline = pipeline
+        self._node = None
+
+    # override the name setter in order to delegate switching names to
+    # the jobs node
+    @Profile.name.setter
+    def name(self, name):
+        self._name = name
+        if self._node is not None and self._pipeline is not None:
+            self._pipeline._apply_node_name(self._node, name)
+
+    def _render_job_name(self, job):
+        ctx = {}
+        for o in job.tool.options:
+            ctx[o.name] = o
+        name = self._node._name if self._node else self.name
+        if not name:
+            name = job._tool.name
+        name = render_template(
+            "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
+        )
+        # set name
+        if self._pipeline and self._node:
+            self._pipeline._apply_node_name(self._node, name)
+            return self._node.name
+        return name
 
     def __call__(self, *args, **kwargs):
         clone = Profile.__call__(self, *args, **kwargs)
@@ -26,11 +60,10 @@ class Job(Profile):
     def run(self, *args, **kwargs):
         if len(args) > 1:
             raise ValueError("You can only pass one tool to a job run !")
-        tool = args[0]
-        if isinstance(tool, basestring):
-            tool = self._pipeline.run(tool, **kwargs)
-        tool._job = self
-        return tool
+        node = args[0]
+        if isinstance(node, basestring):
+            node = self._pipeline.run(node, _job=self, **kwargs)
+        return node
 
     def bash(self, command, **kwargs):
         return self.run('bash', cmd=command, **kwargs)
@@ -48,23 +81,75 @@ class Pipeline(object):
         self._cleanup_nodes = []
         self._name = None
         self.excludes = []
+        self._node_index = 0  # unique steadily increasing number
 
     def __len__(self):
         return len(self._nodes)
 
+    @property
+    def edges(self):
+        """Access all edges in the current pipeline graph as a list
+        of :class:`Edge`
+
+        :getter: get a list of all edges
+        :type: list of :class:`Edge`
+        """
+        return list(self._edges)
+
     def name(self, name):
+        """Set the name of the pipeline and ensures that all
+        nodes in the pipeline reference the pipeline name.
+
+        :param name: the name of the pipeline
+        :type name: string
+        """
         self._name = name
+        for n in self.nodes():
+            n._pipeline = name
 
     def job(self, *args, **kwargs):
+        """Create a new job profile.
+
+        The job profile can be used to customize the execution behaviour
+        of a job. Calling this method will only create a new job profile,
+        but it will not be applied to any node in the graph. You can however
+        create nodes *from* the job profile, using :py:meth:`Job.run` or
+        :py:meth:`Job.bash`. These nodes will then get a copy of the job
+        profile and the profiles properties will be applied before job
+        execution.
+
+        :param args: args passed to :class:`Job`
+        :param kwargs: kwargs passed to :class:`Job`
+        :returns: new job profile
+        :rtype: :class:`Job`
+        """
         return self._job(*args, **kwargs)
 
-    def run(self, _tool_name, **kwargs):
+    def run(self, _tool_name, _job=None, **kwargs):
+        """Find the tool specified by name and add it as a node to the pipeline
+        graph.
+
+        All additional keyword arguments are passed as option configuration to
+        the tool instance, allowing you to configure your tool when you create
+        it.
+
+        Note that the tools :py:method:`~jip.tools.Tool.validate` method is
+        called here silently. Exceptions are caught and logged. This is
+        necessary to allow tools to initialize themselves when they are added
+        to a pipeline.
+
+        :param _tool_name: a :class:`~jip.tools.Tool` instance or a tool name
+        :param kwargs: all keyword arguments are passed to the tool as option
+                       configurations
+        :returns: the newly added node
+        :rtype: :class:`Node`
+        """
         if not isinstance(_tool_name, Tool):
             from jip import find
             tool = find(_tool_name)
         else:
             tool = _tool_name
-        node = self.add(tool)
+        node = self.add(tool, _job=_job)
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
         # silent validate
@@ -74,14 +159,125 @@ class Pipeline(object):
             log.debug("Validation error for %s", node, exc_info=True)
         return node
 
-    def add(self, tool):
+    def add(self, tool, _job=None):
+        """Add a tool or a node to the pipeline. If the given value
+        is not a node, it is wrapped in a new node instance and then added
+        to the pipeline. The newly created node is returned.
+
+        Note that the nodes uniquely map to tool instances. You can not
+        add the same instance twice to the pipeline. Instead, no new
+        node will be added and the already existing node will be returned.
+
+        :param tool: the tool or node
+        :type tool: :class:`jip.tools.Tool` or :class:`Node`
+        :returns: the new node
+        :rtype: :class:`Node`
+        """
         if not tool in self._nodes:
             n = Node(tool, self)
+            # set the job
+            job = _job() if _job else self._current_job()
             n._pipeline = self._name
+            n._job = job
+            job._node = n
             self._nodes[tool] = n
+            # initialize the tool name using the tools' name
+            # initialize the node index
+            n._node_index = self._node_index
+            self._node_index += 1
+            name = tool.name
+            if _job and _job.name:
+                name = _job.name
+            self._apply_node_name(n, name)
         return self._nodes[tool]
 
+    def _apply_node_name(self, node, name):
+        """Assign the given name to the node and make sure the
+        name is unique within the current set of nodes.
+
+        If there is another node with the same name, the nodes index will
+        be set accordingly.
+
+        :param node: the node
+        :param name: the new name
+        """
+        name = name if name else "tool"
+        old_name = node._name
+        # set the new name and get all the nodes
+        # with the same name
+        node._name = name
+        node._index = -1
+        nodes_with_same_name = [i for i in self.nodes() if i._name == name]
+        if len(nodes_with_same_name) > 1:
+            # sort them by their index so we get the nodes in
+            # the same order they were added
+            nodes_with_same_name = sorted(nodes_with_same_name,
+                                          key=lambda x: x._node_index)
+            # there is more than one node with the same name.
+            # make sure the _index is set
+            for i, nn in enumerate(nodes_with_same_name):
+                nn._index = i
+
+        if old_name and old_name != name:
+            # node was renamed. Update all the "old" nodes and eventually
+            # reset their _index
+            old_nodes = [i for i in self.nodes() if i._name == old_name]
+            if len(old_nodes) == 1:
+                # single node left, reset the index
+                old_nodes[0]._index = -1
+            elif len(old_nodes) > 1:
+                # update the nodes _index, same strategy as above
+                old_nodes = sorted(old_nodes, key=lambda x: x._node_index)
+                for i, nn in enumerate(old_nodes):
+                    nn._index = i
+
+    def get(self, name):
+        """Find a node by tool or node name including its node index.
+
+        We search here through the node, searching for a node whose name equals
+        the given name. The full name consists if of the tool name and the node
+        index if there is are more nodes with the same name. A node index is
+        typically assigned and used after pipeline expansion, which means you
+        might have to append the correct index to the node you are looking for.
+
+        This is necessary because multi-plexing of the pipeline can not always
+        guarantee unique nodes names. The nodes might get duplicated based on
+        the input of the pipeline. Therefor a unique node index is appended to
+        the node name. You can expect the pipeline nodes and their names using
+        the :meth:`nodes` method and iterate it. Printing, or calling ``str``
+        will resolve the current node name.
+
+        If you assign a job name to the node, this will overwrite the node
+        name and will be used instead, but note that the same indexing rules
+        apply and if graph contains more than one node with the same name, the
+        node index will be appended to the node/job name.
+
+        If the index is appended, the node name always has the form
+        "<name>.<index>".
+
+        For example, without any special assignment, the node name defaults to
+        the name of the tool. If there is only one node with that name,
+        no modifications are applied and the node index is ignored::
+
+            >>> p = Pipeline()
+            >>> p.run('bash', cmd='ls')
+            >>> p.expand()
+            >>> assert p.get("bash") is not None
+
+        :param name: node name
+        :returns: node name
+        :raises LookupError: if no such node exists
+        """
+        for k, v in self._nodes.iteritems():
+            if v.name == name:
+                return v
+        raise LookupError("Node with name %s not found" % name)
+
     def remove(self, tool):
+        """Remove the given tool or node from the pipeline graph.
+
+        :param tool: tool or node
+        """
         tool, _ = self.__resolve_node_tool(tool)
         node = self._nodes[tool]
         node_edges = list(node._edges)
@@ -96,6 +292,15 @@ class Pipeline(object):
                 e._target._edges.remove(e)
         # remove the node
         del self._nodes[tool]
+
+        # update names
+        name = node._name
+        # find nodes with the same name
+        nodes = [n for n in self.nodes() if n._name == name]
+        if len(nodes) > 0:
+            # reapply the name to the first one, that should rename
+            # the other as well
+            self._apply_node_name(nodes[0], name)
 
     def nodes(self):
         """Generator that yields the nodes of this pipeline
@@ -155,7 +360,7 @@ class Pipeline(object):
                 count[successor] += 1
 
         ready = [node for node in self.nodes() if count[node] == 0]
-        sorted(ready, key=lambda j: len(list(j.outgoing())))
+        ready = sorted(ready, key=lambda j: j.name, reverse=True)
         while ready:
             node = ready.pop(-1)
             yield node
@@ -428,6 +633,11 @@ class Pipeline(object):
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
+    def validate(self):
+        """Validate all nodes in the graph"""
+        for n in self.nodes():
+            n._tool.validate()
+
     def _update_cleanup_nodes(self):
         for node in self._cleanup_nodes:
             temp_outputs = set([])
@@ -463,18 +673,13 @@ class Pipeline(object):
         log.debug("Fanout incoming values: %s", values)
 
         # clone the tool
-        current_index = node._index + 1
         for i, opts in enumerate(zip(*values)):
             log.debug("Fanout clone node: %s", node)
             cloned_tool = node._tool.clone()
             ## set the new values
             for j, option in enumerate(options):
                 cloned_tool.options[option.name].value = opts[j]
-            cloned_node = self.add(cloned_tool)
-            # apply _job setting
-            cloned_node._job = node._job
-            cloned_node._index = current_index
-            current_index += 1
+            cloned_node = self.add(cloned_tool, _job=node._job)
             log.debug("Fanout add new node: %s :: %s",
                       cloned_node, cloned_node._tool.options)
             # reattach the edges and copy the links
@@ -597,13 +802,16 @@ class Node(object):
     edges between tools when their options are referenced. These links are
     stored on the :class:`.Edge`. If no edge exists, one will be created.
     """
-    def __init__(self, tool, graph, index=0):
+    def __init__(self, tool, graph, index=-1):
         self.__dict__['_tool'] = tool
         self.__dict__['_job'] = graph._current_job()
         self.__dict__['_graph'] = graph
         self.__dict__['_name'] = graph._name
         self.__dict__['_pipeline'] = graph._name
         self.__dict__['_index'] = index
+        # the _node_index is an increasing counter that indicates
+        # the order in which nodes were added to the pipeline graph
+        self.__dict__['_node_index'] = 0
         self.__dict__['_edges'] = set([])
 
     @property
@@ -614,6 +822,23 @@ class Node(object):
         :type: :class:`jip.pipelines.Job`
         """
         return self._job
+
+    @property
+    def name(self):
+        """Get a unique name for this node.
+
+        The unique name is created based on the job name. If no job name
+        is assigned, the tool name is used. If the new node name is not
+        unique within the pipeline context, the nodes index is appended to
+        the node.
+
+        :getter: returns a unique name for this node
+        :type: string
+        """
+        name = self._name
+        if self._index >= 0:
+            return ".".join([name, str(self._index)])
+        return name
 
     def children(self):
         """Yields a list of all children of this node
@@ -650,6 +875,98 @@ class Node(object):
         """
         for edge in [e for e in self._edges if e._target == self]:
             yield edge
+
+    def has_incoming(self, other=None, link=None, stream=None, value=None):
+        """Returns true if this node has an incoming edge where
+        the parent node is the given ``other`` node.
+        If *link* is specified, it has to but a tuple with the source
+        and the target option names. If specified the detected edge
+        has to carry the specified link. If ``stream`` is not None
+        the link is checked if its a streaming link or not.
+
+        If not other node is specified this returns True if this node
+        has any incoming edges.
+
+        If ``value`` is specified, the delegate value has to be equal to
+        the specified value.
+
+        You can use the incoming edge check like this::
+
+            node.has_incoming(other, ('output', 'input'), False, "data.txt")
+
+        This return True if the node ``node`` has an incoming edge from
+        the ``other`` node, the edge linkes ``other.output`` to ``node.input``,
+        no stream is passed and the actual value is "data.txt".
+
+        :param other: the potential parent node
+        :type other: :class:`Node`
+        :param link: optional tuple with source and target option names
+        :param stream: boolean that ensures that the link is streaming
+                       or not, depending on the specified value
+        :param value: specify an optional value that is compared against the
+                      delegated value
+        :returns: True if the edge exists
+        """
+        if other is None:
+            return len(list(self.incoming())) > 0
+        edges = []
+        for i in self.incoming():
+            if i._source == other:
+                edges.append(i)
+        if not link:
+            return len(edges) > 0
+
+        def check_value(opt):
+            if value is None:
+                return True
+            return opt.raw() == value
+
+        # check for the link
+        for e in edges:
+            for l in e._links:
+                if l[0].name == link[0] and l[1].name == link[1]:
+                    if stream is not None and stream == l[2]:
+                        return check_value(l[0])
+                    else:
+                        return check_value(l[0])
+        return False
+
+    def has_outgoing(self, other=None, link=None, stream=None, value=None):
+        """Returns true if this node has an outgoing edge where
+        the child node is the given ``other`` node.
+        If *link* is specified, it has to but a tuple with the source
+        and the target option names. If specified the detected edge
+        has to carry the specified link. If ``stream`` is not None
+        the link is checked if its a streaming link or not.
+
+        If not other node is specified this returns True if this node
+        has any outgoing edges.
+
+        If ``value`` is specified, the delegate value has to be equal to
+        the specified value
+
+        You can use the outgoing edge check like this::
+
+            node.has_outgoing(other, ('output', 'input'), False, "data.txt")
+
+        This return True if the node ``node`` has an outgoing edge to
+        the ``other`` node, the edge linkes ``node.output`` to ``other.input``,
+        no stream is passed and the actual value is "data.txt".
+
+        :param other: the potential child node
+        :type other: :class:`Node`
+        :param link: optional tuple with source and target option names
+        :param stream: boolean that ensures that the link is streaming
+                       or not, depending on the specified value
+        :param value: specify an optional value that is compared against the
+                      delegated value
+        :returns: True if the edge exists
+        """
+        if other is None:
+            return len(list(self.outgoing())) > 0
+
+        return other.has_incoming(other=self, link=link, stream=stream,
+                                  value=value)
 
     def get_stream_input(self):
         """Returns a tuple of an options and a node, where the
@@ -740,8 +1057,64 @@ class Node(object):
 
     def __gt__(self, other):
         dout = self._tool.options.get_default_output()
+        if isinstance(other, Node):
+            # get the other tools input option and reverse
+            # the set so teh dependency is established in the
+            # right direction
+            def_in = other._tool.options.get_default_input()
+            log.debug("op node > :: %s->%s [%s<-%s]",
+                      self, other, dout.name, def_in.name)
+            other.set(def_in.name, dout)
+            return other
+
+        # if the right hand side is an option, set
+        # the default output to the specified option
+        # and add a dependency. We have to call set on the
+        # other node in order to create the dependency in
+        # the right direction
+        if isinstance(other, Option):
+            if other.source in self._graph._nodes:
+                node = self._graph._nodes.get(other.source, None)
+                log.debug("op option > :: %s->%s [%s<-%s]",
+                          self, node, dout.name, other.name)
+                node.set(other.name, dout)
+                return node
+
         if dout is not None:
+            log.debug("op > :: %s(%s,%s)", self, dout.name, other)
             self.set(dout.name, other)
+        else:
+            raise ValueError("Unknown default output for %s", self._tool)
+        return self
+
+    def __lt__(self, other):
+        din = self._tool.options.get_default_input()
+        if isinstance(other, Node):
+            # get the other tools output option and reverse
+            # the set so the dependency is established in the
+            # right direction
+            def_out = other._tool.options.get_default_output()
+            log.debug("op node < :: %s->%s [%s->%s]",
+                      other, self, din.name, def_out.name)
+            self.set(din.name, def_out)
+            return other
+
+        # if the right hand side is an option, set
+        # the default output to the specified option
+        # and add a dependency. We have to call set on the
+        # other node in order to create the dependency in
+        # the right direction
+        if isinstance(other, Option):
+            if other.source in self._graph._nodes:
+                node = self._graph._nodes.get(other.source, None)
+                log.debug("op option < :: %s->%s [%s->%s]",
+                          node, self, din.name, other.name)
+                self.set(din.name, other)
+                return node
+
+        if din is not None:
+            log.debug("op < :: %s(%s,%s)", self, other, din.name)
+            self.set(din.name, other)
         else:
             raise ValueError("Unknown default output for %s", self._tool)
         return self
@@ -794,8 +1167,7 @@ class Node(object):
         return self.group(other)
 
     def __repr__(self):
-        return "%s.%d" % (self._tool if not self._job.name else self._job.name,
-                          self._index)
+        return self.name
 
     def __eq__(self, other):
         return isinstance(other, Node) and other._tool == self._tool
@@ -822,7 +1194,7 @@ class Node(object):
                                append=append)
 
     def __setattr__(self, name, value):
-        if name in ["_job", "_index", "_pipeline"]:
+        if name in ["_job", "_index", "_pipeline", "_node_index", "_name"]:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

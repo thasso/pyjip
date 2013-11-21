@@ -53,13 +53,13 @@ situations where it would be much easier to just execute a single line of bash
 rather than implementing the full execution in python. The latter can by quiet
 tricky sometimes and a lot of things from the python standard library might get
 involved. There is however a simpler way where you can use a python function
-(or class, see TODO) to create an interpreted script. For this purpose, jip
-contains the :py:class:`jip.tools.tool` decorator. You can decorate a function
-with ``@tool()`` and return a template string that is then treated in the same
-way jip script content would be interpreted. Your function can either return a
-single string, which will be interpreted using bash, or a tuple where you
-specify first the interpreter and then the actual script template. Take a look
-at the following examples::
+(or class, see :ref:`decorators <decorators>`) to create an interpreted script.
+For this purpose, jip contains the :py:class:`jip.tools.tool` decorator. You
+can decorate a function with ``@tool()`` and return a template string that is
+then treated in the same way jip script content would be interpreted. Your
+function can either return a single string, which will be interpreted using
+bash, or a tuple where you specify first the interpreter and then the actual
+script template. Take a look at the following examples::
 
     @tool()
     def hello_world():
@@ -72,6 +72,9 @@ at the following examples::
         print "Hello World\n"
         """
 
+There are more :ref:`decorators <decorators>` that you can use to annotate
+functions and classes to create pipeline and tools.
+
 .. _validation:
 
 Tool validation and pre-processing
@@ -79,7 +82,7 @@ Tool validation and pre-processing
 *Validation* is an essential step in all pipeline execution. You want to fail
 as early as possible and make sure all mandatory options are set. 
 
-JIP tools and pipeline come with a default validation machnism that is
+JIP tools and pipeline come with a default validation mechanism that is
 triggered while building pipelines and before the execution. By default,
 all ``input`` options of a tool or pipeline are validated and it is ensured
 that the referenced file exists or that the file will be created by another
@@ -295,13 +298,34 @@ Pipeline nodes support a set of operator that simplify some operations on the
 nodes and the graph structure. The following operators are supported by 
 pipeline :py:class:`~jip.pipelines.Node` instances:
 
-    ``|`` pipe
+    ``|`` 
         The *or* or *pipe* operator behaves similar to the common behaviour in
         your bash shell. The default output of the left side's node (see
         :py:meth:`jip.options.Option.get_default_output`) is connected the
         default input of the right sides' node. A new edge is added to the
         pipeline graph making the right side dependant to the left side, and,
         if both nodes support streaming, a stream link is established. 
+    ``>``
+        The *greater than* operator can be used **set the output** option
+        of the left side to the right side value. The right hand side can be a
+        string, representing a file name, or another node, or another option. 
+        If the right side is another node or another nodes option, a 
+        dependency edge will also be created.
+    ``<``
+        The *less than* operator can be used **set the input** option
+        of the left side to the right side value. The right hand side can be a
+        string, representing a file name, or another node, or another option. 
+        If the right side is another node or another nodes option, a 
+        dependency edge will also be created.
+    ``>>``
+        The *right shift* operator creates a dependency between the left side
+        and the right side, making the **left side executed before** the right
+        side.
+    ``<<``
+        The *left shift* operator creates a dependency between the left side
+        and the right side, making the **right side executed before** the left
+        side.
+        
 
 .. _tool_io:
 

@@ -28,7 +28,7 @@ class Profile(object):
                  priority=None, log=None, out=None, account=None, mem=0,
                  extra=None, profile=None, prefix=None, temp=False, _load=True,
                  env=None, tool_name=None, working_dir=None):
-        self.name = render_template(name)
+        self._name = name  # render_template(name)
         self.environment = render_template(environment)
         self.nodes = render_template(nodes)
         self.threads = render_template(threads)
@@ -51,6 +51,20 @@ class Profile(object):
         self.working_dir = working_dir
         if profile is not None and _load:
             self.load(profile)
+
+    @property
+    def name(self):
+        """Set the jobs name
+
+        :getter: access the jobs name
+        :setter: set the jobs name
+        :type: string
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
 
     def load(self, profile_name):
         """Set this profiles values to the values loaded from the profile
@@ -93,11 +107,7 @@ class Profile(object):
                 setattr(self, k, v)
         ## handle tasks per node explicitly
 
-    def apply(self, job, _load_specs=True, overwrite_threads=False):
-        """Apply this profile to a given job and all its ambedded children
-        All non-None values are applied to the given job.
-        """
-        r = render_template
+    def _render_job_name(self, job):
         ctx = {}
         for o in job.tool.options:
             ctx[o.name] = o
@@ -106,8 +116,15 @@ class Profile(object):
             name = self.name
         if not name:
             name = job._tool.name
-        job.name = r("%s%s" % ("" if not self.prefix else self.prefix,
-                               name), **ctx)
+        return render_template(
+            "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
+        )
+
+    def apply(self, job, _load_specs=True, overwrite_threads=False):
+        """Apply this profile to a given job and all its ambedded children
+        All non-None values are applied to the given job.
+        """
+        job.name = self._render_job_name(job)
         if self.threads is not None and job.threads is None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
@@ -189,7 +206,7 @@ class Profile(object):
                  priority=None, log=None, out=None, account=None, mem=None,
                  profile=None, prefix=None, temp=False, extra=None, dir=None):
         return self.__class__(
-            name=name if name is not None else self.name,
+            name=name if name is not None else self._name,
             threads=threads if threads is not None else self.threads,
             tasks=tasks if tasks is not None else self.tasks,
             tasks_per_node=tasks_per_node if tasks_per_node is not None else

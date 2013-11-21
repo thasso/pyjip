@@ -82,12 +82,12 @@ def get_pipe_parent(job):
 def get_subgraph(job, _all_jobs=None):
     """Returns a set of all jobs that are children
     of the given job, plus the given job itself. In
-    otherswords, this resolves the full subgraph of jobs that the
+    other words, this resolves the full subgraph of jobs that the
     given job belongs to. If the given job receives piped input, the
     pipe parent is used as root for the subgraph.
 
     :param job: the job
-    :type job: `jip.db.Job`
+    :type job: :class:`jip.db.Job`
     :returns: all jobs including the given one that form a subgraph in the
               execution graph where the given job is the root
     """
@@ -109,7 +109,7 @@ def topological_order(jobs):
     you are restarting pipeline!
 
     :param jobs: list of jobs
-    :type jobs: list of `jip.db.Job`
+    :type jobs: list of :class:`jip.db.Job`
     """
     count = {}
     children = {}
@@ -634,7 +634,7 @@ def from_node(node, env=None, keep=False):
     job.pipeline = node._pipeline
     job.state = jip.db.STATE_HOLD
     #job.name = tool.name
-    job.name = node._job.name
+    job.name = node.name
     if job.name is None:
         job.name = node._name
     if job.name is None:
@@ -768,7 +768,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
 
     # now run the validation on all final jobs and
     # in addition collect output files. An Exception is raised if
-    # an output file occures twice
+    # an output file occurs twice
     for job in jobs:
         log.info("Validate %s", job)
         # set pipeline and job so validation can modify values

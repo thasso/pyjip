@@ -192,7 +192,8 @@ class tool(object):
         self._help = help if help else "help"
         self._run = run if run else "run"
 
-    def __call__(self, cls):
+    def __call__(self, *args):
+        cls = args[0]
         log.debug("Decorated tool or pipeline: %s", cls)
         # check the name
         if self.name is None:
@@ -833,9 +834,6 @@ class PythonBlock(Block):
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
             raise
-        finally:
-            pass
-            #set_global_context(old_global_context)
 
         # auto naming for tools
         from jip.pipelines import Node
@@ -843,6 +841,8 @@ class PythonBlock(Block):
             if isinstance(v, Node):
                 if v._job.name is None:
                     v._job.name = k
+                    # reset index
+                    v._index = 0
         log.debug("Block: block for: %s executed", tool)
         return env
 
@@ -895,12 +895,20 @@ class Tool(object):
         :param name: the name of this tool
         """
         #: the tools name
-        self.name = name
+        self._name = name
         self._job_name = None
         #: path to the tools source file
         self.path = None
         self._options = None
         self._options_source = options_source
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
 
     @property
     def options(self):

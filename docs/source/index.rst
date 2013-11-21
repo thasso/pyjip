@@ -133,7 +133,7 @@ Contents
   
    setup
    getting_started
-   tools_and_pipeline
+   tools_and_pipelines
    examples/index
    cli/index
    api/index

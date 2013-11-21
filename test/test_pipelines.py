@@ -3,7 +3,7 @@ import sys
 import os
 import pytest
 from jip.pipelines import Pipeline
-from jip.tools import Tool
+from jip.tools import Tool, tool
 from jip.options import Option
 
 
@@ -19,13 +19,18 @@ Options:
 """
 
 
+@tool()
+def nop():
+    return ""
+
+
 def test_graph_create():
     p = Pipeline()
-    p.add("A")
-    p.add("B")
-    p.add("C")
+    a = p.run('nop')
+    b = p.run('nop')
+    p.run('nop')
     assert len(p._nodes) == 3
-    assert p.add_edge("A", "B") is not None
+    assert p.add_edge(a, b) is not None
     assert len(p._edges) == 1
 
 
@@ -36,22 +41,28 @@ def test_missing_node_for_edge_insert():
 
 def test_topological_sort():
     p = Pipeline()
-    p.add("A")
-    p.add("B")
-    p.add("C")
-    p.add_edge("C", "B")
-    p.add_edge("B", "A")
-    sorted_nodes = [n._tool for n in p.topological_order()]
-    assert sorted_nodes == ["C", "B", "A"]
+    a = p.run('nop')
+    assert a.name == "nop"
+    b = p.run('nop')
+    assert a.name == "nop.0"
+    assert b.name == "nop.1"
+    c = p.run('nop')
+    assert a.name == "nop.0"
+    assert b.name == "nop.1"
+    assert c.name == "nop.2"
+    p.add_edge(c, b)
+    p.add_edge(b, a)
+    sorted_nodes = [n for n in p.topological_order()]
+    assert sorted_nodes == [c, b, a]
 
 
 def test_remove_node():
     p = Pipeline()
-    p.add("A")
-    b = p.add("B")
-    p.add("C")
-    p.add_edge("C", "B")
-    p.add_edge("B", "A")
+    a = p.run('nop')
+    b = p.run('nop')
+    c = p.run('nop')
+    p.add_edge(c, b)
+    p.add_edge(b, a)
     p.remove(b)
     assert len(p._nodes) == 2
     assert len(p._edges) == 0
@@ -61,21 +72,19 @@ def test_remove_node():
 
 def test_edge_equality():
     p = Pipeline()
-    p.add("A")
-    p.add("B")
-    p.add("C")
-    assert p.add_edge("A", "B") is not None
-    assert p.add_edge("A", "B") is not None
+    a = p.run('nop')
+    b = p.run('nop')
+    assert p.add_edge(a, b) is not None
+    assert p.add_edge(a, b) is not None
     assert len(p._edges) == 1
 
 
 def test_node_equality():
     p = Pipeline()
-    p.add("A")
-    p.add("A")
-    p.add("B")
-    p.add("C")
-    assert len(p._nodes) == 3
+    tool = Tool(tool_1_def)
+    p.add(tool)
+    p.add(tool)
+    assert len(p._nodes) == 1
 
 
 def test_get_node_properties():
@@ -232,6 +241,225 @@ def test_expand_three_nodes_two_fan_out():
 
 
 # test operators
+def test_gt_to_file_name():
+    tool_1 = Tool(tool_1_def, "T1")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    assert node_1._tool.options['output'] == sys.stdout
+    node_1 > "A.txt"
+    assert node_1._tool.options['output'] == "A.txt"
+
+
+# test operators
+def test_lt_from_file_name():
+    tool_1 = Tool(tool_1_def, "T1")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    assert node_1.input == sys.stdin
+    node_1 < "A.txt"
+    assert node_1.input == "A.txt"
+
+
+# test operators
+def test_gt_to_node():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1._tool.options['output'] == sys.stdout
+    assert node_2._tool.options['input'] == sys.stdin
+    assert node_3._tool.options['input'] == sys.stdin
+    (node_1 > node_2) > node_3
+
+    n_1_out = node_1._tool.options['output'].raw()
+    n_2_in = node_2._tool.options['input'].raw()
+    n_2_out = node_2._tool.options['output'].raw()
+    n_3_in = node_3._tool.options['output'].raw()
+    assert n_1_out == n_2_in
+    assert n_2_out == n_3_in
+    assert len(list(node_1.outgoing())) == 1
+    assert len(list(node_2.outgoing())) == 1
+    assert len(list(node_3.outgoing())) == 0
+
+
+# test operators
+def test_lt_from_node():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1.output == sys.stdout
+    assert node_2.input == sys.stdin
+    assert node_3.input == sys.stdin
+    (node_1 < node_2) < node_3
+
+    assert not node_3.has_incoming()
+    assert node_2.has_incoming(node_3, ('output', 'input'), True)
+    assert node_1.has_incoming(node_2, ('output', 'input'), True)
+
+
+# test operators
+def test_gt_to_node_no_block():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1._tool.options['output'] == sys.stdout
+    assert node_2._tool.options['input'] == sys.stdin
+    assert node_3._tool.options['input'] == sys.stdin
+    node_1 > node_2 > node_3
+
+    n_1_out = node_1._tool.options['output'].raw()
+    n_2_in = node_2._tool.options['input'].raw()
+    n_2_out = node_2._tool.options['output'].raw()
+    n_3_in = node_3._tool.options['output'].raw()
+    assert n_1_out == n_2_in
+    assert n_2_out == n_3_in
+    assert len(list(node_1.outgoing())) == 1
+    assert len(list(node_2.outgoing())) == 1
+    assert len(list(node_3.outgoing())) == 0
+
+
+# test operators
+def test_lt_from_node_no_block():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1.output == sys.stdout
+    assert node_2.input == sys.stdin
+    assert node_3.input == sys.stdin
+    node_1 < node_2 < node_3
+
+    assert not node_3.has_incoming()
+    assert node_2.has_incoming(node_3, ('output', 'input'), True)
+    assert node_1.has_incoming(node_2, ('output', 'input'), True)
+
+
+# test operators
+def test_gt_to_option():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1._tool.options['output'] == sys.stdout
+    assert node_2._tool.options['input'] == sys.stdin
+    assert node_3._tool.options['input'] == sys.stdin
+    (node_1 > node_2.input) > node_3.input
+
+    n_1_out = node_1._tool.options['output'].raw()
+    n_2_in = node_2._tool.options['input'].raw()
+    n_2_out = node_2._tool.options['output'].raw()
+    n_3_in = node_3._tool.options['output'].raw()
+    assert n_1_out == n_2_in
+    assert n_2_out == n_3_in
+    assert len(list(node_1.outgoing())) == 1
+    assert len(list(node_2.incoming())) == 1
+    assert len(list(node_2.outgoing())) == 1
+    assert len(list(node_3.outgoing())) == 0
+
+
+# test operators
+def test_lt_from_option():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1.output == sys.stdout
+    assert node_2.input == sys.stdin
+    assert node_3.input == sys.stdin
+    (node_1 < node_2.output) < node_3.output
+
+    assert not node_3.has_incoming()
+    assert node_2.has_incoming(node_3, ('output', 'input'), True)
+    assert node_1.has_incoming(node_2, ('output', 'input'), True)
+
+
+# test operators
+def test_gt_to_option_no_blocks():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1.output == sys.stdout
+    assert node_2.input == sys.stdin
+    assert node_3.input == sys.stdin
+    node_1 > node_2.input  # this does not work in a single line!
+    node_2 > node_3.input
+    assert not node_3.input.raw() == sys.stdin
+    # check the graph structure
+    assert node_2.has_incoming(node_1, ('output', 'input'),
+                               True, node_1.output)
+    assert node_3.has_incoming(node_2, ('output', 'input'),
+                               True, node_2.output)
+    assert not node_3.has_outgoing()
+
+
+# test operators
+def test_lt_from_option_no_block():
+    tool_1 = Tool(tool_1_def, "T1")
+    tool_2 = Tool(tool_1_def, "T2")
+    tool_3 = Tool(tool_1_def, "T3")
+    p = Pipeline()
+    node_1 = p.add(tool_1)
+    node_2 = p.add(tool_2)
+    node_3 = p.add(tool_3)
+    assert len(list(node_1.outgoing())) == 0
+    assert len(list(node_2.outgoing())) == 0
+    assert len(list(node_3.outgoing())) == 0
+    assert node_1.output == sys.stdout
+    assert node_2.input == sys.stdin
+    assert node_3.input == sys.stdin
+    node_1 < node_2.output  # does not work on a single line
+    node_2 < node_3.output
+
+    assert not node_3.has_incoming()
+    assert node_2.has_incoming(node_3, ('output', 'input'), True)
+    assert node_1.has_incoming(node_2, ('output', 'input'), True)
+
+
 def test_pipe_and_plus_operator():
     tool_1 = Tool(tool_1_def, "T1")
     tool_2 = Tool(tool_1_def, "T2")
@@ -420,3 +648,37 @@ def test_skip_last_node():
     assert node_2._tool.options['output'].get() == '/outfile.txt'
 
 
+def test_node_naming_and_auto_indexing_no_names_assigned():
+    p = Pipeline()
+    p.run('bash', cmd="ls")
+    p.run('bash', cmd="ls")
+    assert p.get("bash.0") is not None
+    assert p.get("bash.1") is not None
+
+
+def test_node_naming_and_auto_indexing_job_names_assigned():
+    p = Pipeline()
+    p.job("1").run('bash', cmd="ls")
+    p.job("2").run('bash', cmd="ls")
+    assert p.get("1") is not None
+    assert p.get("2") is not None
+
+
+def test_node_naming_in_simple_multiplex():
+    p = Pipeline()
+    j = p.job("1").run('bash', cmd="ls")
+    assert p.get("1") == j
+    j.input = ["A", "B", "C"]
+    p.expand(False)
+
+    with pytest.raises(LookupError):
+        p.get("1")
+    assert len(p) == 3
+    assert p.get("1.0") is not None
+    assert p.get("1.0").input.get() == "A"
+
+    assert p.get("1.1") is not None
+    assert p.get("1.1").input.get() == "B"
+
+    assert p.get("1.2") is not None
+    assert p.get("1.2").input.get() == "C"
