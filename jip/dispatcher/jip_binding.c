@@ -32,7 +32,7 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
   /* Parse argument tuple and open FILE* for input and
    * output. This should raise an exception if something fails
    */  
-  PyObject* seq = PySequence_Fast(args, "Expexted the argument list");
+  PyObject* seq = PySequence_Fast(args, "Expected the argument list");
   long num_sources = 0;
   long num_targets_1 = 0;
   long num_targets_2 = 0;
@@ -122,15 +122,15 @@ static PyObject* dispatch_streams_fanin(PyObject *self, PyObject *args){
 static PyMethodDef DispatchMethods[] = {
     {"dispatch",  dispatch_streams, METH_VARARGS, 
      "Dispatch data from source to all targets. The method "
-     "excepts strings and open file handles you hev to specify at least "
+     "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
     {"dispatch_fanout",  dispatch_streams_fanout, METH_VARARGS, 
      "Dispatch data from source to all targets. The method "
-     "excepts strings and open file handles you hev to specify at least "
+     "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
     {"dispatch_fanin",  dispatch_streams_fanin, METH_VARARGS, 
      "Dispatch data from source to all targets. The method "
-     "excepts strings and open file handles you hev to specify at least "
+     "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
     {NULL, NULL, 0, NULL}
 };

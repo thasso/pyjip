@@ -133,7 +133,7 @@ class Pipeline(object):
         the tool instance, allowing you to configure your tool when you create
         it.
 
-        Note that the tools :py:method:`~jip.tools.Tool.validate` method is
+        Note that the tools :py:meth:`~jip.tools.Tool.validate` method is
         called here silently. Exceptions are caught and logged. This is
         necessary to allow tools to initialize themselves when they are added
         to a pipeline.

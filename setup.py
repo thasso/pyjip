@@ -3,6 +3,9 @@ use_setuptools()
 from setuptools import setup, Extension
 
 
+with open('README.rst') as rf:
+    readme = rf.read()
+
 dispatcher_ext = Extension('jip.dispatcher',
                            ['jip/dispatcher/jip_binding.c',
                             'jip/dispatcher/jip_dispatcher.c'])
@@ -14,7 +17,7 @@ setup(
     author_email='thasso.griebel@gmail.com',
     url='',
     license="BSD",
-    long_description='''This is yet another pipeline library''',
+    long_description=readme,
     packages=['jip', 'jip.cli', 'jip.vendor', 'jip.scripts'],
     package_data={
         'jip.scripts': ['*.jip']
