@@ -532,10 +532,10 @@ class Pipeline(object):
 
         :param validate: disable validation by setting this to false
         """
-        log.debug("Expand Graph")
+        log.debug("Expand Graph on %s", self)
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
-        # outside of the group, add the edge also to any predecesor
+        # outside of the group, add the edge also to any predecessor
         # of the node within the group
         for group in self.groups():
             gs = set(group)
@@ -544,6 +544,8 @@ class Pipeline(object):
                 for parent in node.parents():
                     if parent not in gs:
                         ## add an edge to the first of the group
+                        log.debug("Expand | add group dependency %s->%s",
+                                  parent, first)
                         self.add_edge(parent, first)
         temp_nodes = set([])
         for node in self.topological_order():
@@ -551,17 +553,18 @@ class Pipeline(object):
                 temp_nodes.add(node)
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
-                log.debug("No fanout options found for %s", node)
+                log.debug("Expand | No fanout options found for %s", node)
                 _update_node_options(node)
                 continue
             # check that all fanout options have the same length
             num_values = len(fanout_options[0])
-            log.debug("Prepare fanout for %s with %d values", node, num_values)
+            log.debug("Expand | Prepare fanout for %s with %d values",
+                      node, num_values)
             if not all(num_values == len(i) for i in fanout_options):
                 option_names = ["%s(%d)" % (o.name, len(o))
                                 for o in fanout_options]
                 raise ValueError("Unable to fan out node '%s'! The number of "
-                                 "options used for fan out differes: %s" %
+                                 "options used for fan out differers: %s" %
                                  (node, ", ".join(option_names)))
             self._fan_out(node, fanout_options)
 
@@ -569,6 +572,7 @@ class Pipeline(object):
         # if we have targets, create a cleanup job, add
         # all the temp job's output files and
         # make it dependant on the temp nodes targets
+        log.debug("Expand | Check temporary jobs")
         targets = set([])
         temp_outputs = set([])
         for temp_node in temp_nodes:
@@ -579,27 +583,32 @@ class Pipeline(object):
                     targets.add(child)
 
         if len(targets) > 0:
-            log.info("Create cleanup node for temp jobs: %s", str(temp_nodes))
-            log.info("Cleanup node files: %s", str(temp_outputs))
+            log.info("Expand | Create cleanup node for temp jobs: %s",
+                     str(temp_nodes))
+            log.info("Expand | Cleanup node files: %s", str(temp_outputs))
             cleanup_node = self.job('cleanup', threads=1, temp=True).run(
                 'cleanup',
                 files=list(temp_outputs)
             )
             cleanup_node.files.dependency = True
-            log.info("Cleanup node dependencies: %s", str(targets))
+            log.info("Expand | Cleanup node dependencies: %s", str(targets))
             for target in (list(targets) + list(temp_nodes)):
                 cleanup_node.depends_on(target)
             self._cleanup_nodes.append(cleanup_node)
 
-        # iterate again to exand on pipeline of pipelines
+        # iterate again to expand on pipeline of pipelines
+        log.debug("Expand | Check for sub-pipelines")
         for node in self.topological_order():
+            log.debug("Expand | Checking %s for sub-pipeline", node)
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
+            log.debug("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
             sub_pipe.expand(validate=validate)
-            # find all nodes with no incoming edges and connect
+            # find all nodes in the sub_pipeline
+            # with no incoming edges and connect
             # them to the current nodes incoming nodes
             no_incoming = [n for n in sub_pipe.nodes()
                            if len(list(n.incoming())) == 0]
@@ -611,16 +620,58 @@ class Pipeline(object):
 
             for inedge in node.incoming():
                 for target in no_incoming:
+                    log.debug("Expansion | add edge dependency on "
+                              "no-incoming edge %s->%s",
+                              inedge._source, target)
                     self.add_edge(inedge._source, target)
 
             for outedge in node.outgoing():
                 for source in no_outgoing:
+                    log.debug("Expansion | add edge dependency on "
+                              "no-outgoing edge %s->%s",
+                              source, outedge._target)
                     self.add_edge(source, outedge._target)
+
+            # establish links between resolved nodes and the current pipeline
+            # where before, the nodes was linked against a pipeline options.
+            #
+            # we look for both incoming and outgoing edges of the old node
+            # and check their links. If we find a link where source/target
+            # option is in one of the new sub_nodes _pipeline_options, we
+            # reestablish the link between the options, now linking between
+            # the nodes
+            for outedge in node.outgoing():
+                for link in outedge._links:
+                    stream = link[2]
+                    for sub_node in sub_pipe.nodes():
+                        # find nodes who have _pipeline_options set
+                        for po in sub_node._pipeline_options:
+                            if po['option'] == link[0]:
+                                edge = self.add_edge(sub_node, outedge._target)
+                                edge.add_link(
+                                    sub_node._tool.options[po['option'].name],
+                                    link[1],
+                                    stream
+                                )
+            for inedge in node.incoming():
+                for link in inedge._links:
+                    stream = link[2]
+                    for sub_node in sub_pipe.nodes():
+                        # find nodes who have _pipeline_options set
+                        for po in sub_node._pipeline_options:
+                            if po['option'] == link[1]:
+                                edge = self.add_edge(inedge._source, sub_node)
+                                edge.add_link(
+                                    link[0],
+                                    sub_node._tool.options[po['option'].name],
+                                    stream
+                                )
+
             # non-silent validation for pipeline node to
             # make sure the node WAS valid, otherwise the node
             # and its validation capabilities will be lost
             #
-            # if validation is disable, exceptions are catched and not raised
+            # if validation is disable, exceptions are caught and not raised
             # here
             try:
                 node._tool.validate()
@@ -628,7 +679,7 @@ class Pipeline(object):
                 if validate:
                     raise
                 else:
-                    log.debug("Node validation failed, but validaton is "
+                    log.debug("Node validation failed, but validation is "
                               "disabled: %s", err)
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
@@ -813,6 +864,7 @@ class Node(object):
         # the order in which nodes were added to the pipeline graph
         self.__dict__['_node_index'] = 0
         self.__dict__['_edges'] = set([])
+        self.__dict__['_pipeline_options'] = []
 
     @property
     def job(self):
@@ -925,7 +977,9 @@ class Node(object):
         for e in edges:
             for l in e._links:
                 if l[0].name == link[0] and l[1].name == link[1]:
-                    if stream is not None and stream == l[2]:
+                    if stream is not None:
+                        if stream != l[2]:
+                            return False
                         return check_value(l[0])
                     else:
                         return check_value(l[0])
@@ -950,7 +1004,7 @@ class Node(object):
             node.has_outgoing(other, ('output', 'input'), False, "data.txt")
 
         This return True if the node ``node`` has an outgoing edge to
-        the ``other`` node, the edge linkes ``node.output`` to ``other.input``,
+        the ``other`` node, the edge links ``node.output`` to ``other.input``,
         no stream is passed and the actual value is "data.txt".
 
         :param other: the potential child node
@@ -998,7 +1052,7 @@ class Node(object):
         return None
 
     def get_outgoing_link(self, option):
-        """Find a link in the outgoing edges where the soruce option
+        """Find a link in the outgoing edges where the source option
         is the given option
 
         :param option: the option to search for
@@ -1271,6 +1325,11 @@ class Node(object):
             edge = self._graph.add_edge(value.source, self._tool)
             if edge:
                 edge.add_link(value, option, allow_stream=allow_stream)
+            else:
+                self._pipeline_options.append(
+                    {"source": value.source, "option": option,
+                     "stream": allow_stream}
+                )
         else:
             if not append:
                 if set_dep:
@@ -1341,14 +1400,14 @@ class _NodeProxy(object):
 
 
 class Edge(object):
-    """An edge in the pipeline graph conncting source and target nodes.
+    """An edge in the pipeline graph connecting source and target nodes.
     The edge has optional information about the jip.options.Options that
     are connected through this edge.
 
     The edge carries a set on links. Links are tuples of the form
     (source_option, target_option, streamable).
 
-    In addition, the edges _group flag indecates that the two nodes linked
+    In addition, the edges _group flag indicates that the two nodes linked
     by the edge should form a job group.
     """
     def __init__(self, source, target):
@@ -1389,6 +1448,9 @@ class Edge(object):
         link = (source_option, target_option,
                 allow_stream and source_option.streamable and
                 target_option.streamable)
+        log.debug("Add link on edge: %s->%s [%s->%s Stream:%s]",
+                  self._source, self._target,
+                  source_option.name, target_option.name, link[2])
         self._links.add(link)
         return link
 
@@ -1414,7 +1476,7 @@ class Edge(object):
         return l is not None
 
     def get_streaming_link(self):
-        """Returns the the first link that is set to streaming"""
+        """Returns the first link that is set to streaming"""
         for l in self._links:
             if l[2]:
                 return l

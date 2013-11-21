@@ -2,6 +2,7 @@
 import sys
 import os
 import pytest
+import jip
 from jip.pipelines import Pipeline
 from jip.tools import Tool, tool
 from jip.options import Option
@@ -682,3 +683,100 @@ def test_node_naming_in_simple_multiplex():
 
     assert p.get("1.2") is not None
     assert p.get("1.2").input.get() == "C"
+
+
+@jip.pipeline()
+class first_pipeline(object):
+    def register(self, p):
+        p.add_argument("-i", "--input",
+                       required=False,
+                       default=sys.stdin)
+        p.add_argument("-o", "--output",
+                       required=False,
+                       default=sys.stdout)
+
+    def pipeline(self):
+        p = jip.Pipeline()
+        p.name("Test1")
+        p.job("TestJob1").run('bash',
+                              cmd='cat ${input|else("-")}',
+                              input=self.options['input'],
+                              output=self.options['output'])
+        return p
+
+
+@jip.pipeline()
+class second_pipeline(object):
+    def register(self, p):
+        p.add_argument("-i", "--input",
+                       required=False,
+                       default=sys.stdin)
+        p.add_argument("-o", "--output",
+                       required=False,
+                       default=sys.stdout)
+
+    def pipeline(self):
+        p = jip.Pipeline()
+        p.name("Test2")
+        p.job("TestJob2").run('bash',
+                              cmd='cat ${input|else("-")}',
+                              input=self.options['input'],
+                              output=self.options['output'])
+        return p
+
+
+@jip.pipeline()
+class joined_pipeline(object):
+    def register(self, p):
+        p.add_argument("-i", "--input")
+        p.add_argument("-o", "--output")
+        p.add_argument("--inter", default=sys.stdout)
+
+    def pipeline(self):
+        args = self.options.to_dict()
+        p = jip.Pipeline()
+        p.name("Joined")
+        test1 = p.job("Test1").run('first_pipeline',
+                                   output=args['inter'],
+                                   input=args['input'])
+        test2 = p.job("Test2").run('second_pipeline',
+                                   input=test1,
+                                   output=args['output'])
+        return p
+
+
+def test_nested_pipes_stream_setup_stream():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input="Makefile", output="out.txt")
+    p.expand()
+
+    # 2 nodes 1 edge
+    assert len(p) == 2
+    assert len(p.edges) == 1
+    t1 = p.get("TestJob1")
+    t2 = p.get("TestJob2")
+    assert t1.has_outgoing(t2, ('output', 'input'), True)
+
+    print t1._tool.options
+    print t2._tool.options
+
+
+def test_nested_pipes_stream_setup_intermediate():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input="Makefile", output="out.txt", inter="inter.out")
+    p.expand()
+
+    # 2 nodes 1 edge
+    assert len(p) == 2
+    assert len(p.edges) == 1
+    t1 = p.get("TestJob1")
+    t2 = p.get("TestJob2")
+    assert t1.has_outgoing(t2, ('output', 'input'), False)
+
+    print t1._tool.options
+    print t2._tool.options
+
