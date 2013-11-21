@@ -1,10 +1,15 @@
-from distribute_setup import use_setuptools
-use_setuptools()
-from setuptools import setup, Extension
+try:
+    from setuptools import setup, Extension
+except:
+    from distribute_setup import use_setuptools
+    use_setuptools()
+    from setuptools import setup, Extension
 
-
-with open('README.rst') as rf:
-    readme = rf.read()
+try:
+    with open('README.rst') as rf:
+        readme = rf.read()
+except:
+    readme = ''
 
 dispatcher_ext = Extension('jip.dispatcher',
                            ['jip/dispatcher/jip_binding.c',
