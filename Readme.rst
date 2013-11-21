@@ -7,7 +7,8 @@ your local machine.
 
 Documentation
 =============
-`Documentation <http://pyjip.readthedocs.org/en/latest/>`_ on installation and usage can be found at `http://pyjip.readthedocs.org/en/latest/`_.
+`Documentation <http://pyjip.readthedocs.org/en/latest/>`_ on installation and
+usage can be found at http://pyjip.readthedocs.org/en/latest/.
 
 Changelog
 =========
