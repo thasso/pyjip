@@ -19,8 +19,6 @@ class Job(Profile):
     extends it in a way that you can create new pipeline nodes from the job.
     Those nodes will then hold a reference to the profile and all customization
     on the profile will be applied to the node.
-
-
     """
     def __init__(self, pipeline=None, **kwargs):
         Profile.__init__(self, **kwargs)
@@ -58,6 +56,15 @@ class Job(Profile):
         return clone
 
     def run(self, *args, **kwargs):
+        """Delegates to :py:meth:`Pipeline.run` and runs the specified tool
+        using this job environment configuration
+
+        :param args: args passed on to the pipeline ``run`` method
+        :param kwargs: kwargs passed on to the pipeline ``run`` method
+        :returns: the newly created node
+        :rtype: :class:`Node`
+        """
+
         if len(args) > 1:
             raise ValueError("You can only pass one tool to a job run !")
         node = args[0]
@@ -66,6 +73,13 @@ class Job(Profile):
         return node
 
     def bash(self, command, **kwargs):
+        """Create a new ``bash`` job.
+
+        :param command: the bash command
+        :param kwargs: keyword arguments passed on the bash job
+        :returns: the newly created node
+        :rtype: :class:`Node`
+        """
         return self.run('bash', cmd=command, **kwargs)
 
 
@@ -317,6 +331,16 @@ class Pipeline(object):
                 target if not isinstance(target, Node) else target._tool)
 
     def add_edge(self, source, target):
+        """Adds an edge between the source and the target if no
+        such edge exists. Otherwise the existing edge will be returned.
+
+        :param source: the source node or tool instance
+        :type source: :class:`Node` or :class:`~jip.tools.Tool`
+        :param target: the target node or tool instance
+        :type target: :class:`Node` or :class:`~jip.tools.Tool`
+        :returns: the edge between `source` and `target`
+        :raises LookupError: if the source or target node could not be found
+        """
         source, target = self.__resolve_node_tool(source, target)
         source_node = None
         try:
@@ -337,6 +361,17 @@ class Pipeline(object):
         return edge
 
     def get_edge(self, source, target):
+        """Returns the edge between `source` and `target` or raises a
+        ``KeyError`` if no such edge exists.
+
+        :param source: the source node or tool instance
+        :type source: :class:`Node` or :class:`~jip.tools.Tool`
+        :param target: the target node or tool instance
+        :type target: :class:`Node` or :class:`~jip.tools.Tool`
+        :returns: the edge between `source` and `target`
+        :raises LookupError: if the source or target node could not be found
+        :raises KeyError: if no edge between source and target exists
+        """
         source, target = self.__resolve_node_tool(source, target)
         source_node = self._nodes[source]
         target_node = self._nodes[target]
@@ -348,6 +383,18 @@ class Pipeline(object):
         raise KeyError("No edge %s->%s found in graph!" % source, target)
 
     def topological_order(self):
+        """Generator function that yields the nodes in the graph in
+        topological order.
+
+        Please note that this function does **not** cache the order and
+        recalculates it on each call. If you know the pipeline graph will
+        not change any more and you have to iterate the nodes in order
+        more than once, you might want to cache the results::
+
+            >>>ordered = list(pipeline.topological_order())
+
+        :returns: yields nodes in topological order
+        """
         count = {}
         children = {}
         for node in self.nodes():
@@ -371,7 +418,7 @@ class Pipeline(object):
 
     def groups(self):
         """Sorts the nodes in topological order and than groups nodes
-        together if they have a dependency and at least one of the dependecy
+        together if they have a dependency and at least one of the dependency
         options is set for streaming.
 
         Yields lists of nodes. Each list represents a group of tools that

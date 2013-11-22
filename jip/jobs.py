@@ -425,21 +425,38 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
              clean_logs=clean_logs, silent=silent)
 
 
-def submit(job, silent=False, clean=False, force=False, session=None):
+def submit(job, silent=False, clean=False, force=False, session=None,
+           cluster=None):
     """Submit the given job to the cluster. This only submits jobs that are not
     `DONE`. The job has to be in `canceled`, `failed`, `queued`,
     or `hold` state to be submitted, unless `force` is set to True. This will
-    NOT submit the children of the job. You have to submit the children
+    NOT submit the child jobs. You have to submit the children
     yourself and ensure you do that in proper order.
 
     If job submission is forced and a job is in active state, the job
     is canceled first to ensure there is only a single instance of the
     job on the cluster.
 
+    You have to specify a database session on order to save the jobs after
+    successful submission. Use :py:meth:`jip.db.create_session` to get a
+    session instance.
+
+    If no cluster is specified, :py:func:`jip.cluster.get` is used to load
+    the default cluster. This will raise a
+    ``jip.cluster.ClusterImplementationError`` in case no compute cluster is
+    configured.
+
     :param job: the job to be deleted
+    :param silent: if False, the method will print status messages to
+                   ``stdout``
     :param clean: if True, the job log files will be deleted
-    :param silent: if False, the method will print status messages
+    :param force: force job submission
+    :param session: the database session
+    :param cluster: the compute cluster instance. If ``None``, the default
+                    cluster will be loaded from the jip configuration
     :returns: True if the jobs was submitted
+    :raises jip.cluster.ClusterImplementationError: if no cluster could be
+                                                    loaded
     """
     log.info("(Re)submitting %s", job)
     if not force and job.state == db.STATE_DONE:
@@ -454,7 +471,9 @@ def submit(job, silent=False, clean=False, force=False, session=None):
         jip.jobs.clean(job)
 
     # set state queued and submit
-    cluster = jip.cluster.get()
+    if cluster is None:
+        cluster = jip.cluster.get()
+
     set_state(job, db.STATE_QUEUED)
     cluster.submit(job)
     if not silent:
@@ -528,9 +547,32 @@ def run(job, session=None):
 # Job creation
 ################################################################
 def create_job_env():
-    """Create a dictionary that will contain the job environment
+    """Create a dictionary that contains the jobs' environment.
 
-    :returns: dictionary that contains the job environmnt
+    The job environment is loaded at execution time and is available in
+    the process that runs the jobs command. This stores the values from the
+    current environment (usually the machine from which you submit your
+    job) and stores that information in a dictionary. The following
+    environment variables are stored:
+
+        ``PATH``
+            The currently configured ``PATH`` is stored
+
+        ``PYTHONPATH``
+            We store the python path in order to make sure that the JIP
+            command line utilities works as expected and the same JIP version
+            is loaded at job runtime.
+
+        ``JIP_PATH``, ``JIP_MODULES``, ``JIP_LOGLEVEL``
+            Any local modification of the paths to search for tools or the
+            module search paths are stored. In addition, the current log
+            level is passed on to the job, which effectively allows you
+            to debug jip behaviour on the job level
+
+        ``LD_LIBRARY_PATH``
+            The library path is also stored in the environment
+
+    :returns: dictionary that contains the job environment
     :rtype: dict
     """
     return {

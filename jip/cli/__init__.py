@@ -1,6 +1,23 @@
 #!/usr/bin/env python
 """The JIP command line package contains utilities and the modules
-that expose command line functions for the JIP command.
+that expose command line functions for the JIP command. The module hosts
+a set of utility functions that can be used to simplify the process of
+interacting with the JIP API from within a command line tool.
+
+Functions in this module might have certain limitations when you want to use
+them as general API calls. Most of the output generation functions print to
+`stdout` and this can not be changed. In addition, be very careful with
+:py:func:`run` and :py:func:`dry`. Both call ``sys.exit(1)`` in case of a
+failure.
+
+.. warning:: Both :py:func:`run` and :py:func:`dry` call ``sys.exit(1)`` in
+             case of a failure! Be very careful when you want to call them
+             outside of a command line tool that is allowed terminate!
+
+.. note:: Please note that you can use the module to implement custom command
+          line utilities, but it was written to support the commands that are
+          shipped with JIP. That means the modules functions might change
+          according to the needs of the internal command line utilities.
 
 """
 from datetime import timedelta, datetime
@@ -49,22 +66,36 @@ STATE_CHARS = {
 
 def resolve_job_range(ids):
     """Resolve ranges from a list of ids. Given list of id strings
-    can contain rainges separated with '-'. For example, '1-10' will
+    can contain ranges separated with '-'. For example, '1-10' will
     result in a range from 1..10.
 
     :param ids: string or list of strings of ids
     :type ids: string or list of strings
     :returns: resolved list of ids
     :rtype: list of integers
+    :raises ValueError: if on of the ids could not be converted to a valid,
+                        positive id
     """
+    if not isinstance(ids, (list, tuple)):
+        ids = [ids]
     r = []
+
+    def to_id(i):
+        try:
+            v = int(i)
+            if v < 0:
+                raise ValueError("Job ids have to be >= 0!")
+            return v
+        except:
+            raise ValueError("Unable to convert '%s' to a job id. A valid"
+                             " job id has to be a number" % i)
     for i in ids:
         s = i.split("-")
         if len(s) == 1:
-            r.append(i)
+            r.append(to_id(i))
         elif len(s) == 2:
-            start = int(s[0])
-            end = int(s[1])
+            start = to_id(s[0])
+            end = to_id(s[1])
             start, end = min(start, end), max(start, end)
             r.extend(range(start, end + 1))
         else:
@@ -118,6 +149,7 @@ def show_commands(jobs):
     """Print the commands for the given list of jobs
 
     :param jobs: list of jobs
+    :type jobs: list of :class:`jip.db.Job`
     """
     print ""
     print "Job commands"
@@ -142,6 +174,16 @@ def show_commands(jobs):
 
 
 def show_options(options, title=None, excludes=None, show_defaults=False):
+    """Print the options to a table
+
+    :param options: the options
+    :type options: :class:`jip.options.Options`
+    :param title: a title for the table
+    :param excludes: list of option names that will be excluded
+    :param show_defaults: if True, all options will be printed, otherwise,
+                          only options that are different from their default
+                          value will be included
+    """
     if title is not None:
         print "#" * 87
         print "| {name:^91}  |".format(name=colorize(title, BLUE))
@@ -157,6 +199,12 @@ def show_options(options, title=None, excludes=None, show_defaults=False):
 
 
 def show_job_states(jobs, title="Job states"):
+    """Print the job states table for a list of jobs.
+
+    :param jobs: list of jobs
+    :type jobs: list of :class:`jip.db.Job`
+    :param title: a title for the table
+    """
     if title is not None:
         print "#" * 149
         print "| {name:^153}  |".format(
@@ -178,6 +226,39 @@ def show_job_states(jobs, title="Job states"):
 
 
 def show_job_profiles(jobs, title="Job profiles"):
+    """Print the job profile for a given list of jobs.
+
+    The job profile contains the following properties:
+
+    Name
+        The job name
+
+    Queue
+        The queue assigned to the job
+
+    Priority
+        The jobs priority
+
+    Threads
+        Number of threads assigned to the job
+
+    Time
+        Maximum run time assigned to the job
+
+    Memory
+        Maximum memory assigned to the job
+
+    Account
+        The account assigned to the job
+
+    Directory
+        The jobs working directory
+
+
+    :param jobs: list of jobs
+    :type jobs: list of :class:`jip.db.Job`
+    :param title: a title for the table
+    """
     if title is not None:
         print "#" * 149
         print "| {name:^153}  |".format(name=colorize(title, BLUE))
@@ -213,6 +294,12 @@ def show_job_profiles(jobs, title="Job profiles"):
 
 
 def show_job_tree(jobs, title="Job hierarchy"):
+    """Prints the job hierarchy as a tree structure
+
+    :param jobs: list of jobs
+    :type jobs: list of :class:`jip.db.Job`
+    :param title: a title for the table
+    """
     if title is not None:
         print "#" * 20
         print "| {name:^24}  |".format(name=colorize(title, BLUE))
@@ -304,7 +391,14 @@ def _clean_value(v):
 
 
 def colorize(string, color):
-    """Colorize a string using ANSI colors."""
+    """Colorize a string using ANSI colors.
+
+    The `jip.cli` module contains a few ANSI color definitions that
+    are used quiet often in the system.
+
+    :param string: the string to colorize
+    :param color: the color that should be used
+    """
     if color == NORMAL:
         return string
     return "%s%s%s" % (color, string, ENDC)
@@ -312,7 +406,15 @@ def colorize(string, color):
 
 def table_to_string(value, empty=""):
     """Translates the given value to a string
-    that can be rendered in a table"""
+    that can be rendered in a table. This functions deals primarily with
+    ``datatime.datetime`` and ``datetime.timedelta`` values. For all
+    other types, the default string representation is returned.
+
+    :param value: the value
+    :param empty: the replacement used for ``None`` value
+    :returns: table compatible string representation
+    :rtype: string
+    """
     if value is None:
         return empty
     if isinstance(value, datetime):
@@ -326,6 +428,17 @@ def table_to_string(value, empty=""):
 
 def create_table(header, rows, empty="", to_string=table_to_string,
                  widths=None, deco=Texttable.HEADER):
+    """Create a table.
+
+    :param header: list of table column names
+    :param rows: list of list of row values
+    :param empty: string representation for ``None`` values
+    :param to_string: function reference to the converter function that
+                      creates string representation for row values
+    :param width: optional list of columns widths
+    :param deco: Texttable decorations
+    :returns: Texttable table instance
+    """
     t = Texttable(0)
     t.set_deco(deco)
     if header is not None:
@@ -339,13 +452,23 @@ def create_table(header, rows, empty="", to_string=table_to_string,
 
 def render_table(header, rows, empty="", widths=None,
                  to_string=table_to_string, deco=Texttable.HEADER):
-    """Create a simple ascii table"""
+    """Create a simple ASCII table and returns its string representation.
+
+
+    :param header: list of table column names
+    :param rows: list of list of row values
+    :param empty: string representation for ``None`` values
+    :param to_string: function reference to the converter function that
+                      creates string representation for row values
+    :param width: optional list of columns widths
+    :returns: string representation of the table
+    """
     return create_table(header, rows, empty=empty,
                         widths=widths, to_string=to_string, deco=deco).draw()
 
 
 def confirm(msg, default=True):
-    """Print the msg and ask the user to confirm. Return True
+    """Print the message and ask the user to confirm. Return True
     if the user confirmed with Y.
 
     :param msg: the message
@@ -471,7 +594,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     if session is None:
         _session = jip.db.create_session()
     # we have to check if there is anything we need
-    # to submit, otherwise we can skip commiting the jobs
+    # to submit, otherwise we can skip committing the jobs
     # We have to do this for all connected components
     if not force:
         parents = jip.jobs.get_parents(jobs)
@@ -546,7 +669,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
 
     def submission_failure():
         """Helper to delete submitted jobs in case of a submission error"""
-        log.info("Submission error occured, perform cleanup"
+        log.info("Submission error occurred, perform cleanup"
                  " on already submitted jobs")
         for j in jobs:
             jip.jobs.delete(j, session=_session, clean_logs=True, silent=True)
@@ -587,6 +710,17 @@ def submit(script, script_args, keep=False, force=False, silent=False,
 
 def run(script, script_args, keep=False, force=False, silent=False, threads=1,
         spec=None):
+    """Load and initialize the given script and execute its jobs.
+
+    :param script: this script to execute
+    :param script_args: the script arguments
+    :param keep: keep tool outputs on failure
+    :param force: force execution event if jobs are marked es completed
+    :param silent: do not print status information to ``stderr``
+    :param threads: number of threads
+    :param spec: path to job specification file
+    """
+
     profile = jip.profiles.Profile(threads=threads)
     if spec:
         profile.load_spec(spec, script.name)
@@ -627,7 +761,18 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
 
 
 def dry(script, script_args, dry=True, show=False):
-    # we handle --dry and --show separatly,
+    """Load the script and initialize it with the given arguments, then
+    perform a dry run and print the options and commands
+
+    .. warning:: This method calls ``sys.exit(1)`` in case an Exception
+                 is raised
+
+    :param script: the script
+    :param script_args: script arguments
+    :param dry: print job options
+    :param show: print job commands
+    """
+    # we handle --dry and --show separately,
     # create the jobs and call the show commands
     jobs = jip.jobs.create(script, args=script_args)
     if dry:

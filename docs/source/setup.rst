@@ -63,6 +63,9 @@ is stored in two location on your system:
     configuration file will always be loaded and evaluated for all calls to the 
     command line utilities. In case you use the Python API directly and, you 
     might have to specify the path to the global configuration file explicitly.
+    To do this, set ``jip.configuration.install_path`` to the absolute path
+    the directory that contains the ``jip.json`` **before** you make any other
+    calls to the jip API.
 
 `$HOME/.jip/jip.json`:
     In order to provide user-level configuration, you can create a `.jip` 
@@ -86,7 +89,8 @@ Here is an example of a JIP configuration file::
         }
     }
 
-The configuration can cover the following entries:
+The configuration can contain the following entries that are used by the 
+JIP API:
 
 `db`: Database location. The path or URL to connect to the JIP database. The
     JIP database is used to store runtime information about jobs submitted to a
@@ -115,3 +119,6 @@ The configuration can cover the following entries:
 
 `profiles`: list of profiles that can be used to configure jobs on a cluster 
 
+In addition, other configuration blocks can be specified, that are interpreted
+by specific module. For example, the different cluster implementations can ask
+for specific configuration blocks.

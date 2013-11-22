@@ -128,8 +128,9 @@ class Cluster(object):
     attribute and store the remote job id.
 
     Please not that the :py:meth:`list`, :py:meth:`submit`, and
-    :py:meth:`cancel` methtions raise a ``NotImplementedError`` by default, but
-    :py:meth:`update` and :py:meth:`resolve_log` are NOP implementations.
+    :py:meth:`cancel` methods raise a ``NotImplementedError`` by default.
+    :py:meth:`update` and :py:meth:`resolve_log` are implemented with an
+    empty body and no operation will happen by default.
     """
 
     def list(self):
@@ -788,21 +789,27 @@ class LSF(Cluster):
         job.job_id = match.group('job_id')
 
 
-def get():
-    """Returns the currently configured cluster instance.
+def get(name=None):
+    """Returns the currently configured cluster instance using the configured
+    class name in the configuration if no explicit name is specified.
 
+    :param name: specify explicitly a full class name to the cluster
+                 implementation
     :returns: the Cluster instance
     :rtype: :py:class:`~jip.cluster.Cluster`
     :raises ClusterImplementationError: if the specified cluster implementation
                                         could not be loaded
     """
-    name = jip.config.get("cluster", None)
+    if name is None:
+        name = jip.config.get("cluster", None)
+
     if name is None:
         raise ClusterImplementationError(
             "No cluster configuration found! Please put "
-            "your config file in $HOME/.jip/jip.json")
+            "your config file. The default configuration "
+            "path is: $HOME/.jip/jip.json")
     try:
-        return from_name(name)
+        return _from_name(name)
     except:
         raise ClusterImplementationError(
             "Error while loading cluster implementation. "
@@ -811,8 +818,11 @@ def get():
             "PYTHONPATH." % name)
 
 
-def from_name(name):
-    """Load a cluster engine from given name"""
+def _from_name(name):
+    """Load a cluster engine from given name
+
+    :param name: full class name of the cluster implementation
+    """
     if name is None:
         return None
     if name in _cluster_cache:

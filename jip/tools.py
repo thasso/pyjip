@@ -342,6 +342,16 @@ class Scanner():
         self.__scanned_files = None
 
     def find(self, name, path=None, is_pipeline=False):
+        """Finds a tool by its name or file name.
+
+        If the given name points to an existing file, the file is loaded
+        as a script tools and returned. Otherwise, a default search is
+        triggered, optionally including the specified path.
+
+        :returns: a new instance of the tool
+        :rtype: :class:`Tool`
+        :raises ToolNotFoundException: if the tool could not be found
+        """
         if exists(name) and os.path.isfile(name):
             ## the passed argument is a file. Try to load it at a
             ## script and add the files directory to the search path
@@ -393,6 +403,12 @@ class Scanner():
         return self.instances
 
     def scan_files(self, parent=None):
+        """Scan files for jip tools. This functions detects files with
+        the ``.jip`` extension in the default search locations.
+
+        :param parent: optional parent folder
+        :returns: list of found files
+        """
         if parent is None and self.__scanned_files is not None:
             return self.__scanned_files
         import re
@@ -425,6 +441,10 @@ class Scanner():
                 yield path
 
     def scan_modules(self):
+        """Loads the python modules specified in the JIP configuration.
+        This will register any functions and classes decorated with
+        one of the JIP decorators.
+        """
         if self.__scanned:
             return
         path = getenv("JIP_MODULES", "")
@@ -481,7 +501,7 @@ class Scanner():
 
 
 class Block(object):
-    """Base class for executable blocks that can render themselfes to scripts
+    """Base class for executable blocks that can render themselves to scripts
     and provide information about the interpreter that should be used to
     run the script.
     """
@@ -523,7 +543,11 @@ class Block(object):
             raise err
 
     def render(self, tool):
-        """Execute this block
+        """Renders this blocks content within the context of the given tool
+
+        :param tool: the tool
+        :returns: rendered block content
+        :rtype: string
         """
         content = self.content
         if isinstance(content, (list, tuple)):
@@ -847,6 +871,8 @@ class PythonBlock(Block):
         return env
 
     def terminate(self):
+        """The terminate function on a python block does nothing. A
+        Python block can not be terminated directly"""
         pass
 
     def __str__(self):

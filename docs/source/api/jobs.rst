@@ -82,6 +82,17 @@ a database `session`.
 
 .. autofunction:: jip.jobs.set_state
 
+The job submission process uses a few other functions of this module that are
+not strictly actions on a single job, but are useful to understand how
+the system handles jobs specifically with respect to submission:
+
+.. autofunction:: jip.jobs.create_job_env
+
+.. autofunction:: jip.jobs.resolve_jobs
+
+.. autofunction:: jip.jobs.submit_pipeline
+
+
 Job iteration and sorting
 -------------------------
 We mentioned earlier that some of the action methods that can be called with 

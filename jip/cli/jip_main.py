@@ -42,12 +42,15 @@ Miscellaneous other commands:
     clean     remove job logs
     check     check job status
 """
+import os
 import sys
 import jip
 import jip.options
 import jip.tools
 import jip.cli
 import jip.cluster
+import jip.configuration
+
 from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
 
@@ -55,6 +58,13 @@ log = getLogger('jip.cli.jip_main')
 
 
 def main():
+    try:
+        jip.configuration.install_path = os.path.abspath(
+            os.path.dirname(sys.argv[0])
+        )
+    except:
+        pass
+
     try:
         _main()
     except jip.options.ParserException as err:

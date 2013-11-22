@@ -10,3 +10,5 @@ jip.options
 
 .. autoclass:: jip.options.Option
     :members:
+
+.. autoexception:: jip.options.ParserException

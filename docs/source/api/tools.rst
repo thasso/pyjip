@@ -44,3 +44,5 @@ Tool Scanner
 Exceptions
 ----------
 .. autoexception:: jip.tools.ValidationError
+
+.. autoexception:: jip.tools.ToolNotFoundException

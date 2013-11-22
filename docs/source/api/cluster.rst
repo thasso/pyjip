@@ -12,6 +12,12 @@ Abstract Cluster class
 .. autoclass:: jip.cluster.Cluster
     :members:
 
+Exceptions
+----------
+.. autoexception:: jip.cluster.SubmissionError
+
+.. autoexception:: jip.cluster.ClusterImplementationError
+
 Implementations
 ---------------
 .. autoclass:: jip.cluster.Slurm
