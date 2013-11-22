@@ -697,8 +697,15 @@ def from_node(node, env=None, keep=False):
     if node._job is not None:
         node._job.apply(job)
 
+    # store additional options
     node._tool.options.make_absolute(job.working_directory)
     job.configuration = node._tool.options
+    if node._additional_input_options:
+        node_options = set(job.configuration.options)
+        job.additional_options = set([])
+        for a in node._additional_input_options:
+            if not a in node_options:
+                job.additional_options.add(a)
 
     # check for special options
     if node._tool.options['threads'] is not None:

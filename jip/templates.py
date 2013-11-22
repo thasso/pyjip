@@ -246,7 +246,6 @@ def ext_filter(ctx, value, splitter='.'):
             pass
         return v
     except:
-        log.warn("Error while applying |ext filter!", exc_info=True)
         return value
 
 # global environment

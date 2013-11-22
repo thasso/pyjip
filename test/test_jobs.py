@@ -17,7 +17,7 @@ def test_job_names_after_multiplexing():
     j = p.job("1").run('nop_noval')
     assert p.get("1") == j
     j.input = ["A", "B", "C"]
-    p.expand(False)
+    p.expand(validate=False)
 
     # monky patch validate
     for n in p.nodes():
@@ -35,7 +35,7 @@ def test_job_names_after_multiplexing_with_name_template():
     j = p.job("${input}").run('nop_noval')
     assert p.get("${input}") == j
     j.input = ["A", "B", "C"]
-    p.expand(False)
+    p.expand(validate=False)
 
     # monky patch validate
     for n in p.nodes():

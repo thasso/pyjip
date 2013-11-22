@@ -670,7 +670,7 @@ def test_node_naming_in_simple_multiplex():
     j = p.job("1").run('bash', cmd="ls")
     assert p.get("1") == j
     j.input = ["A", "B", "C"]
-    p.expand(False)
+    p.expand(validate=False)
 
     with pytest.raises(LookupError):
         p.get("1")
@@ -780,3 +780,12 @@ def test_nested_pipes_stream_setup_intermediate():
     print t1._tool.options
     print t2._tool.options
 
+
+def test_pipeline_with_local_context():
+    p = jip.Pipeline()
+    a = "Makefile"
+    p.job().bash("wc -l ${a}")
+    p.expand(locals())
+    b = p.get('bash')
+    assert b is not None
+    assert b.cmd.get() == 'wc -l Makefile'

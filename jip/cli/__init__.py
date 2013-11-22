@@ -216,6 +216,9 @@ def show_job_states(jobs, title="Job states"):
         name = "|".join(str(j) for j in g)
         outs = [_clean_value(f) for j in g for f in j.tool.get_output_files()]
         ins = [_clean_value(f) for j in g for f in j.tool.get_input_files()]
+        for j in [jj for jj in g if jj.additional_options]:
+            for a in j.additional_options:
+                ins.append(_clean_value(a.raw()))
         state = colorize(job.state, STATE_COLORS[job.state])
         rows.append([name, state, ", ".join(ins), ", ".join(outs)])
     print render_table(["Name", "State", "Inputs", "Outputs"], rows,

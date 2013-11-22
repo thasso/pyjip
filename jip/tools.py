@@ -607,6 +607,7 @@ class PythonBlockUtils(object):
         from jip import Pipeline
         if self._pipeline is None:
             self._pipeline = Pipeline()
+            self._pipeline._utils = self
         return self._pipeline
 
     def check_file(self, name):
@@ -750,28 +751,9 @@ class PythonBlockUtils(object):
         :returns: a new pipeline node that represents the bash job
         :rtype: :class:`jip.pipelines.Node`
         """
-        from jip.pipelines import Node
-
         bash_node = self.pipeline.run('bash', cmd=command, **kwargs)
-        # create a render context
-        ctx = dict(self._global_env)
-        ctx.update(kwargs)
-        ## update all Nodes with their default output options
-
-        class OptionWrapper(object):
-            def __init__(self, node, option):
-                self.node = node
-                self.option = option
-
-            def __str__(self):
-                bash_node.depends_on(self.node)
-                return str(self.option)
-
-        for k in ctx.keys():
-            v = ctx[k]
-            if isinstance(v, Node):
-                ctx[k] = OptionWrapper(v,
-                                       v._tool.options.get_default_output())
+        ctx = {}
+        self._update_context(ctx, kwargs, bash_node)
         # add options and make sure
         # the bash tool options take precedence
         ctx['input'] = bash_node._tool.options['input']
@@ -780,6 +762,57 @@ class PythonBlockUtils(object):
         cmd = render_template(command, **ctx)
         bash_node.cmd = cmd
         return bash_node
+
+    def _update_global_env(self, env):
+        if not self._global_env:
+            self._global_env = {}
+        self._global_env.update(env)
+
+    def _update_context(self, ctx, kwargs=None, base_node=None):
+        if self._global_env:
+            for k, v in self._global_env.iteritems():
+                if k not in ctx:
+                    ctx[k] = v
+        if kwargs:
+            ctx.update(kwargs)
+
+        ## update all Nodes with their default output options
+        if base_node is not None:
+            from jip.pipelines import Node
+
+            class OptionWrapper(object):
+                def __init__(self, node, option):
+                    self.node = node
+                    self.option = option
+
+                def __str__(self):
+                    if base_node != self.node:
+                        base_node.depends_on(self.node)
+                        if self.option.option_type != jip.options.TYPE_OPTION:
+                            log.debug("Adding additional input option "
+                                      "for node %s : %s",
+                                      base_node, self.option.name)
+                            self.node._tool.options.make_absolute(
+                                self.node._job.working_dir
+                            )
+                            base_node._additional_input_options.add(
+                                self.option
+                            )
+
+                    return str(self.option)
+
+            for k in ctx.keys():
+                v = ctx[k]
+                if isinstance(v, Node):
+                    try:
+                        ctx[k] = OptionWrapper(
+                            v,
+                            v._tool.options.get_default_output()
+                        )
+                    except LookupError:
+                        # no default output option
+                        pass
+        return ctx
 
 
 class PythonBlock(Block):

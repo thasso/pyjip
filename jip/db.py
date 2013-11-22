@@ -205,6 +205,9 @@ class Job(Base):
     #: Extra configuration stored as an array of additional parameters
     #: passed during job submission to the cluster implementation
     extra = deferred(Column(PickleType))
+    #: Stores a set of additional input options that are used in template
+    #: rendering but are not liked in the configuration of this job
+    additional_options = deferred(Column(PickleType))
     #: General job dependencies dependencies
     dependencies = relationship("Job",
                                 lazy="joined",

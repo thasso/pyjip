@@ -287,7 +287,22 @@ class Option(object):
             values = [self.default]
         if self.render_context:
             from jip.templates import render_template
-            values = [render_template(v, **self.render_context)
+
+            # check if there is a pipeline in the current render context
+            # if thats the case, we use it the create a more sophisticated
+            # context that can in fact manipulate the pipeline and update
+            # dependencies when nodes are accessed on option templates
+            # from other nodes
+            ctx = dict(self.render_context)
+            if "__pipeline__" in ctx:
+                # update from pipeline context
+                pipeline = ctx['__pipeline__']
+                node = None
+                if self.source:
+                    node = pipeline._nodes[self.source]
+                pipeline.utils._update_context(ctx, base_node=node)
+
+            values = [render_template(v, **ctx)
                       if v and isinstance(v, basestring) else v
                       for v in values]
             self.render_context = None
@@ -785,7 +800,7 @@ class Options(object):
         :raises LookupError: if no default option was found
         """
         for opt in self.get_by_type(TYPE_OUTPUT):
-            if opt.value:
+            if opt._value or opt.default is not None:
                 return opt
         for opt in self.get_by_type(TYPE_OUTPUT):
             return opt

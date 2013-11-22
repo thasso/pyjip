@@ -96,9 +96,17 @@ class Pipeline(object):
         self._name = None
         self.excludes = []
         self._node_index = 0  # unique steadily increasing number
+        self._utils = None
 
     def __len__(self):
         return len(self._nodes)
+
+    @property
+    def utils(self):
+        if self._utils is None:
+            self._utils = jip.tools.PythonBlockUtils(None, locals())
+            self._utils._pipeline = self
+        return self._utils
 
     @property
     def edges(self):
@@ -172,6 +180,25 @@ class Pipeline(object):
         except Exception:
             log.debug("Validation error for %s", node, exc_info=True)
         return node
+
+    def bash(self, command, **kwargs):
+        """Create a *bash* job that executes a bash command.
+
+        This us a fast way to build pipelines that execute shell commands. The
+        functions wraps the given command string in the *bash tool* that
+        is defined with ``input``, ``output``, and ``outfile``. Input and
+        output default to stdin and stdout.
+
+        :param command: the bash command to execute
+        :type command: string
+        :param kwargs: arguments passed into the context used to render the
+                       bash command. ``input``, ``output``, and ``outfile`` are
+                       passed as options to the *bash* tool that is used to
+                       run the command
+        :returns: a new pipeline node that represents the bash job
+        :rtype: :class:`jip.pipelines.Node`
+        """
+        return self.utils.bash(command, **kwargs)
 
     def add(self, tool, _job=None):
         """Add a tool or a node to the pipeline. If the given value
@@ -569,7 +596,16 @@ class Pipeline(object):
                 map(lambda n: n.update_options(), children)
         self._update_cleanup_nodes()
 
-    def expand(self, validate=True):
+    def context(self, context):
+        """Update the global context of the pipeline and add the values
+        from the given context
+
+        :param context: the context
+        """
+        if context:
+            self.utils._update_global_env(context)
+
+    def expand(self, context=None, validate=True):
         """This modifies the current graph state and applies fan_out
         operations on nodes with singleton options that are populated with
         list.
@@ -577,8 +613,22 @@ class Pipeline(object):
         should be expanded and the number of configured elements is not the
         same.
 
+        You can specify a ``context`` that will be used additionally to resolve
+        template variables and references in node options. This allows you
+        to give the template system access to your local environment. For
+        example::
+
+            >>>p = Pipeline
+            >>>a = "myinput.txt"
+            >>>p.bash('wc -l ${a}')
+            >>>p.expand(locals())
+            >>>assert p.get("bash").cmd.get() == 'wc -l myinput.txt'
+
         :param validate: disable validation by setting this to false
+        :param context: specify a local context that is taken into account
+                        in template and option rendering
         """
+        self.context(context)
         log.debug("Expand Graph on %s", self)
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
@@ -601,7 +651,7 @@ class Pipeline(object):
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
                 log.debug("Expand | No fanout options found for %s", node)
-                _update_node_options(node)
+                _update_node_options(node, self)
                 continue
             # check that all fanout options have the same length
             num_values = len(fanout_options[0])
@@ -826,7 +876,7 @@ class Pipeline(object):
             # silent validation of the cloned node
             try:
                 log.debug("Fanout validate cloned node")
-                _update_node_options(cloned_node)
+                _update_node_options(cloned_node, self)
                 cloned_node._tool.validate()
             except KeyboardInterrupt:
                 raise
@@ -880,11 +930,15 @@ class Pipeline(object):
         return "[Nodes: %s, Edges: %s]" % (str(self._nodes), str(self._edges))
 
 
-def _update_node_options(cloned_node):
+def _update_node_options(cloned_node, pipeline):
     """Render out all the options of the given node"""
     ctx = {}
     for o in cloned_node._tool.options:
         ctx[o.name] = o  # o.raw()
+
+    ctx['__node__'] = cloned_node
+    ctx['__pipeline__'] = pipeline
+
     cloned_node._tool.options.render_context(ctx)
     for o in cloned_node._tool.options:
         o.value = o.value
@@ -912,6 +966,7 @@ class Node(object):
         self.__dict__['_node_index'] = 0
         self.__dict__['_edges'] = set([])
         self.__dict__['_pipeline_options'] = []
+        self.__dict__['_additional_input_options'] = set([])
 
     @property
     def job(self):
@@ -1321,7 +1376,7 @@ class Node(object):
 
     def _set_singleton_option_value(self, option, value, append=False,
                                     allow_stream=True, set_dep=True):
-        """Set a singlto value of the given options and create
+        """Set a single value of the given options and create
         an edge and an option link on the edge if the value is another option
         or another node.
 
