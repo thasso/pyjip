@@ -211,7 +211,7 @@ class Option(object):
         ## we set streamable base on the default value
         if self.streamable is None:
             if self.default is not None and not self.is_list():
-                self.streamable = self.__is_stream(self.default)
+                self.streamable = self._is_stream(self.default)
             else:
                 self.streamable = False
 
@@ -436,7 +436,7 @@ class Option(object):
     def __resolve(self, v, converter=str):
         """Helper to resolve a single value to its string representation
         """
-        if isinstance(v, bool) or self.__is_stream(v):
+        if isinstance(v, bool) or self._is_stream(v):
             return converter("")
         return converter(v)
 
@@ -448,10 +448,10 @@ class Option(object):
         """
         s = True
         for v in self._value:
-            s &= self.__is_stream(v)
+            s &= self._is_stream(v)
         return s
 
-    def __is_stream(self, v):
+    def _is_stream(self, v):
         """Returns true if v is a stream or stream like"""
         if v and (isinstance(v, file) or hasattr(v, 'fileno')):
             return True
@@ -606,6 +606,28 @@ class Options(object):
         self._usage = ""
         self._help = ""
         self.source = None
+
+    def __eq__(self, other):
+        if not isinstance(other, Options):
+            return False
+        # compare options instance
+        if len(self) != len(other):
+            return False
+
+        def _fill_value_set(opt):
+            return set([v if not opt._is_stream(v) else sys.stdin
+                        for v in opt.value])
+
+        for my_opt in self:
+            try:
+                other_opt = other[my_opt.name]
+                vs1 = _fill_value_set(my_opt)
+                vs2 = _fill_value_set(other_opt)
+                if vs1 != vs2:
+                    return False
+            except Exception:
+                False
+        return True
 
     def add_input(self, name, value=None, nargs=None, hidden=True, **kwargs):
         """Add additional, hidden, input option. The default

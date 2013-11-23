@@ -53,7 +53,7 @@ class BWAPipelineTest(unittest.TestCase):
         # create a new pipeline node and configure id
         p.run(tool, input=["setup.py", "README.rst"],
               reference="Makefile",
-              output="out.txt")
+              output="${input|ext}_out.txt")
 
         # expand the pipeline such that the internal pipeline is resolved
         # this will also validate all nodes and raise an exception
@@ -61,12 +61,12 @@ class BWAPipelineTest(unittest.TestCase):
         p.expand()
 
         # after expansion with this setuo, the pipeline should have 7 nodes
-        assert len(p) == 14
+        assert len(p) == 13
         # the graph should consist of 6 edges
         assert len(p.edges) == 12
         # get out the nodes. we have to use indexes here
         # because the names might have changed after expansion
-        ref = p.get("ref.0")
+        ref = p.get("ref")
         align = p.get("align.0")
         sam = p.get("sam.0")
         bam = p.get("bam.0")
@@ -83,7 +83,7 @@ class BWAPipelineTest(unittest.TestCase):
         assert pileup.has_incoming(index)
         assert not pileup.has_outgoing()
         # test second set
-        ref = p.get("ref.1")
+        ref = p.get("ref")
         align = p.get("align.1")
         sam = p.get("sam.1")
         bam = p.get("bam.1")

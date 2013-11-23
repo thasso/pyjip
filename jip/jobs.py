@@ -685,6 +685,7 @@ def from_node(node, env=None, keep=False):
     if job.name is None:
         job.name = node._tool.name
         node._job.name = job.name
+    log.debug("Creating node %s", job.name)
 
     # get current user
     job.user = getpass.getuser()
@@ -795,12 +796,13 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
 
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
-    log.debug("Creating job environment")
+    log.debug("Creating job environment for %d nodes", len(pipeline))
     env = create_job_env()
     nodes2jobs = {}
     jobs = []
-    for node in pipeline.topological_order():
-        log.debug("Creating job for %s", node)
+    num_nodes = len(pipeline)
+    for i, node in enumerate(pipeline.topological_order()):
+        log.debug("Creating job for %s (%d/%d)", node, i + 1, num_nodes)
         ## first create jobs
         job = from_node(node, env=env, keep=keep)
         log.debug("Created job %s", job)
@@ -845,7 +847,7 @@ def check_output_files(jobs):
         for of in job.tool.get_output_files():
             if of in outputs:
                 raise jip.tools.ValidationError(
-                    job.tool,
+                    job,
                     "Output file duplication: %s\n\n"
                     "During validation an output file name was found\n"
                     "twice! This means there are at least two jobs that\n"

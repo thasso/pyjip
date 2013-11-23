@@ -217,6 +217,8 @@ class Pipeline(object):
         if isinstance(tool, Node):
             n = tool
             self._nodes[n._tool] = n
+            n._graph = self
+            n._job._pipeline = self
             n._node_index = self._node_index
             self._node_index += 1
             name = n._tool.name
@@ -774,6 +776,36 @@ class Pipeline(object):
                                     sub_node._tool.options[po['option'].name],
                                     stream
                                 )
+
+            # detect duplicates and try to merge them
+            dup_candidates = []
+            sorted_nodes = sorted(self.nodes(), key=lambda x: x._node_index)
+            for n1 in sorted_nodes:
+                for n2 in sorted_nodes:
+                    if n1 != n2 and n1._tool._name == n2._tool._name:
+                        # same tool
+                        # compare options
+                        if n1._tool.options == n2._tool.options:
+                            dup_candidates.append((n1, n2))
+            if dup_candidates:
+                log.debug("Expand | Found duplicated nodes: %s",
+                          dup_candidates)
+                for n1, n2 in dup_candidates:
+                    log.debug("Expand | Merging nodes: %s %s", n1, n2)
+                    try:
+                        n1 = self.get(n1.name)
+                        n2 = self.get(n2.name)
+                        n1._edges.update(n2._edges)
+                        for e in n2._edges:
+                            if e._source == n2:
+                                e._source = n1
+                            else:
+                                e._target = n1
+                        n2._edges.clear()
+                        self.remove(n2)
+                        self._apply_node_name(n1, n1._name)
+                    except:
+                        continue
 
             # non-silent validation for pipeline node to
             # make sure the node WAS valid, otherwise the node
@@ -1361,7 +1393,8 @@ class Node(object):
                                append=append)
 
     def __setattr__(self, name, value):
-        if name in ["_job", "_index", "_pipeline", "_node_index", "_name"]:
+        if name in ["_job", "_index", "_pipeline",
+                    "_node_index", "_name", "_graph"]:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

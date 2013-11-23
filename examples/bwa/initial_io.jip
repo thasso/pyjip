@@ -14,7 +14,7 @@
 out = r("${output|ext}")
 
 ref = job().bash('bwa index ${reference}', outfile='${reference}.bwt')
-align = job().bash('bwa aln -I -t 8 ${ref|ext} ${_ctx.input}') > "${out}.sai"
+align = bash('bwa aln -I -t 8 ${ref|ext} ${_ctx.input}') > "${out}.sai"
 sam = bash('bwa samse ${reference} ${align} ${_ctx.input}') > '${out}.sam'
 bam = bash('samtools view -bSu ${sam} | samtools sort - ${outfile|ext}', outfile='${out}.sorted.bam')
 dups = bash('''
