@@ -412,6 +412,9 @@ a:hover tt {
 
 @media screen and (max-width: 870px) {
 
+    #forkme{
+        display: none;
+    }
     div.sphinxsidebar {
         display: none;
     }
