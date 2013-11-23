@@ -214,7 +214,17 @@ class Pipeline(object):
         :returns: the new node
         :rtype: :class:`Node`
         """
-        if not tool in self._nodes:
+        if isinstance(tool, Node):
+            n = tool
+            self._nodes[n._tool] = n
+            n._node_index = self._node_index
+            self._node_index += 1
+            name = n._tool.name
+            if n._job.name:
+                name = n._job.name
+            self._apply_node_name(n, name)
+            return n
+        elif not tool in self._nodes:
             n = Node(tool, self)
             # set the job
             job = _job() if _job else self._current_job()
@@ -712,7 +722,8 @@ class Pipeline(object):
             no_outgoing = [n for n in sub_pipe.nodes()
                            if len(list(n.outgoing())) == 0]
             # add the sub_pipe
-            self._nodes.update(sub_pipe._nodes)
+            for sub_node in sub_pipe.nodes():
+                self.add(sub_node)
             self._edges = self._edges.union(sub_pipe._edges)
 
             for inedge in node.incoming():

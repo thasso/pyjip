@@ -899,7 +899,6 @@ class PythonBlock(Block):
                 if v._job.name is None:
                     v._job.name = k
                     # reset index
-                    v._index = 0
         log.debug("Block: block for: %s executed", tool)
         return env
 
