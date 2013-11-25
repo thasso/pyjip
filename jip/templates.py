@@ -17,6 +17,9 @@ from jip.options import Option
 # if they do not exists in the local context
 global_context = None
 
+#: the jinja2 environment
+environment = None
+
 log = getLogger('jip.templates')
 
 
@@ -248,18 +251,35 @@ def ext_filter(ctx, value, splitter='.'):
     except:
         return value
 
-# global environment
-environment = Environment(undefined=JipUndefined,
-                          variable_start_string="${",
-                          variable_end_string="}")
-environment.filters['arg'] = arg_filter
-environment.filters['else'] = else_filter
-environment.filters['name'] = name_filter
-environment.filters['ext'] = ext_filter
-environment.filters['suf'] = suf_filter
-environment.filters['pre'] = pre_filter
-environment.filters['parent'] = parent_filter
-environment.filters['re'] = replace_filter
+
+def _get_environment():
+    """Get the Jinja2 environment
+
+    :returns: the jinja2 environment
+    """
+    global environment
+    if environment is None:
+        import jip
+        cfg = jip.config.templates
+        # global environment
+        environment = Environment(undefined=JipUndefined,
+                                  variable_start_string=cfg.get(
+                                      'variable_open',
+                                      '${'
+                                  ),
+                                  variable_end_string=cfg.get(
+                                      'variable_close',
+                                      '}'
+                                  ))
+        environment.filters['arg'] = arg_filter
+        environment.filters['else'] = else_filter
+        environment.filters['name'] = name_filter
+        environment.filters['ext'] = ext_filter
+        environment.filters['suf'] = suf_filter
+        environment.filters['pre'] = pre_filter
+        environment.filters['parent'] = parent_filter
+        environment.filters['re'] = replace_filter
+    return environment
 
 
 def render_values(options, ctx):
@@ -292,7 +312,7 @@ def render_template(template, **kwargs):
     """
     if template is None or not isinstance(template, basestring):
         return template
-    tmpl = environment.from_string(template)
+    tmpl = _get_environment().from_string(template)
     ctx = dict(kwargs)
     if global_context is not None:
         for k, v in global_context.iteritems():

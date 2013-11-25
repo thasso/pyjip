@@ -35,6 +35,10 @@ _configuration = {
     "profiles": {
         "default": {}
     },
+    "templates": {
+        "variable_open": "${",
+        "variable_close": "}",
+    },
     "cluster": None
 }
 
