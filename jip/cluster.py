@@ -431,8 +431,8 @@ class SGE(Cluster):
                                       "threaded jobs in your configuration "
                                       "or specify the environment explicitly "
                                       "(-E, --environment)")
-            env = job.environment if job.environment else self.threds_pe
-            slots = job.tasks if job.tasks > 0 else job.threads
+            env = job.environment if job.environment else self.threads_pe
+            slots = job.tasks if job.tasks > 1 else job.threads
             cmd.extend(["-pe", env, str(slots)])
         if job.priority:
             cmd.extend(["-p", str(job.priority)])
