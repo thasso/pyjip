@@ -409,6 +409,13 @@ a:hover tt {
     padding-top: 10px;
 }
 
+div.body p.caption{
+    font-size: 0.9em;
+    text-align: justify;
+    border-top: 1px solid #999;
+    border-bottom: 1px solid #999;
+}
+
 
 @media screen and (max-width: 870px) {
 

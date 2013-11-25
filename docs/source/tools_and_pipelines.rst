@@ -51,8 +51,9 @@ The simplest for of a tool consist of the following parts:
         validation blocks have to be implemented in `python` and there is
         currently no way to change the interpreter for those blocks.
 
-JIP currently supports two ways to implement tools and pipelines. JIP `scripts
-<jip_tool_scripts>` and python `modules with decorators <jip_tool_modules>`.
+JIP currently supports two ways to implement tools and pipelines. JIP
+:ref:`scripts <jip_tool_scripts>` and python :ref:`modules with decorators
+<jip_tool_modules>`.
 
 .. _jip_tool_scripts:
 
@@ -83,30 +84,55 @@ Documentation, help, and options
 ********************************
 An essential part of any script, independent of the context, is documentation
 and command line options. Unfortunately, this is often neglected and you end
-up with a set of script files that you understand while you write them and use
+up with a set of script files that you understand while you write and use
 them first, but if you have to come back to those *things* after some time,
 you are often lost. The easiest way is to try to document both your script
-and the command line options it takes in a meaningful way. 
+and the command line options it takes in a meaningful way. The downside
+of this is that your initially small script that consists of just a few lines
+of code get filled with a lot of code responsible for parsing your command line
+options.
 
-Now, for the JIP system to work, we have to collect at least a little bit of 
-information about the tools and pipelines you want to run. Most essentially
-the set of options exposed by a tool. We decided to use a slightly modified
-version of the `docopt <http://docopt.org>`_ library and force you to write
-documentation, at least for you options. It might sound harsh and it is a
-hard constrain, but in order to write reusable tools, you have to provide
-some sort of definition of your tools options anyways. It turns out, writing
-options is rather straight forward, you get documentation for your tools and
-the JIP system can extract the information about your tools options. That said,
-writing documentation and option blocks is easy and looks like the following::
+The *docopt* library tries to tackle the problem and is able to parse option
+definitions that are given in a *POSIX* compliant way. JIP makes heavy use
+of this library and allows you to specify the option definition in a *POSIX*
+style way and then extract the available meta-information. Here is one of the
+most simple scripts you can write::
+
+    #!/usr/bin/env jip
+    # Send greetings
+    #
+    # usage:
+    #   greeting <name>
+
+    echo "Hello ${name}"
+
+Make the script executable, ``chmod +x greetings.jip`` and run it::
+
+    $> ./greetings.jip Joe
+    Hello Joe
+
+You can see that you have access to the parsed options directly in your script.
+In additions, the ``-h|--help`` options is in place and will print the 
+documentation.
+
+We decided to use a slightly modified version of the `docopt
+<http://docopt.org>`_ library and force you to write documentation, at least
+for your options. It might sound harsh and it is a hard constrain, but in order
+to write reusable tools, you have to provide some sort of definition of your
+tools options anyways. It turns out, writing options is rather straight
+forward, you get documentation for your tools and the JIP system can extract
+the information about your tools options. Here is a little bit larger example
+where we actually define different kinds of options::
+
 
     #!/usr/bin/env jip
     # Wow, accessing arguments without parsing them is greate!
     #
     # Usage:
-    #     my_tool -i <input> [-o <output>] [-b] 
+    #     my_tool -i <input>... [-o <output>] [-b] 
     #
     # Inputs:
-    #     -i, --input <input>    The input file
+    #     -i, --input <input>    List of input files
     # 
     # Outputs:
     #     -o, --output <output>  The output file
@@ -119,6 +145,78 @@ writing documentation and option blocks is easy and looks like the following::
     echo "OUTPUT: ${output}"
     echo "BOOLEAN? ${boolean|arg("yes")|else("no")}"
 
+A single JIP tools always has a set of options (see 
+:class:`~jip.options.Options` for the underlying API). The options are divided 
+into three groups:
+
+    ``Inputs``
+        Input options usually are options that take a file or a list of files.
+        These files, if specified, have to be present at execution time.
+
+    ``Outputs``
+        Output options are all options that define files that are created by
+        a tool run. These are of particular importance when it comes to
+        job failures and cleanups. In addition, you might not always be able
+        to expose all your outputs through the command line interfaces. 
+        For example, your tool might just take a prefix and then create a
+        set of files based on the specified prefix. These cases can be
+        handled using :ref:`dynamic options <dynamic_options>`.
+
+    ``Options``
+        All options that are not ``Inputs`` or ``Outputs`` fall into this 
+        group.
+
+.. note:: Note that you have to indicate the ability of a tool to read form 
+          ``stdin`` or write to ``stdout`` explicitly. For this, set the 
+          options default value to ``stdin`` or ``stdout`` respectively.
+
+When options are used to build pipelines, it is important to indicate a tools
+default input and output options. This is done using the definition order. In
+case you have more than one input or output option, the first one in the list
+is marked as the default input/output. Options that accept streams always take
+precedence and are always defined as the default options for input or output.
+       
+
+Execution blocks
+****************
+JIP script must contain exactly one, non-empty, execution block. There are 
+two types of execution blocks:
+
+    command blocks (``#%begin command [<interpreter>]``)
+        Command blocks execute their block content with a specified 
+        interpreter. The block content is a JIP template and you have 
+        access to the full context. The command block takes a single
+        argument, which defines the interpreter that will be used to run
+        the blocks content. The default interpreter is *bash*.
+
+    pipeline block (``#%begin pipeline``)
+        Pipeline blocks are written in *python* and allow you to define a
+        pipeline graph that will then be expanded and executed.
+
+All execution blocks can be explicitly opened with ``#%begin command`` or
+``#%begin pipeline`` and can be closed by ``#%end``. If no block is opened
+explicitly, a *bash* command block is created implicitly.
+
+
+Validation blocks
+*****************
+In addition to the command execution or pipeline definition, a script can
+contain a single ``validate`` block::
+
+    #%begin validate
+    # check a file
+    check_file('input')
+    
+    import datetime
+    day = datetime.date.today().strftime("%A")
+    if day == 'Monday':
+        validation_error("I don't like Mondays")
+    #%end
+
+All validation blocks are written in *python* and the :ref:`context 
+<python_context>` exposes a set of helper functions to perform checks on files
+and raise arbitrary validation errors. See :ref:`Validation <validation>` for
+more about tool validation.
 
 
 .. _jip_tool_modules:
@@ -225,7 +323,9 @@ for your tool. This can be handy in various circumstances, but keep in mind
 that the idea is **not** to do the tools job while validating it. Keep your
 validation methods small and fast so speed up pipeline generation.
 
-Now, within your validation block, you are allowed to modify the tool options as
+.. _dynamic_options:
+
+Within your validation block, you are allowed to modify the tool options as
 well. One common pattern is to add additional `hidden` output options. Assume
 for example you have a simple tool that take a prefix parameter and a count
 and then created a number of files::
@@ -277,12 +377,11 @@ In fact, now that we have the options specified, we can also use it in the
 only one place where the names of the output files are generated. That means
 only one place where we have to look for bugs or change things.
 
-.. note:: You can use the validtion block for pre-processing, but keep in mind
+.. note:: You can use the validation block for pre-processing, but keep in mind
           that the validation block will be called **more than once**. That
           means you have to be careful to implement your pre-processing in a 
-          way that it can be executed miltiple times and s not tool time 
+          way that it can be executed multiple times and is not too time 
           consuming.
-
 
 .. _decorators:
 
@@ -435,25 +534,108 @@ pipeline :py:class:`~jip.pipelines.Node` instances:
         The *left shift* operator creates a dependency between the left side
         and the right side, making the **right side executed before** the left
         side.
-        
+    ``+``
+        The *plus* operator creates a group of jobs. All operations on the 
+        group node are now delegated to all members of the group.        
+    ``-``
+        The *minus* operator creates a group of sequentially executed jobs that
+        are send as a single job to the compute cluster.
 
 .. _tool_io:
 
 Inputs, Outputs, and Options
 ----------------------------
 
-.. _dynamic_options:
-
 .. _stream_dispatching:
 
 The stream dispatcher
 ---------------------
+If your *tool* implementation can handle streamed input and output, the JIP 
+pipeline system allows dynamic stream dispatching. 
+
+.. figure:: _static/stream_dispatch.png
+
+    Dispatch the output of the ``Producer`` to two ``Consumers`` and an output
+    file. All three nodes on the right side will receive the same content. This
+    will also wrap all jobs into a single job group that is executed in 
+    parallel.
+
+The dispatcher will automatically delegate content from a *producer* node to
+a number of *consumers*. A valid consumer is either a *file* or another tool
+that accepts input form the ``stdin`` stream. This allows you to construct 
+parallel running pipelines very similar to what you can do with the bash 
+``tee`` command. For example::
+
+    $> echo "Hello World" | (tee > producer_out.txt | (tee >(wc -w) | wc -l))
+
+Here, the ``echo`` command is the *producer* whose output is piped to the
+``producer_out.txt`` file as well as to a word and a line count. 
+
+To build the same pipeline in JIP, you have a couple of options. We can
+start with a rough, one-to-one translation::
+    
+    #!/usr/bin/env jip
+    #%begin pipeline
+    (bash('echo "Hello World"') > 'producer_out.txt') | (bash('wc -l') + bash('wc -w'))
+
+This gives the same result. Try to run in and push it through a *dry* run (use
+``jip run --dry`` or ``./myscript.jip -- --dry``) to see the pipeline 
+structure. The hierarchy contains all three jobs, but only a single job will be
+send and executed on your compute cluster. In this example, we use the 
+pipeline :ref:`node operators <pipeline_operators>` to delegate the output
+from our *producer* to the output file and then further to a *group* of
+two jobs that to the word and line counts. A variation of the example above
+would be to explicitly specify the producers output::
+
+    bash('echo "Hello World"'), output='producer_out.txt') | (bash('wc -l') + bash('wc -w'))
+
+Both variations are similar in nature and do the job. But, both of them do 
+not necessarily improve readability or maintainability of the script. They do
+the job, but you might not consider the script *nice*.
+
+An alternative implementation of the same pipeline might look like this::
+
+    #!/usr/bin/env jip
+    #%begin pipeline
+    producer = bash('echo "Hello World"', output='producer_out.txt')
+    word_count = bash("wc -w", input=producer)
+    line_count = bash("wc -l", input=producer)
+    producer | (word_count + line_count)
+
+Granted, this is no longer a single line. But the goal is also not to use the
+least number of keystrokes (if your are interested in that, start playing 
+`vimgolf <http://vimgolf.com/>`_). 
+
+The script above allows more flexibility and you will be able to update
+the pipeline faster. The key line with respect to the streaming dispatcher is
+the last line of the script. This line enables the stream dispatching. If
+you remove it, your pipeline will still work, but the producer and the consumer
+jobs will no longer run in parallel. Without the last line, first the producer
+will be executed and it's output will be written to `producer_out.txt`. Then
+the two consumer jobs will execute (potentially in parallel) and operate on the
+output file. If you decide you don't need the `producer_out.txt` file, you
+can simply remove it from the producer definition. In that case you will end up
+again with a pipeline structure that executes a single job and all data is
+streamed. In this case you don't even need the last line, the streaming
+dependency is implicit.
+
+.. note:: Another nice feature of the last version of the pipeline is that
+          *auto-naming* kicks in and your pipeline jobs will be named according
+          to the variable names you used in your script::
+
+                ####################
+                |  Job hierarchy   |
+                ####################
+                producer
+                ├─word_count
+                └─line_count
+                ####################
 
 
 .. _templates:
 
-The JIP template system
------------------------
+The Template system
+===================
 JIP uses `jinja2 <http://jinja.pocoo.org/docs/>`_ as template
 system, and all jip scripts are passed through the jinja2 engine. There are
 just a few things we changed and added to the context. Most importantly, we use
@@ -466,7 +648,7 @@ bash environment variables without any problems.
 .. _template_filters:
 
 Template Filters
-^^^^^^^^^^^^^^^^
+----------------
 Template filters can be a very powerful tool to simplify processing users
 input and reduce the number of ``if/else`` statements in templates.
 For example:
@@ -646,7 +828,7 @@ that demonstrates the usage of the filters::
 .. _python_context:
 
 The script context
-^^^^^^^^^^^^^^^^^^
+------------------
 Within a jip script, within template blocks, and in python blocks like
 *validate* or *pipeline*, a set of functions is exposed to simplify
 certain tasks that have to be done quiet often, for example, checking for the

@@ -2,7 +2,8 @@
 """
 The JIP job runner that executes a jip scrip on the local machine
 
-usage: jip-run [-h] [-p] [-f] [-k] [-s <spec>] [-C <threads>][--dry] [--show]
+usage: jip-run [-h] [-p] [-f] [-k] [-s <spec>] [-C <threads>]
+               [--status] [--dry] [--show]
                <tool> [<args>...]
 
 Options:
@@ -16,6 +17,7 @@ Options:
   -s, --spec <spec>        Load a pipeline/jobs specification
   --show                   show the rendered script rather than running it
   --dry                    show the configuration of the script/pipeline
+  --status                 print status information to stderr
   <tool>                   the tool that will be executed
   <args>                   optional script argument
 
@@ -54,7 +56,8 @@ def main(argv=None):
             spec = json.load(of)
 
     try:
-        run(script, script_args, keep=args['--keep'], silent=False,
+        run(script, script_args, keep=args['--keep'],
+            silent=not args['--status'],
             force=args['--force'], threads=args['--threads'],
             spec=spec)
     except jip.ValidationError as va:

@@ -1,0 +1,23 @@
+#!/usr/bin/env jip
+# Wow, accessing arguments without parsing them is greate!
+#
+# Usage:
+#     my_tool -i <input> [-o <output>] [-b] 
+#
+# Inputs:
+#     -i, --input <input>    The input file
+# 
+# Outputs:
+#     -o, --output <output>  The output file
+#                            [default: stdout]
+#
+# Options:
+#     -b, --boolean          A boolean flag
+
+
+echo "INPUT: ${input}"
+echo "OUTPUT: ${output}"
+echo "BOOLEAN? ${boolean|arg("yes")|else("no")}"
+
+
+

@@ -1,0 +1,30 @@
+#!/usr/bin/env jip
+# Run an example dispatcher pipeline that consists of a single *producer*
+# whose output is written to two *consumers* and an output file
+#
+#%begin pipeline
+#
+#
+# This is a very simple one-liner implementation
+#(bash('echo "Hello World"') > 'producer_out.txt') | (bash('wc -l') + bash('wc -w'))
+#
+#
+#
+# Here is the sample one-liner but instead of the > operator, we 
+# assign the output directly
+#bash('echo "Hello World"', output='producer_out.txt') | (bash('wc -l') + bash('wc -w'))
+#
+#
+#
+# An alternative, longer, but maybe easier to maintain way
+# to implement the pipeline is to first define the jobs with their
+# inputs and output and then, in the last line, enforce streaming between
+# the *producer* and the *consumers*. This way, you can easily disable
+# streaming or change the parameters of the steps. I you remove
+# the *output* parameter from the producer, streaming becomes implicit and
+# the last line is obsolete.
+producer = bash('echo "Hello World"', output='producer_out.txt')
+word_count = bash("wc -w", input=producer)
+line_count = bash("wc -l", input=producer)
+producer | (word_count + line_count)
+

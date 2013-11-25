@@ -266,6 +266,12 @@ the pipeline options itself::
 
 The *shebang* is set to ``/usr/bin/env jip -p`` which implicitly defines
 a pipeline, so we can skip the explicit ``#%begin pipeline`` block definition.
+
+.. note:: On some systems, passing arguments to the interpreter when using 
+          ``/usr/bin/env`` does not seem to work. If you encounter a problem,
+          do not use the ``-p`` option but keep the explicit 
+          ``#%begin pipeline`` block.
+
 Next, we give a short description, not mandatory, but probably a good
 idea. The description is followed by the parameter definitions. The interesting
 part here is that we split the options into ``Inputs`` and ``Outputs``,
