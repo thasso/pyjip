@@ -8,6 +8,17 @@ Tools and Pipelines
 Tools
 -----
 
+.. figure:: _static/single_tool_def.png
+    :align: center
+    :alt: tool structure
+    
+    A single tool consists of the following essential parts. The tools
+    ``options`` are divided into ``Inputs``, ``Outputs``, and ``Options``.
+    The tool itself consists of an optional validation block and an execution
+    block. In addition, a tool has a ``Job`` association that covers the basic
+    execution environment.
+
+
 Scripts
 ^^^^^^^
 

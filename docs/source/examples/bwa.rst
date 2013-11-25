@@ -332,4 +332,50 @@ The rest of the pipeline uses similar features. Note that in each step, we
 manage to reference the steps dependencies at least once. This frees us from
 specifying the execution order of the pipeline.
 
+Multiplexing
+^^^^^^^^^^^^
+With our pipeline in-place, we can explore one more JIP feature that can come
+in very handy if you have to deal with multiple data sets. Try to run the BWA
+pipeline with more than one input file::
 
+    $> ./pileup.jip -i reads.txt other_reads.txt -r ref.txt -o '${input|ext}.bcf' -- --dry
+
+The dry run will render the following job hierarchy::
+
+    ####################
+    |  Job hierarchy   |
+    ####################
+    ref
+    ├─align.0
+    │ └─sam.0
+    │   └─bam.0
+    │     └─dups.0
+    │       └─index.0
+    │         └─pileup.0
+    └─align.1
+      └─sam.1
+        └─bam.1
+          └─dups.1
+            └─index.1
+              └─pileup.1
+    ####################
+
+JIP is able to run all your tools and pipeline in a multiplexing mode where you
+can specify multiple inputs and the pipeline will replicate itself. Note two 
+important things here. First, we had to to specify the output as::
+
+    -o '${input|ext}.bcf'
+
+We could have also but a list of output names with the same length as the input
+files, but it is often easier to base the output name on the input. We can do
+this easily because we have access to the pipelines options. This we, we 
+specify the output name to be the input file name but replacing the file 
+extension with ``.bcf``. Try to run the pipeline with only a single, fixed,
+output name and JIP will complain. 
+
+In addition to the output file name, also note that only a single ``ref`` job 
+is created. The ``ref`` job takes the genomic reference file and creates an
+index. This index is then used in both runs, hence we only have to run it once
+and make it a *global* dependency for all other jobs. The detection happens
+automatically and JIP merges jobs that reference the same tool with exactly
+the same options into a single job.
