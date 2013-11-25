@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from collections import namedtuple
 import pytest
+import jip
 import jip.cluster as cl
 
 
@@ -36,4 +37,11 @@ def test_resolving_log_file_names(name, term):
     cluster = cl.get(name)
     assert cluster.resolve_log(j, "log-%s" % term) == "log-1"
 
+
+def test_sge_threads_pe_loading():
+    jip.config.config['sge'] = {
+        "threads_pe": 'threads'
+    }
+    sge = cl.SGE()
+    assert sge.threads_pe == 'threads'
 

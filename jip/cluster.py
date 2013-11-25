@@ -376,7 +376,7 @@ class SGE(Cluster):
         self.qsub = sge_cfg.get('qsub', 'qsub')
         self.qstat = sge_cfg.get('qstat', 'qstat')
         self.qdel = sge_cfg.get('qdel', 'qdel')
-        self.threads_pe = sge_cfg.get('threads_pd', None)
+        self.threads_pe = sge_cfg.get('threads_pe', None)
         self.mem_limit = sge_cfg.get('mem_limit', 'virtual_free')
         self.time_limit = sge_cfg.get('time_limit', 's_rt')
 
