@@ -33,6 +33,12 @@ system automatically. What is needed are the following libraries:
           If the command above does not raise an exception, you have sqlite
           support.
 
+The current implementation uses the job database for simple communication. That
+requires a way to lock the database file and have it in a location that is 
+accessible from all nodes in your compute cluster. The default location
+is ``$HOME/.jip/jobs.db``, but you can change the path in the JIP 
+configuration.
+
 
 Installation
 ------------

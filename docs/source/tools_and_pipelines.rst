@@ -2,11 +2,19 @@
 
 Tools and Pipelines
 ===================
+The essential part of the JIP system are *tool* and *pipelines*. Tools 
+represent the smallest unit in the system and allow you to implement 
+independent executable block. Pipeline are *directed acyclic graphs* that
+consist of a set of node representing tool executions and edges representing
+the dependencies between the executions.
 
 .. _jip_tools:
 
 Tools
 -----
+In JIP, *tools* are small executable units that carry a set of meta information
+to describe and the actual execution and its options as well as a way to 
+validate the state of an execution.
 
 .. figure:: _static/single_tool_def.png
     :align: center
@@ -18,9 +26,100 @@ Tools
     block. In addition, a tool has a ``Job`` association that covers the basic
     execution environment.
 
+The simplest for of a tool consist of the following parts:
+
+    Options
+        Options are way to express the tools input and output capabilities and
+        other options. ``Inputs`` are usually files or data streams that are
+        read by the tool. ``Outputs``, as the name suggests, cover files and
+        data streams created by a tool. Other ``Options`` can also be defined.
+
+    Execution block
+        A single tool can contain one execution block that either executes a
+        command script or that creates and returns a pipeline. Command scripts
+        are, by default, implemented in ``bash`` but you can switch the 
+        interpreter and write the command in any interpreted language. On the 
+        other hand, an execution block can also create a *pipeline* which then
+        will be incorporated into the overall execution graph.
+
+    Validation block
+        In addition to the actual execution, a *tool* implementation can
+        extend its default validation. By default, the system ensures the all
+        specified input files exists. You can add more check in the validation
+        block and you have the chance to add :ref:`dynamic options 
+        <dynamic_options>` to the tools definition. Please note that the 
+        validation blocks have to be implemented in `python` and there is
+        currently no way to change the interpreter for those blocks.
+
+JIP currently supports two ways to implement tools and pipelines. JIP `scripts
+<jip_tool_scripts>` and python `modules with decorators <jip_tool_modules>`.
+
+.. _jip_tool_scripts:
 
 Scripts
 ^^^^^^^
+One way to implement your tools and pipelines is using JIP *scripts*. The 
+system can be executed as an interpreter, hence you can start your scripts
+with ``#!/usr/bin/env jip``, make them executable and run them directly. The
+interpreter detects ``--`` in the command line and uses it to separate 
+arguments. Everything after the ``--`` is passed as an argument to the
+JIP interpreter rather than your tool.
+
+Basic JIP scripts can be used to implement both tools and pipeline and provide
+a way to define the JIP options directly in the script. A script usually 
+contains the following blocks:
+
+    Documentation, help and options
+        A jip script starts of with a documentation and help block that 
+        contains also the option definition. We use the great `docopt 
+        <http://docopt.org>`_ library to parse your option definitions. 
+
+    Blocks for validation and execution
+        You can open a block in a JIP script using ``#%begin <blocktype> 
+        <args>`` and close it with ``#%end``. Nested blocks are currently 
+        not supported. 
+
+Documentation, help, and options
+********************************
+An essential part of any script, independent of the context, is documentation
+and command line options. Unfortunately, this is often neglected and you end
+up with a set of script files that you understand while you write them and use
+them first, but if you have to come back to those *things* after some time,
+you are often lost. The easiest way is to try to document both your script
+and the command line options it takes in a meaningful way. 
+
+Now, for the JIP system to work, we have to collect at least a little bit of 
+information about the tools and pipelines you want to run. Most essentially
+the set of options exposed by a tool. We decided to use a slightly modified
+version of the `docopt <http://docopt.org>`_ library and force you to write
+documentation, at least for you options. It might sound harsh and it is a
+hard constrain, but in order to write reusable tools, you have to provide
+some sort of definition of your tools options anyways. It turns out, writing
+options is rather straight forward, you get documentation for your tools and
+the JIP system can extract the information about your tools options. That said,
+writing documentation and option blocks is easy and looks like the following::
+
+    #!/usr/bin/env jip
+    # Wow, accessing arguments without parsing them is greate!
+    #
+    # Usage:
+    #     my_tool -i <input> [-o <output>] [-b] 
+    #
+    # Inputs:
+    #     -i, --input <input>    The input file
+    # 
+    # Outputs:
+    #     -o, --output <output>  The output file
+    #                            [default: stdout]
+    #
+    # Options:
+    #     -b, --boolean          A boolean flag
+
+    echo "INPUT: ${input}"
+    echo "OUTPUT: ${output}"
+    echo "BOOLEAN? ${boolean|arg("yes")|else("no")}"
+
+
 
 .. _jip_tool_modules:
 
@@ -342,6 +441,8 @@ pipeline :py:class:`~jip.pipelines.Node` instances:
 
 Inputs, Outputs, and Options
 ----------------------------
+
+.. _dynamic_options:
 
 .. _stream_dispatching:
 
