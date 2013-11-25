@@ -16,9 +16,7 @@ class BWAPipelineTest(unittest.TestCase):
         p.run(tool, input="setup.py", reference="Makefile", output="out.txt")
 
         # expand the pipeline such that the internal pipeline is resolved
-        # this will also validate all nodes and raise an exception
-        # if one of the nodes validations failed
-        p.expand()
+        p.expand(validate=False)
 
         # after expansion with this setuo, the pipeline should have 7 nodes
         assert len(p) == 7
@@ -58,7 +56,7 @@ class BWAPipelineTest(unittest.TestCase):
         # expand the pipeline such that the internal pipeline is resolved
         # this will also validate all nodes and raise an exception
         # if one of the nodes validations failed
-        p.expand()
+        p.expand(validate=False)
 
         # after expansion with this setuo, the pipeline should have 7 nodes
         assert len(p) == 13
