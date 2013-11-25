@@ -189,7 +189,7 @@ create two dummy files we need to demonstrate what happens::
 
     $> chmod +x pileup.jip
     $> touch reads.txt
-    $> toucn ref.txt
+    $> touch ref.txt
 
 Now take a look at the new pipeline. First, examine your options::
 
