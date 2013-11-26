@@ -320,4 +320,6 @@ def render_template(template, **kwargs):
                 ctx[k] = v
     # expose the global context
     ctx['_ctx'] = global_context
+    if 'self' in ctx:
+        del ctx['self']
     return tmpl.render(**ctx)

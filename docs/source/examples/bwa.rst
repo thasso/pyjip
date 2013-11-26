@@ -385,3 +385,214 @@ index. This index is then used in both runs, hence we only have to run it once
 and make it a *global* dependency for all other jobs. The detection happens
 automatically and JIP merges jobs that reference the same tool with exactly
 the same options into a single job.
+
+
+Python module implementation
+----------------------------
+An alternative approach to a script, or a set of scripts, is to implement
+*tools* and *pipeline* as python modules. It again depends on the use case
+if you prefer to implement your tool as a script or as a python module. 
+Modules tend to make it easier to organize a set of tools and pipelines and
+allow you a little bit more flexibility with respect to how you define 
+for example your options.
+Here, we go once more through the *BWA* pipeline, but this time we separate
+out the individual *tools* involved in the pipeline and make them reusable
+components collected in a single python module *pileup.py*.
+
+Lets start with the first step of the pipeline. The indexing of the genomic 
+reference.
+
+.. code-block:: python
+
+    from jip import *
+
+    @tool('bwa_index')
+    class BwaIndex():
+        """\
+        Run the BWA indexer on a given reference genome
+
+        Usage:
+            bwa_index -r <reference>
+
+        Inputs:
+            -r, --reference  The reference
+        """
+        def validate(self):
+            self.add_output('output', "%s.bwt" % self.reference)
+
+        def get_command(self):
+            return 'bwa index ${reference}'
+
+The initial indexing step is already a little bit more sophisticated. We use
+the ``@tool()`` :ref:`decorator <decorators>` on a custom python class 
+``BwaIndex``. In this example, we specify the name parameter of the tool 
+decorator and call our new tool *bwa_index*. The :py:class:`@tool() 
+<jip.tools.tool>` decorator on a class expects to find an implementation of the 
+:py:meth:`~jip.tools.Tool.get_command` function with no additional 
+arguments. In this case, the function simply returns a template string that
+will be executed using the *bash* interpreter. We use the class doc-string
+to document our tool and specify the options. These options can then be 
+referenced in the command template (here we access the ``reference`` option). 
+
+The reason why we choose the class approach over a simple function is that the
+*BWA* indexer creates a file with the same name than the input file and the
+additional ``.bwt`` extension. This is the tools *output*, but it has to be
+:ref:`dynamically generated <dynamic_options>` based on the given input. This
+is what we implement in the ``validate`` function. There is no need to check 
+any additional options, all ``inputs`` are automatically validated, but we need
+to add the ``output`` option. We can do this easily with the :ref:`injected
+function <injected_functions>`: :py:meth:`~jip.options.Options.add_output`.
+
+Assuming you saved the tool implementation in a file ``pileup.py``, you can
+run the tool directly from the command line::
+
+    $> JIP_MODULES=pileup.py jip run --dry --show bwa_index -r reference.fa
+
+Note that we have to set the :envvar:`JIP_MODULES` explicitly, otherwise the 
+tool will not be found by the system. You can however set a global 
+``jip_modules`` setting in your :ref:`configuration <jip_configuration>`.
+
+Next up is the ``bwa_align`` step. We implement the *tool* again 
+using the ``@tool()`` decorator, but this time on a function:
+
+.. code-block:: python
+
+    @tool(inputs=['input', 'reference'])
+    def bwa_align(object):
+        """\
+        Call the BWA aligner
+
+        usage:
+            bwa_align -r <reference> -i <input> [-o <output>]
+
+        Options:
+            -r, --reference <reference>  The genomic reference file. This has to
+                                         be indexed already and the index must be
+                                         found next to the given .fa fasta file
+            -i, --input <input>          The input reads
+            -o, --output <output>        The output file
+                                         [default: stdout]
+        """
+        return 'bwa aln -I -t 8 ${reference} ${input} ${output|arg(">")}'
+
+The function returns a template and withing the template, we can access all
+the options. The function name, ``bwa_align`` will be used as tool name, so 
+we do not have to add the name parameter, but, because we did not split the
+options definition into ``Inputs``, ``Outputs``, and ``Options``, we have to
+use the ``input=`` parameter on the decorator to specify that both, the 
+``input`` and the ``reference`` option should be treated as input options. 
+This enables automatic file validation on both options and we do not have to 
+implement a custom validation function to check the ``reference``. 
+
+.. note:: If no explicit ``Inputs`` and ``Outputs`` are defined, options
+          named ``input`` or ``output`` are detected automatically. This works
+          only if **no** IO option is specified explicitly. That is the reason
+          why we specify both the ``input`` and the ``reference`` options as
+          input options in the decorator.
+
+What if you want to access the options or other tool attributes outside
+of the template? Maybe you want to implement some custom logic. 
+The solution is to add a function parameter to your implementation that will be
+set to the current tool instance. For example, say we want to implement the bwa
+to sam conversion step in a more flexible way and add a ``--paired`` option
+that will change how the converter is called. Here is a possible
+implementation:
+
+.. code-block:: python
+
+    @tool(inputs=['input', 'alignment', 'reference'])
+    def bwa_sam(tool):
+        """\
+        Convert output of the BWA aligner to SAM
+
+        usage:
+            bwa_sam [-p] -r <reference> -i <input> -a <alignment> [-o <output>]
+
+        Options:
+            -r, --reference <reference>  The genomic reference index
+            -a, --alignment <alignment>  The BWA alignment
+            -i, --input <input>          The input reads
+            -o, --output <output>        The output file
+                                         [default: stdout]
+            -p, --paired                 Paired-end reads
+        """
+        if tool.paired:
+            return 'bwa sampe ${reference|ext} ${alignment} ${input} ${output|arg(">")}'
+        else:
+            return 'bwa samse ${reference|ext} ${alignment} ${input} ${output|arg(">")}'
+
+As you can see, the tool instance is injected into your function as a 
+parameter. You can use it to access the same functions and properties that 
+are :ref:`injected <injected_functions>` if you use the class based approach.
+
+.. note:: Note that in this particular example, there is also an alternative 
+          approach to solve the problem and avoid an explicit if/else block.
+          You could make use of the ``arg`` and ``else`` :ref:`template 
+          filters <template_filters>` and add this to your template::
+          
+               ${paired|arg("sampe")|else("samse")} 
+
+          This will have the same effect: in case ``paired`` is set, ``sampe``
+          will be rendered, otherwise it will fall back to ``samse``.
+
+In order to create a complete example, we have to implement all the steps
+of the pipeline in a similar way. The `JIP repository contains a full
+example <https://github.com/thasso/pyjip/blob/develop/examples/bwa/pileup.py>`_
+with implementation for all the tools and a few more trick. Now lets take 
+a quick look at how we can implement the pipeline itself in a python module:
+
+.. code-block:: python
+
+    @pipeline('pileup')
+    class PileupPipeline(object):
+        """\
+        Run BWA and samtools to align reads and create a pileup
+
+        usage:
+            pileup -r <reference> -i <input> -o <output>
+
+        Options:
+            -r, --reference <reference>  The genomic reference file. This has to
+                                        be indexed already and the index must be
+                                        found next to the given .fa fasta file
+            -i, --input <input>          The input reads
+            -o, --output <output>        The output file
+
+        """
+
+        def pipeline(self):
+            out = self.output
+            p = Pipeline()
+            ref = p.run('bwa_index', reference=self.reference)
+            align = p.run('bwa_align', input=self.input,
+                          reference=ref, output="${out}.sai")
+            sam = p.run('bwa_sam', input=self.input,
+                        reference=ref,
+                        alignment=align,
+                        output="${out}.sam")
+            bam = p.run('sam2bam', input=sam, output="${out}.bam")
+            dups = p.run('duplicates', input=bam, output="${out}.dedup.bam")
+            index = p.run('bam_index', input=dups)
+            pile = p.run('mpileup', input=index, reference="${ref|ext}", output=out)
+            p.context(locals())
+            return p
+
+The implementation of a pipeline works exactly the same way as the 
+implementation of a tool. The differences are that we use the ``@pipeline`` 
+decorator and that, for a class based implementation like this one, we 
+implement the :py:meth:`~jip.tools.Tool.pipeline` function that returns a new
+:py:class:`~jip.pipelines.Pipeline` instance. The implementation of the 
+pipeline works in the same way as in the script implementation, but we do
+not have direct access to the ``run`` functions. Instead, we have to call
+the ``run`` function on the pipeline instance. 
+
+The other difference is that the current local context is not available 
+automatically for template rendering. To enable access to the current local
+context we call ``p.context(locals())`` just before we return the pipeline. 
+This allows us to use for example, our local ``out`` variable in templates.
+
+This pipeline can now be executed::
+
+    $>JIP_MODULES=pileup.py jip run --dry pileup -i reads.txt -r ref.txt -o out.txt
+
+

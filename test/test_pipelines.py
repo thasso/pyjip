@@ -196,7 +196,7 @@ def test_expand_single_node():
     p = Pipeline()
     node = p.add(tool)
     node.input = ["test_1.txt", "test_2.txt"]
-    p.expand()
+    p.expand(validate=False)
     assert len(p._nodes) == 2
     assert len(p._edges) == 0
     inputs = []
@@ -215,7 +215,7 @@ def test_expand_two_nodes_both_fan_out():
     node_2.input = node_1.output
     assert len(p._nodes) == 2
     assert len(p._edges) == 1
-    p.expand()
+    p.expand(validate=False)
     assert len(p._nodes) == 4
     assert len(p._edges) == 2
 
@@ -236,7 +236,7 @@ def test_expand_three_nodes_two_fan_out():
 
     assert len(p._nodes) == 3
     assert len(p._edges) == 2
-    p.expand()
+    p.expand(validate=False)
     assert len(p._nodes) == 5
     assert len(p._edges) == 6
 
@@ -736,6 +736,7 @@ class joined_pipeline(object):
         args = self.options.to_dict()
         p = jip.Pipeline()
         p.name("Joined")
+        print ">>>>SET", args['inter'], args['output'], args['input']
         test1 = p.job("Test1").run('first_pipeline',
                                    output=args['inter'],
                                    input=args['input'])
@@ -768,6 +769,29 @@ def test_nested_pipes_stream_setup_intermediate():
     assert tool is not None
     p = jip.Pipeline()
     p.run(tool, input="Makefile", output="out.txt", inter="inter.out")
+    p.expand()
+
+    # 2 nodes 1 edge
+    assert len(p) == 2
+    assert len(p.edges) == 1
+    t1 = p.get("TestJob1")
+    t2 = p.get("TestJob2")
+    print ">>>", list(t1.outgoing())[0]._links
+    assert t1.has_outgoing(t2, ('output', 'input'), False)
+
+    print t1._tool.options
+    print t2._tool.options
+
+
+def test_node_options_with_assignment():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    n = p.run(tool)
+    n.input = "Makefile"
+    n.output = "out.txt"
+    n.inter = "inter.out"
+    assert n._tool.options['input'].get() == "Makefile"
     p.expand()
 
     # 2 nodes 1 edge

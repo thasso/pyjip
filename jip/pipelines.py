@@ -172,6 +172,10 @@ class Pipeline(object):
         else:
             tool = _tool_name
         node = self.add(tool, _job=_job)
+        try:
+            node._tool.validate()
+        except:
+            pass
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
         # silent validate
@@ -824,6 +828,7 @@ class Pipeline(object):
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
+
     def validate(self):
         """Validate all nodes in the graph"""
         for n in self.nodes():
@@ -1463,7 +1468,7 @@ class Node(object):
             if not append:
                 option.set(new_value)
             else:
-                # we do not append directly as we want the calue checks to
+                # we do not append directly as we want the value checks to
                 # happen
                 option.append(new_value)
             # get the edge. The source is the values.source, which
@@ -1497,16 +1502,30 @@ class Node(object):
                 source_opts.append(link[0])
                 links[link[1]] = source_opts
         # now update the option values
-        # if the soruces are more than one, we append
+        # if the sources are more than one, we append
+        updated = set([])
         for target, sources in links.iteritems():
             new_value = []
             for s in sources:
+                if s.render_context is None:
+                    s.render_context = {}
+                    for o in s.source.options:
+                        s.render_context[o.name] = o
                 v = s.value
                 if isinstance(v, (list, tuple)):
                     new_value.extend(v)
                 else:
                     new_value.append(v)
             target.value = new_value
+            updated.add(target)
+        ctx = {}
+        for o in self._tool.options:
+            ctx[o.name] = o
+        for o in self._tool.options:
+            if not o in updated:
+                if o.render_context is None:
+                    o.render_context = ctx
+                o.value = o.value
 
 
 class _NodeProxy(object):

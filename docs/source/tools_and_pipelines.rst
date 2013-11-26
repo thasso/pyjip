@@ -910,3 +910,66 @@ In addition, the following functions are available:
 
 .. automethod:: jip.templates.render_template
     :noindex:
+
+.. _injected_functions:
+
+Injected functions
+^^^^^^^^^^^^^^^^^^
+If you use a class based approach and the :ref:`decorators <decorators>` to
+implement you tools, the following functions and attributes are injected into 
+your class if they do not conflict with a local function or attribute:
+
+    options
+        Reference to your tools :py:class:`~jip.options.Options` instance
+    opts
+        An alias for ``options``
+    args
+        Read-only dictionary of the option values
+    ensure
+        Helper function that simplifies raising validation errors.
+    check_file
+        The ``check_file`` helper to check for existence of files referenced
+        by an option
+    validation_error
+        quickly raise a validation error
+    name
+        a function to set your tool or pipeline run-time name
+    add_output
+        add an output option
+    add_input
+        add an input option
+    add_option
+        add a general option
+    render_template
+        render a template string
+    r
+        an alias for ``render_template``
+
+In addition, all tool options are injected as class attributes as long as they
+do not conflict with an existing property.
+
+This allows you to quickly access the functions and properties in your class
+based implementations. For example:
+
+
+.. code-block:: python
+
+    @tool('bwa_index')
+    class BwaIndex():
+        """\
+        Run the BWA indexer on a given reference genome
+
+        Usage:
+            bwa_index -r <reference>
+
+        Inputs:
+            -r, --reference  The reference
+        """
+        def validate(self):
+            self.add_output('output', '${reference}.bwt')
+
+        def get_command(self):
+            return 'bwa index ${reference}'
+
+Here we access the ``reference`` option and the ``add_output`` function as
+class attributes directly.

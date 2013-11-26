@@ -287,14 +287,14 @@ parameters early and, more importantly, before the actual submission of the job
 to a remote cluster.
 
 Validation in jip script is done with a ``validate`` block in your script. Take
-the *bwa* example from above. We can add a custom file check for the
-``reference`` options like this::
+the *bwa* example above. We can add a custom file check for the
+``reference`` option like this::
 
     #%begin validate
     check_file('reference')
     #%end
 
-The validate block in JIP are written in python and within a jip script a set
+The validate block in JIP are written in python and within a JIP script a set
 of functions is already exposed to simplify certain tasks. Take a look at
 :ref:`the python context <python_context>` for a detailed description of 
 all the functions and variables that are available in the default context.

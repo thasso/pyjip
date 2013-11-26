@@ -213,6 +213,31 @@ class tool(object):
     ################################################################
     # tool delegates
     ################################################################
+    def _update_delegate(self, wrapper, instance):
+        # inject helper functions
+        helper_function = {
+            "name": wrapper.name,
+            "add_output": wrapper.options.add_output,
+            "add_input": wrapper.options.add_input,
+            "add_option": wrapper.options.add_option,
+            'r': render_template,
+            'render_template': render_template,
+            'options': wrapper.options,
+            'opts': wrapper.options,
+            'args': wrapper.args,
+            'ensure': wrapper.ensure,
+            'check_file': wrapper.check_file,
+            'validation_error': wrapper.validation_error
+        }
+        for k, v in helper_function.iteritems():
+            if not hasattr(instance, k):
+                instance.__dict__[k] = v
+
+        # inject options if they don't exists
+        for o in wrapper.options:
+            if not hasattr(instance, o.name):
+                instance.__dict__[o.name] = o
+
     def __call_delegate(self, fun, wrapper, instance):
         if not callable(fun):
             name = fun
@@ -225,13 +250,15 @@ class tool(object):
             # make sure the instance is aware of the options
             if (hasattr(fun, "__self__") and fun.__self__ is not None) or \
                (hasattr(fun, "im_self") and fun.im_self is not None):
+                self._update_delegate(wrapper, instance)
+                # force options and args
                 instance.options = wrapper.options
+                instance.opts = wrapper.options
                 instance.args = wrapper.args
-                instance.ensure = wrapper.ensure
-                instance.check_file = wrapper.check_file
-                instance.validation_error = wrapper.validation_error
                 return fun()
             else:
+                # function based implementation
+                self._update_delegate(wrapper, wrapper)
                 return fun(wrapper)
 
     def validate(self, wrapper, instance):
@@ -554,6 +581,7 @@ class Block(object):
             content = "\n".join(content)
         ctx = dict(tool.options.to_dict(raw=True))
         ctx['tool'] = tool
+        ctx['__file__'] = tool.path
         ctx['args'] = tool.options.to_dict()
         ctx['options'] = tool.options.to_cmd
         tool.options.render_context(ctx)
@@ -1353,7 +1381,7 @@ class PythonTool(Tool):
                         try:
                             value = value(self)
                         except Exception as err:
-                            log.error("Error evaluating output value: %s",
+                            log.debug("Error evaluating output value: %s",
                                       str(err), exc_info=True)
                     self.options[arg].set(value)
 
