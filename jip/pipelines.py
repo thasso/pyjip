@@ -176,6 +176,7 @@ class Pipeline(object):
             node._tool.validate()
         except:
             pass
+
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
         # silent validate
@@ -242,7 +243,7 @@ class Pipeline(object):
             # initialize the node index
             n._node_index = self._node_index
             self._node_index += 1
-            name = tool.name
+            name = tool.name if not tool._job_name else tool._job_name
             if _job and _job.name:
                 name = _job.name
             self._apply_node_name(n, name)
@@ -828,6 +829,11 @@ class Pipeline(object):
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
+        # apply all _job_names of nodes that might have been
+        # applied during validation
+        for node in self.nodes():
+            if node._tool._job_name is not None:
+                self._apply_node_name(node, node._tool._job_name)
 
     def validate(self):
         """Validate all nodes in the graph"""
