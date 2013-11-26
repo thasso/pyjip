@@ -51,9 +51,12 @@ def main():
         for job in jobs:
             job.state = jip.db.STATE_CANCELED
         session.commit()
-
+        canceled = set([])
         for job in jobs:
+            if job.id in canceled:
+                continue
             jip.jobs.cancel(job, clean_logs=args['--clean'], silent=False)
+            canceled.adD(job.id)
         session.commit()
         session.close()
 

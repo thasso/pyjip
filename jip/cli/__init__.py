@@ -588,7 +588,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     log.info("Cluster engine: %s", cluster)
 
     jobs = jip.jobs.create(script, args=script_args, keep=keep,
-                           profile=profile)
+                           profile=profile, profiler=profiler)
     jip.jobs.check_output_files(jobs)
 
     # we reached final submission time. Time to

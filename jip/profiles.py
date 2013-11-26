@@ -11,10 +11,12 @@ import collections
 import re
 import os
 import json
+import logging
 
 import jip.utils
 from jip.templates import render_template
 
+log = logging.getLogger("jip.profile")
 #: global specs
 specs = None
 
@@ -115,7 +117,7 @@ class Profile(object):
         if not name:
             name = self.name
         if not name:
-            name = job._tool.name
+            name = job.tool.name
         return render_template(
             "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
         )
@@ -124,6 +126,7 @@ class Profile(object):
         """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
+        log.info("Applying job profile to %s", job)
         job.name = self._render_job_name(job)
         if self.threads is not None and job.threads is None:
             if not overwrite_threads:

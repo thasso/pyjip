@@ -115,7 +115,8 @@ def main():
         profile.load_args(args)
         jip.cli.submit(pipeline, [], keep=args['--keep'],
                        force=args['--force'], silent=False,
-                       profile=profile)
+                       profile=profile,
+                       profiler=args['--with-profiler'])
 
 
 if __name__ == "__main__":

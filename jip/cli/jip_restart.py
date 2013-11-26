@@ -24,6 +24,8 @@ Options:
     --force                  Ignore job state and force restart
     -h --help                Show this help message
 """
+import os
+
 import jip.db
 import jip.jobs
 from jip.profiles import Profile
@@ -61,7 +63,19 @@ def main():
         profile = Profile(profile=args['--profile'])
         profile.load_args(args)
         # apply profile to all selected jobs (full group)
+        env_init = False
         for j in jobs:
+            # load JIP_PATH and JIP_MODULES
+            if not env_init:
+                env = j.env
+                os.environ['JIP_MODULES'] = "%s:%s" % (
+                    os.getenv("JIP_MODULES", ""),
+                    env.get('JIP_MODULES', "")
+                )
+                os.environ['JIP_PATH'] = "%s:%s" % (
+                    os.getenv("JIP_PATH", ""),
+                    env.get('JIP_PATH', "")
+                )
             p = jip.jobs.get_pipe_parent(j)
             for t in jip.jobs.group([p]):
                 updated += len(t)
@@ -87,4 +101,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

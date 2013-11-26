@@ -349,7 +349,7 @@ class Job(Base):
         env = self.env
         if env is not None:
             for k, v in env.iteritems():
-                os.environ[k] = v
+                os.environ[k] = str(v)
         os.environ["JIP_ID"] = str(self.id) if self.id is not None else ""
         os.environ["JIP_JOB"] = str(self.job_id) if self.job_id else ""
         os.environ["JIP_THREADS"] = str(self.threads) if self.threads else "1"

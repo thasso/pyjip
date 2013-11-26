@@ -52,7 +52,8 @@ def main():
             log.warn("unable to load tool. Failure cleanup might fail!")
 
         #check prpfiling
-        profiler = os.getenv("JIP_PROFILER", None) is not None
+        profiler = os.getenv("JIP_PROFILER",
+                             job.env.get("JIP_PROFILER", None)) is not None
         jip.jobs.run(job, session=session, profiler=profiler)
         session.close()
     except Exception as e:

@@ -125,8 +125,11 @@ class Profiler(object):
                             "box_mem_used\tbox_mem_free"
 
             while True:
-                self._collect_and_write(process, writer, iostat=iostat,
-                                        netstat=netstat)
+                try:
+                    self._collect_and_write(process, writer, iostat=iostat,
+                                            netstat=netstat)
+                except psutil.NoSuchProcess:
+                    break
                 try:
                     process.wait(self.interval)
                     break
