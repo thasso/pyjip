@@ -3,7 +3,7 @@
 The JIP job runner that executes a jip scrip on the local machine
 
 usage: jip-run [-h] [-p] [-f] [-k] [-s <spec>] [-C <threads>]
-               [--status] [--dry] [--show]
+               [--status] [--dry] [--show] [--profiler]
                <tool> [<args>...]
 
 Options:
@@ -18,6 +18,7 @@ Options:
   --show                   show the rendered script rather than running it
   --dry                    show the configuration of the script/pipeline
   --status                 print status information to stderr
+  --with-profiler          execute the run with a profiler
   <tool>                   the tool that will be executed
   <args>                   optional script argument
 
@@ -59,7 +60,7 @@ def main(argv=None):
         run(script, script_args, keep=args['--keep'],
             silent=not args['--status'],
             force=args['--force'], threads=args['--threads'],
-            spec=spec)
+            spec=spec, profiler=args['--with-profiler'])
     except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")

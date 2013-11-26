@@ -385,7 +385,7 @@ class Job(Base):
             self._process = subprocess.Popen(
                 cmd + [script_file.name],
                 stdin=self.stream_in,
-                stdout=self.stream_out
+                stdout=self.stream_out,
             )
             return self._process
         except OSError, err:

@@ -6,7 +6,7 @@ usage: jip-submit [-f] [-k] [-P <profile>] [-s <spec>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-m <mem>] [-n <name>]
                   [-o <out>] [-e <err>] [-C <threads>] [-T <tasks>]
                   [-N <nodes>] [--tasks-per-node <n>] [-E <pe>]
-                  [-H] [--dry] [--show] <tool> [<args>...]
+                  [-H] [--dry] [--show] [--with-profiler] <tool> [<args>...]
 
 Options:
   -f, --force              force command execution
@@ -40,6 +40,7 @@ Options:
   --dry                    Do not submit but show the dry configuration
   --show                   Do not submit but show to commands that will be
                            executed
+  --with-profiler          execute the run with a profiler
   <tool>                   the tool that will be executed
   <args>                   optional script argument
 
@@ -98,7 +99,8 @@ def main(argv=None):
         return
 
     submit(script, script_args, keep=args['--keep'], force=args['--force'],
-           silent=False, profile=profile, hold=args['--hold'])
+           silent=False, profile=profile, hold=args['--hold'],
+           profiler=args['--with-profiler'])
 
 
 if __name__ == "__main__":

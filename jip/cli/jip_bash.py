@@ -29,7 +29,7 @@ Usage:
              [-N <nodes>] [-T <tasks>] [--tasks-per-node <n>] [-E <pe>]
              [-O <out>] [-e <err>] [--dry] [--show]
              [-i <input>...] [-o <output>...] [-f <outfile>...]
-             [-s] [--keep] [--force]
+             [-s] [--keep] [--force] [--with-profiler]
              -c <cmd>...
     jip-bash [--help|-h]
 
@@ -67,6 +67,7 @@ Options:
     --dry                    Show a dry run
     --show                   Show the command that will be executed
     --force                  Force execution/submission
+    --with-profiler          execute the run with a profiler
     -c, --cmd <cmd>          The bash command line that will be wrapped
     -h --help                Show this help message
 
@@ -105,7 +106,8 @@ def main():
     if not args["--submit"]:
         jip.cli.run(pipeline, [], keep=args['--keep'],
                     force=args['--force'], silent=True,
-                    threads=args['--threads'])
+                    threads=args['--threads'],
+                    profiler=args['--with-profiler'])
     else:
         profile = jip.profiles.get(name='default'
                                    if not args['--profile']

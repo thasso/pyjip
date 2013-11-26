@@ -41,6 +41,7 @@ import jip.db
 from jip.logger import getLogger
 import jip.cluster
 import jip.jobs
+import jip.profiler
 
 
 log = getLogger('jip.executils')
@@ -154,8 +155,11 @@ class DispatcherNode(object):
         return "[%s->%s]" % (",".join([str(j) for j in self.sources]),
                             (",".join([str(j) for j in self.targets])))
 
-    def run(self):
-        """Run the job wrapped but this node."""
+    def run(self, profiler=False):
+        """Run the job wrapped but this node.
+
+        :param profiler: enable job profiling
+        """
         from jip.db import STATE_RUNNING
         num_sources = len(self.sources)
         num_targets = len(self.targets)
@@ -178,6 +182,8 @@ class DispatcherNode(object):
                 jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
                 p = job.run()
                 self.processes.append(p)
+                if profiler:
+                    jip.profiler.Profiler(p, job).start()
                 log.info("Waiting for job group process: %s", job)
                 p.wait()
             return
@@ -199,19 +205,28 @@ class DispatcherNode(object):
                     job.stream_in = open(default_in.get())
                     log.info("Open jobs input stream on %s", default_in.get())
                 jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
-                self.processes.append(job.run())
+                p = job.run()
+                self.processes.append(p)
+                if profiler:
+                    jip.profiler.Profiler(p, job).start()
             return
         if num_sources == num_targets:
             self.processes.extend(_FanDirect(self.sources,
-                                             self.targets).run())
+                                             self.targets).run(
+                                                 profiler=profiler
+                                             ))
             return
         if num_sources == 1:
             self.processes.extend(_FanOut(self.sources,
-                                          self.targets).run())
+                                          self.targets).run(
+                                              profiler=profiler
+                                          ))
             return
         if num_targets == 1:
             self.processes.extend(_FanIn(self.sources,
-                                         self.targets).run())
+                                         self.targets).run(
+                                             profiler=profiler
+                                         ))
             return
 
         raise ValueError("Unsupported fan operation "
@@ -245,7 +260,7 @@ class _FanDirect(object):
         self.sources = list(sources)
         self.targets = list(targets)
 
-    def run(self):
+    def run(self, profiler=False):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch
@@ -262,10 +277,13 @@ class _FanDirect(object):
             # we can just create the pipes directly
             for source, target in zip(self.sources, self.targets):
                 source.stream_out = PIPE
-                jip.jobs.set_state(job, STATE_RUNNING, update_children=False)
+                jip.jobs.set_state(source, STATE_RUNNING,
+                                   update_children=False)
                 process = source.run()
                 target.stream_in = process.stdout
                 processes.append(process)
+                if profiler:
+                    jip.profiler.Profiler(process, source).start()
             return processes
 
         inputs = []
@@ -283,6 +301,8 @@ class _FanDirect(object):
             process = source.run()
             inputs.append(process.stdout)
             processes.append(process)
+            if profiler:
+                jip.profiler.Profiler(process, source).start()
 
         # start the dispatcher
         direct_outs = [open(f, 'wb') for f in direct_outs]
@@ -292,7 +312,7 @@ class _FanDirect(object):
 
 class _FanOut(_FanDirect):
 
-    def run(self):
+    def run(self, profiler=False):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch_fanout
@@ -320,6 +340,8 @@ class _FanOut(_FanDirect):
         process = source.run()
         inputs.append(process.stdout)
         processes.append(process)
+        if profiler:
+            jip.profiler.Profiler(process, source).start()
 
         empty = [None] * (num_targets - 1)
         # start the dispatcher
@@ -336,7 +358,7 @@ class _FanOut(_FanDirect):
 
 
 class _FanIn(_FanDirect):
-    def run(self):
+    def run(self, profiler=False):
         import os
         from subprocess import PIPE
         from jip.dispatcher import dispatch_fanin
@@ -367,6 +389,8 @@ class _FanIn(_FanDirect):
             process = source.run()
             inputs.append(process.stdout)
             processes.append(process)
+            if profiler:
+                jip.profiler.Profiler(process, source).start()
 
         # start the dispatcher
         direct_outs = [open(f, 'wb') for f in direct_outs]

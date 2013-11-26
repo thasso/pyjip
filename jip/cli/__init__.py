@@ -578,7 +578,7 @@ def read_ids_from_pipe():
 
 
 def submit(script, script_args, keep=False, force=False, silent=False,
-           session=None, profile=None, hold=False):
+           session=None, profile=None, hold=False, profiler=False):
     """Submit the given list of jobs to the cluster. If no
     cluster name is specified, the configuration is checked for
     the default engine.
@@ -712,7 +712,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
 
 
 def run(script, script_args, keep=False, force=False, silent=False, threads=1,
-        spec=None):
+        spec=None, profiler=False):
     """Load and initialize the given script and execute its jobs.
 
     :param script: this script to execute
@@ -722,6 +722,7 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
     :param silent: do not print status information to ``stderr``
     :param threads: number of threads
     :param spec: path to job specification file
+    :param profiler: run with profiler enabled
     """
 
     profile = jip.profiles.Profile(threads=threads)
@@ -732,6 +733,9 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
 
     jobs = jip.jobs.create(script, args=script_args, keep=keep,
                            profile=profile)
+    # assign job ids
+    for i, j in enumerate(jobs):
+        j.id = i + 1
     jip.jobs.check_output_files(jobs)
     # force silent mode for single jobs
     if len(jobs) == 1:
@@ -751,7 +755,7 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
                                  ))
                 sys.stderr.flush()
             start = datetime.now()
-            success = jip.jobs.run(job)
+            success = jip.jobs.run(job, profiler=profiler)
             end = timedelta(seconds=(datetime.now() - start).seconds)
             if success:
                 if not silent:

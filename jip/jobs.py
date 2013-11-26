@@ -492,7 +492,7 @@ def submit(job, silent=False, clean=False, force=False, session=None,
     return True
 
 
-def run(job, session=None):
+def run(job, session=None, profiler=False):
     """Execute the given job. This method returns immediately in case the
     job has a pipe source. Otherwise the job and all its dispatch jobs are
     executed.
@@ -507,6 +507,7 @@ def run(job, session=None):
     :param job: the job to run. Note the jobs with pipe sources are ignored
     :type job: `jip.db.Job`
     :param session: a database session in order to update the job state
+    :param profiler: if set to True, job profiling is enabled
     :returns: True if the job was executed successfully
     :rtype: boolean
     """
@@ -520,7 +521,7 @@ def run(job, session=None):
     log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
 
     for dispatcher_node in dispatcher_nodes:
-        dispatcher_node.run()
+        dispatcher_node.run(profiler=profiler)
 
     if session:
         session.commit()
@@ -546,7 +547,7 @@ def run(job, session=None):
 ################################################################
 # Job creation
 ################################################################
-def create_job_env():
+def create_job_env(profiler=False):
     """Create a dictionary that contains the jobs' environment.
 
     The job environment is loaded at execution time and is available in
@@ -572,10 +573,11 @@ def create_job_env():
         ``LD_LIBRARY_PATH``
             The library path is also stored in the environment
 
+    :param profiler: if True, ``JIP_PROFILER`` is enabled
     :returns: dictionary that contains the job environment
     :rtype: dict
     """
-    return {
+    data = {
         "PATH": os.getenv("PATH", ""),
         "PYTHONPATH": os.getenv("PYTHONPATH", ""),
         "JIP_PATH": os.getenv("JIP_PATH", ""),
@@ -583,6 +585,9 @@ def create_job_env():
         "LD_LIBRARY_PATH": os.getenv("LD_LIBRARY_PATH", ""),
         "JIP_LOGLEVEL": str(log.getEffectiveLevel())
     }
+    if profiler:
+        data["JIP_PROFILER"] = True
+    return data
 
 
 def _infer_job_state(job):
@@ -737,7 +742,7 @@ def from_node(node, env=None, keep=False):
 
 
 def create(source, args=None, excludes=None, skip=None, keep=False,
-           profile=None, validate=True):
+           profile=None, validate=True, profiler=False):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.
 
@@ -764,6 +769,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     :param keep: keep the jobs output on failure
     :param profile: default job profile that will be applied to all jobs
     :param validate: set this to False to disable job validation
+    :param profiler: set to True to enable the job profiler
     :raises: `jip.tools.ValueError` if a job is invalid
     """
     if args and isinstance(source, jip.tools.Tool):
@@ -797,7 +803,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
     log.debug("Creating job environment for %d nodes", len(pipeline))
-    env = create_job_env()
+    env = create_job_env(profiler=profiler)
     nodes2jobs = {}
     jobs = []
     num_nodes = len(pipeline)
