@@ -3,7 +3,7 @@
 The JIP job runner that executes a jip scrip on the local machine
 
 usage: jip-run [-h] [-p] [-f] [-k] [-s <spec>] [-C <threads>]
-               [--status] [--dry] [--show] [--profiler]
+               [--status] [--dry] [--show] [--with-profiler]
                <tool> [<args>...]
 
 Options:
