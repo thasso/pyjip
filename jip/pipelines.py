@@ -654,7 +654,9 @@ class Pipeline(object):
         :param context: specify a local context that is taken into account
                         in template and option rendering
         """
-        self.context(context)
+        if context is not None:
+            self.context(context)
+
         log.debug("Expand Graph on %s", self)
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
