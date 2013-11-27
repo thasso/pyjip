@@ -294,6 +294,28 @@ def test_tool_class_decorator_options_for_functions():
     assert validated[0]
 
 
+def test_tool_property_names():
+    @jip.pytool()
+    class mytool(object):
+        """
+        usage:
+            mytool --input --no-hash
+
+        """
+
+        def validate(self):
+            assert hasattr(self, 'input')
+            assert hasattr(self, 'no_hash')
+
+        def run(self):
+            pass
+
+    t = find('mytool')
+    assert t.options["input"] is not None
+    assert t.options["no_hash"] is not None
+    t.validate()
+
+
 @pytest.mark.parametrize("funcname", [
     "name", "add_output", "add_input", "add_option", 'r', 'render_template',
     'ensure', 'check_file', 'validation_error',

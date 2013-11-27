@@ -1193,6 +1193,7 @@ class Options(object):
                 name = name[2:]
             elif name.startswith("-"):
                 name = name[1:]
+            name = name.replace("-", "_")
             return name
 
         ####################################################################
