@@ -315,11 +315,16 @@ def test_tool_property_names():
     assert t.options["no_hash"] is not None
     t.validate()
 
-
-@pytest.mark.parametrize("funcname", [
+TOOL_FUNCTIONS = [
     "name", "add_output", "add_input", "add_option", 'r', 'render_template',
     'ensure', 'check_file', 'validation_error',
-])
+]
+TOOL_ATTRS = [
+    'options', 'opts', 'args', "job"
+]
+
+
+@pytest.mark.parametrize("funcname", TOOL_FUNCTIONS)
 def test_tool_class_and_injected_functions(funcname):
     called = []
 
@@ -343,9 +348,7 @@ def test_tool_class_and_injected_functions(funcname):
     assert len(called) >= 1
 
 
-@pytest.mark.parametrize("funcname", [
-    'options', 'opts', 'args',
-])
+@pytest.mark.parametrize("funcname", TOOL_ATTRS)
 def test_tool_class_and_injected_attributes(funcname):
     called = []
 
@@ -366,28 +369,65 @@ def test_tool_class_and_injected_attributes(funcname):
     jip.create_jobs(p)
     assert len(called) >= 1
 
-#@pytest.mark.parametrize("funcname", [
-    #"name", "add_output", "add_input", "add_option", 'r', 'render_template',
-    #'ensure', 'check_file', 'validation_error',
-#])
-#def test_tool_class_and_injected_functions(funcname):
-    #called = []
 
-    #@jip.tool()
-    #class MyTool():
-        #def validate(self):
-            ## call injected functions
-            #assert hasattr(self, funcname), "Injected function %s "\
-                #"not found" % funcname
-            #assert callable(self.__dict__[funcname]), "Injected function %s "\
-                #"not callable" % funcname
-            #called.append(True)
+@pytest.mark.parametrize("funcname", TOOL_FUNCTIONS)
+def test_tool_script_and_injected_functions(funcname):
+    script = ScriptTool.from_string(
+        """#!/bin/bash
+#Simple tool
+#
+#%%begin validate
 
-        #def get_command(self):
-            #return "echo"
+assert callable(%s), "Injected function %s not callable"
 
-    #p = jip.Pipeline()
-    #p.run('MyTool')
-    #p.expand()
-    #jip.create_jobs(p)
-    #assert len(called) >= 1
+#%%end
+echo
+""" % (funcname, funcname))
+    assert script is not None
+    p = jip.Pipeline()
+    p.run(script)
+    p.expand()
+    jip.create_jobs(p)
+
+
+@pytest.mark.parametrize("funcname", TOOL_ATTRS)
+def test_tool_script_and_injected_attributes(funcname):
+    script = ScriptTool.from_string(
+        """#!/bin/bash
+#Simple tool
+#
+#%%begin validate
+
+assert '%s' in locals(), "Injected function %s not found"
+
+#%%end
+echo
+""" % (funcname, funcname))
+    assert script is not None
+    p = jip.Pipeline()
+    p.run(script)
+    p.expand()
+    jip.create_jobs(p)
+
+
+def test_tool_job_is_callable_in_pipeline_runs():
+    called = []
+
+    @jip.pipeline()
+    class MyPipeline():
+        def validate(self):
+            # call injected functions
+            called.append(True)
+            assert callable(self.job), "Job is not callable"
+            assert isinstance(self.job, jip.Profile)
+
+        def pipeline(self):
+            called.append(True)
+            assert callable(self.job)  # function in pipeline
+            assert isinstance(self.job, jip.Profile)
+            return jip.Pipeline()
+
+    p = jip.Pipeline()
+    p.run('MyPipeline')
+    p.expand()
+    assert len(called) >= 2

@@ -736,7 +736,6 @@ class joined_pipeline(object):
         args = self.options.to_dict()
         p = jip.Pipeline()
         p.name("Joined")
-        print ">>>>SET", args['inter'], args['output'], args['input']
         test1 = p.job("Test1").run('first_pipeline',
                                    output=args['inter'],
                                    input=args['input'])

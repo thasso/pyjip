@@ -221,6 +221,7 @@ class tool(object):
         # inject helper functions
         helper_function = {
             "name": set_name,
+            "job": wrapper.job,
             "add_output": wrapper.options.add_output,
             "add_input": wrapper.options.add_input,
             "add_option": wrapper.options.add_option,
@@ -872,7 +873,9 @@ class PythonBlock(Block):
             "tool": tool,
             "args": tool.options.to_dict(),
             "opts": tool.options,
+            "options": tool.options,
             "check_file": utils.check_file,
+            "ensure": tool.ensure,
             "run": utils.run,
             "validation_error": utils.validation_error,
             "bash": utils.bash,
@@ -991,6 +994,7 @@ class Tool(object):
         self.path = None
         self._options = None
         self._options_source = options_source
+        self._job = None
 
     @property
     def name(self):
@@ -999,6 +1003,12 @@ class Tool(object):
     @name.setter
     def name(self, name):
         self._name = name
+
+    @property
+    def job(self):
+        if self._job is None:
+            self._job = jip.profiles.Profile()
+        return self._job
 
     @property
     def options(self):

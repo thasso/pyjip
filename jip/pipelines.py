@@ -24,6 +24,7 @@ class Job(Profile):
         Profile.__init__(self, **kwargs)
         self._pipeline = pipeline
         self._node = None
+        self._in_pipeline_name = None
 
     # override the name setter in order to delegate switching names to
     # the jobs node
@@ -37,7 +38,10 @@ class Job(Profile):
         ctx = {}
         for o in job.tool.options:
             ctx[o.name] = o
-        name = self._node._name if self._node else self.name
+        if self._in_pipeline_name:
+            name = self._in_pipeline_name
+        else:
+            name = self._node._name if self._node else self.name
         if not name:
             name = job._tool.name
         name = render_template(
@@ -53,6 +57,7 @@ class Job(Profile):
         clone = Profile.__call__(self, *args, **kwargs)
         clone._pipeline = self._pipeline
         self._pipeline._current_job = clone
+        clone._in_pipeline_name = clone.name
         return clone
 
     def run(self, *args, **kwargs):
@@ -222,6 +227,7 @@ class Pipeline(object):
         if isinstance(tool, Node):
             n = tool
             self._nodes[n._tool] = n
+            n._pipeline = self._name if self._name else n._pipeline
             n._graph = self
             n._job._pipeline = self
             n._node_index = self._node_index
@@ -235,6 +241,7 @@ class Pipeline(object):
             n = Node(tool, self)
             # set the job
             job = _job() if _job else self._current_job()
+            n._tool._job = job
             n._pipeline = self._name
             n._job = job
             job._node = n
@@ -244,6 +251,8 @@ class Pipeline(object):
             n._node_index = self._node_index
             self._node_index += 1
             name = tool.name if not tool._job_name else tool._job_name
+            if not name:
+                name = tool.name
             if _job and _job.name:
                 name = _job.name
             self._apply_node_name(n, name)
@@ -717,6 +726,9 @@ class Pipeline(object):
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
+            # check and set this pipelines name
+            if self._name is None:
+                self.name(node._tool._job_name)
             log.debug("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
