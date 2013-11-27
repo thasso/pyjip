@@ -3,8 +3,8 @@ Dynamic Validation
 The following JIP script demonstrates what you can do with dynamic options. It
 grew out of a practical problem where we had to run the `Flux Capacitor
 <http://sammeth.net/confluence/display/FLUX/Home>`_ on both the output
-of the `TopHat <http://tophat.cbcb.umd.edu/`_ and the `GEMTools 
-<http://gemtools.github.io>` pipeline.
+of the `TopHat <http://tophat.cbcb.umd.edu/>`_ and the `GEMTools 
+<http://gemtools.github.io>`_ pipeline.
 
 The issue was that *GEMTools* creates a ``.bam`` file with the name that
 should be used for the capacitor output, but *TopHat* writes its output

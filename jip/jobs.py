@@ -812,6 +812,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
         ## first create jobs
         job = from_node(node, env=env, keep=keep)
         log.debug("Created job %s", job)
+        log.debug("Created job %s config: %s", job, job.configuration)
         jobs.append(job)
         nodes2jobs[node] = job
 

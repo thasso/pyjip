@@ -56,8 +56,10 @@ class Job(Profile):
     def __call__(self, *args, **kwargs):
         clone = Profile.__call__(self, *args, **kwargs)
         clone._pipeline = self._pipeline
+        clone._in_pipeline_name = self._in_pipeline_name
         self._pipeline._current_job = clone
-        clone._in_pipeline_name = clone.name
+        if clone._in_pipeline_name is None:
+            clone._in_pipeline_name = clone.name
         return clone
 
     def run(self, *args, **kwargs):
@@ -235,6 +237,7 @@ class Pipeline(object):
             name = n._tool.name
             if n._job.name:
                 name = n._job.name
+            log.debug("Add node | added %s", name)
             self._apply_node_name(n, name)
             return n
         elif not tool in self._nodes:
@@ -245,6 +248,8 @@ class Pipeline(object):
             n._pipeline = self._name
             n._job = job
             job._node = n
+            if job._in_pipeline_name:
+                tool._job_name = job._in_pipeline_name
             self._nodes[tool] = n
             # initialize the tool name using the tools' name
             # initialize the node index
@@ -255,6 +260,7 @@ class Pipeline(object):
                 name = tool.name
             if _job and _job.name:
                 name = _job.name
+            log.debug("Add node | added %s", name)
             self._apply_node_name(n, name)
         return self._nodes[tool]
 
@@ -283,6 +289,8 @@ class Pipeline(object):
             # there is more than one node with the same name.
             # make sure the _index is set
             for i, nn in enumerate(nodes_with_same_name):
+                log.debug("Apply node name | Update identical %s %s %s [%s]",
+                          name, i, nn._node_index, nn._tool.options)
                 nn._index = i
 
         if old_name and old_name != name:
@@ -296,6 +304,8 @@ class Pipeline(object):
                 # update the nodes _index, same strategy as above
                 old_nodes = sorted(old_nodes, key=lambda x: x._node_index)
                 for i, nn in enumerate(old_nodes):
+                    log.debug("Apply node name | Update old %s %s %s [%s]",
+                              name, i, nn._node_index, nn._tool.options)
                     nn._index = i
 
     def get(self, name):
@@ -722,9 +732,9 @@ class Pipeline(object):
             self._cleanup_nodes.append(cleanup_node)
 
         # iterate again to expand on pipeline of pipelines
-        log.debug("Expand | Check for sub-pipelines")
         for node in self.topological_order():
-            log.debug("Expand | Checking %s for sub-pipeline", node)
+            log.debug("Expand | Checking %s for sub-pipeline [%s]", node,
+                      node._tool.options)
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
@@ -743,7 +753,8 @@ class Pipeline(object):
             no_outgoing = [n for n in sub_pipe.nodes()
                            if len(list(n.outgoing())) == 0]
             # add the sub_pipe
-            for sub_node in sub_pipe.nodes():
+            for sub_node in sub_pipe.topological_order():
+                log.debug("Expand | Adding sub-pipeline node %s", sub_node)
                 self.add(sub_node)
             self._edges = self._edges.union(sub_pipe._edges)
 
@@ -869,7 +880,7 @@ class Pipeline(object):
         """
         _edges = list(node._edges)
         values = [o.value for o in options]
-        log.debug("Fanout %s with %d options %d values",
+        log.debug("Fanout | %s with %d options %d values",
                   node, len(options), len(values[0]))
 
         incoming_links = []
@@ -885,8 +896,8 @@ class Pipeline(object):
                         incoming_links.append(link)
                         incoming_edges.append(e)
                         incoming_links_set.add(link)
-        log.debug("Fanout incoming edges: %s", incoming_edges)
-        log.debug("Fanout incoming values: %s", values)
+        log.debug("Fanout | incoming edges: %s", incoming_edges)
+        log.debug("Fanout | incoming values: %s", values)
 
         # clone the tool
         for i, opts in enumerate(zip(*values)):
@@ -896,7 +907,7 @@ class Pipeline(object):
             for j, option in enumerate(options):
                 cloned_tool.options[option.name].value = opts[j]
             cloned_node = self.add(cloned_tool, _job=node._job)
-            log.debug("Fanout add new node: %s :: %s",
+            log.debug("Fanout | add new node: %s :: %s",
                       cloned_node, cloned_node._tool.options)
             # reattach the edges and copy the links
             for e in _edges:
@@ -909,7 +920,7 @@ class Pipeline(object):
                             cloned_tool.options[link[0].name],
                             link[1]
                         )
-                        log.debug("Fanout add link to edge: %s [%s]",
+                        log.debug("Fanout | add link to edge: %s [%s]",
                                   new_edge, link)
                 elif e._target == node and e not in incoming_edges:
                     new_edge = self.add_edge(e._source, cloned_node)
@@ -919,7 +930,7 @@ class Pipeline(object):
                             link[0],
                             cloned_tool.options[link[1].name]
                         )
-                        log.debug("Fanout add link to edge: %s [%s]",
+                        log.debug("Fanout | add link to edge: %s [%s]",
                                   link, new_edge)
 
             # now apply the options and create the incoming edges
@@ -933,28 +944,28 @@ class Pipeline(object):
                             link[0],
                             cloned_tool.options[link[1].name]
                         )
-                        log.debug("Fanout add link from inedge to edge: "
+                        log.debug("Fanout | add link from inedge to edge: "
                                   "%s [%s]",
                                   link, new_edge)
                 cloned_node.set(option.name, opts[j], set_dep=False)
-                log.debug("Fanout apply value %s: %s=%s", cloned_node,
+                log.debug("Fanout | apply value %s: %s=%s", cloned_node,
                           option.name, opts[j])
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
             # silent validation of the cloned node
             try:
-                log.debug("Fanout validate cloned node")
+                log.debug("Fanout | validate cloned node")
                 _update_node_options(cloned_node, self)
                 cloned_node._tool.validate()
             except KeyboardInterrupt:
                 raise
             except Exception:
                 pass
-            log.debug("Fanout check for children to update values")
+            log.debug("Fanout | check for children to update values")
             # update all children
             for child in cloned_node.children():
                 child.update_options()
-                log.debug("Fanout update child values %s : %s",
+                log.debug("Fanout | update child values %s : %s",
                           child, child._tool.options)
         self.remove(node)
 
