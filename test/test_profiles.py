@@ -203,3 +203,39 @@ def test_tool_name_in_pipelines_with_multiplexing():
     assert jobs[0].pipeline == "customname"
     assert jobs[1].name == "Tool.1"
     assert jobs[1].pipeline == "customname"
+
+
+def test_tool_name_in_pipelines_with_multiplexing_and_custom_name():
+    @jip.tool()
+    class MyTool():
+        """mytool
+        usage:
+            mytool <data>
+        """
+        def validate(self):
+            self.job.name = "somename"
+
+        def get_command(self):
+            return "echo"
+
+    @jip.pipeline()
+    class MyPipeline():
+        def validate(self):
+            self.name("thepipeline")
+
+        def pipeline(self):
+            p = jip.Pipeline()
+            p.job("Tool").run('MyTool', data=["A", "B"])
+            return p
+
+    p = jip.Pipeline()
+    p.run('MyPipeline')
+    p.expand()
+
+    profile = jip.Profile(name="customname")
+    jobs = jip.create_jobs(p, profile=profile)
+    assert len(jobs) == 2
+    assert jobs[0].name == "Tool.0"
+    assert jobs[0].pipeline == "customname"
+    assert jobs[1].name == "Tool.1"
+    assert jobs[1].pipeline == "customname"
