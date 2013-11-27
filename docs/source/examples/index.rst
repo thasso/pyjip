@@ -11,4 +11,5 @@ of teh JIP system.
    bwa
    flux_validation
    hello_ocaml
+   job_environment
 

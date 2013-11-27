@@ -292,3 +292,80 @@ def test_tool_class_decorator_options_for_functions():
     t.run()
     assert data[0] == 'data.txt'
     assert validated[0]
+
+
+@pytest.mark.parametrize("funcname", [
+    "name", "add_output", "add_input", "add_option", 'r', 'render_template',
+    'ensure', 'check_file', 'validation_error',
+])
+def test_tool_class_and_injected_functions(funcname):
+    called = []
+
+    @jip.tool()
+    class MyTool():
+        def validate(self):
+            # call injected functions
+            assert hasattr(self, funcname), "Injected function %s "\
+                "not found" % funcname
+            assert callable(self.__dict__[funcname]), "Injected function %s "\
+                "not callable" % funcname
+            called.append(True)
+
+        def get_command(self):
+            return "echo"
+
+    p = jip.Pipeline()
+    p.run('MyTool')
+    p.expand()
+    jip.create_jobs(p)
+    assert len(called) >= 1
+
+
+@pytest.mark.parametrize("funcname", [
+    'options', 'opts', 'args',
+])
+def test_tool_class_and_injected_attributes(funcname):
+    called = []
+
+    @jip.tool()
+    class MyTool():
+        def validate(self):
+            # call injected functions
+            assert hasattr(self, funcname), "Injected function %s "\
+                "not found" % funcname
+            called.append(True)
+
+        def get_command(self):
+            return "echo"
+
+    p = jip.Pipeline()
+    p.run('MyTool')
+    p.expand()
+    jip.create_jobs(p)
+    assert len(called) >= 1
+
+#@pytest.mark.parametrize("funcname", [
+    #"name", "add_output", "add_input", "add_option", 'r', 'render_template',
+    #'ensure', 'check_file', 'validation_error',
+#])
+#def test_tool_class_and_injected_functions(funcname):
+    #called = []
+
+    #@jip.tool()
+    #class MyTool():
+        #def validate(self):
+            ## call injected functions
+            #assert hasattr(self, funcname), "Injected function %s "\
+                #"not found" % funcname
+            #assert callable(self.__dict__[funcname]), "Injected function %s "\
+                #"not callable" % funcname
+            #called.append(True)
+
+        #def get_command(self):
+            #return "echo"
+
+    #p = jip.Pipeline()
+    #p.run('MyTool')
+    #p.expand()
+    #jip.create_jobs(p)
+    #assert len(called) >= 1

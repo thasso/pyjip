@@ -813,3 +813,4 @@ def test_pipeline_with_local_context():
     b = p.get('bash')
     assert b is not None
     assert b.cmd.get() == 'wc -l Makefile'
+

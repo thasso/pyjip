@@ -1,11 +1,113 @@
 #!/usr/bin/env python
-"""JIP module that handles job profiles. A job profile
-contains all compute-cluster related meta-data of a job, such as the number
-of threads reserved for the job or the time limit. Profiles can be named and
-stored in the user configuration. In addition, hierarical updated of
-profiles can be applied. For example, a default profile can be loaded from
-the configuration. This profile can than be refiend by a pipeline script
-or command line options.
+"""JIP module that handles job profiles.
+
+A job profile contains all compute-cluster and execution related meta-data of a
+job, such as the number of threads reserved for the job or the time limit.
+Profiles can be named and stored in the user configuration.
+
+In addition, hierarchical updates of profiles can be applied. For example, a
+default profile can be loaded from the configuration. This profile can than be
+refined by a pipeline script or command line options.
+
+This enable you to start with a *hard-coded* profile in your tool
+implementation and then gradually modify and change the profile when the
+tool is embedded in another pipeline or from the command line at execution
+or submission time.
+
+.. note:: Please note that the interpretation of some of the profiles
+          properties depends on the cluster implementation.
+
+The following properties are supported by a profile and can be maintained
+and updated.
+
+General properties
+------------------
+The following properties are considered *general* and usually always
+used and interpreted, independent of where and how you execute the tool
+or pipeline:
+
+        name
+            You can assign an arbitrary name to your profiles. This name
+            will be used either as a job name, if the profile is applied
+            to a tool, or as a pipeline name if applied to a pipeline.
+
+        prefix
+            A name prefix that is applied to all embedded jobs. This can
+            be useful if, in a pipeline context, you want to allow your
+            tool to take their own name, but you want to prefix all tools
+            that are part of a single pipeline.
+
+        threads
+            The number of threads or compute slots allocated by the execution.
+            Although this property and its interpretation also depends on
+            the cluster or grid implementation, this is considered a general
+            property that is also considered when you execute a pipeline or
+            tool outside of a compute grid.
+
+        working_dir
+            The working directory for a job. This is initialized to the
+            current working directory of the process that creates the profile.
+
+        temp
+            A boolean property that you can used to *mark* a job as temporary.
+            Temporary jobs are treated specially in a pipeline execution.
+            You can find more information about temporary jobs in the
+            :class:`~jip.pipelines.Pipeline` documentation.
+
+        env
+            Dictionary that can be used to extend the jobs shell environment
+
+
+Cluster/Grid specific properties
+--------------------------------
+The following properties can be set or modified, but their interpretation
+depends on the cluster implementation and the capabilities of the cluster:
+
+        tasks
+            Number of tasks assigned to a single job
+
+        tasks_per_node
+            If multiple nodes are reserved by a single job, this is the
+            number of tasks assigned to each node.
+
+        nodes
+            Number of nodes requested by the job
+
+        queue
+            The *queue* the job is sent to
+
+        priority
+            A priority assigned to a job
+
+        environment
+            The name of the *environment* assigned to a job. This is **not**
+            the shell environment, but an arbitrary name that is used, for
+            example, in the *Sun Grid Engine* implementation to identify
+            the *parallel environment* the job is submitted to.
+
+        account
+            Name of the account for this job
+
+        mem
+            The memory limit for the job. This is stored here as a string
+            and passed on *as is* to the cluster implementation
+
+        time
+            The time limit for the job. Here, the time limit is specified
+            as a string and passed on to the cluster implementation *as is*.
+
+        out
+            Path to the ``stdout`` log file for this job
+
+        log
+            Path to the ``stderr`` log file for this job
+
+        extra
+            This is an array that takes additional options that are
+            used when the submission command is constructed.
+
+.. note:: Most of the
+
 """
 import collections
 import re
@@ -122,12 +224,17 @@ class Profile(object):
             "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
         )
 
-    def apply(self, job, _load_specs=True, overwrite_threads=False):
+    def apply(self, job, _load_specs=True, overwrite_threads=False,
+              pipeline=False):
         """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
         log.info("Applying job profile to %s", job)
-        job.name = self._render_job_name(job)
+        if not pipeline:
+            job.name = self._render_job_name(job)
+        elif self.name is not None:
+            log.info("Apply pipeline name to job: %s %s", job, self.name)
+            job.pipeline = self.name
         if self.threads is not None and job.threads is None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)

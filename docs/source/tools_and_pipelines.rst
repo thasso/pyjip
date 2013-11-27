@@ -2,19 +2,19 @@
 
 Tools and Pipelines
 ===================
-The essential part of the JIP system are *tool* and *pipelines*. Tools 
+The essential parts of the JIP system are *tools* and *pipelines*. Tools 
 represent the smallest unit in the system and allow you to implement 
-independent executable block. Pipeline are *directed acyclic graphs* that
-consist of a set of node representing tool executions and edges representing
-the dependencies between the executions.
+independent executable blocks. Pipelines are *directed acyclic graphs* that
+consist of a set of nodes representing tool executions and edges representing
+the dependencies between these executions.
 
 .. _jip_tools:
 
 Tools
 -----
-In JIP, *tools* are small executable units that carry a set of meta information
+In JIP, *tools* are small executable units that carry meta information
 to describe and the actual execution and its options as well as a way to 
-validate the state of an execution.
+validate and update the tools' state.
 
 .. figure:: _static/single_tool_def.png
     :align: center
@@ -26,16 +26,18 @@ validate the state of an execution.
     block. In addition, a tool has a ``Job`` association that covers the basic
     execution environment.
 
-The simplest for of a tool consist of the following parts:
+The simplest form of a tool consist of the following parts:
 
     Options
-        Options are way to express the tools input and output capabilities and
+        Options are a way to express the tools input and output capabilities and
         other options. ``Inputs`` are usually files or data streams that are
         read by the tool. ``Outputs``, as the name suggests, cover files and
         data streams created by a tool. Other ``Options`` can also be defined.
+        Please note that :ref:`input and output <tool_io>` options are treated
+        specially when a tool is executed.
 
     Execution block
-        A single tool can contain one execution block that either executes a
+        A single tool contains one execution block that either executes a
         command script or that creates and returns a pipeline. Command scripts
         are, by default, implemented in ``bash`` but you can switch the 
         interpreter and write the command in any interpreted language. On the 
@@ -45,11 +47,15 @@ The simplest for of a tool consist of the following parts:
     Validation block
         In addition to the actual execution, a *tool* implementation can
         extend its default validation. By default, the system ensures the all
-        specified input files exists. You can add more check in the validation
+        specified input files exists. You can add more checks in the validation
         block and you have the chance to add :ref:`dynamic options 
         <dynamic_options>` to the tools definition. Please note that the 
         validation blocks have to be implemented in `python` and there is
         currently no way to change the interpreter for those blocks.
+
+        The validation block also is the place to modify the tools job 
+        environment in case you don't want to set parameters from the command
+        line at execution or submission time.
 
 JIP currently supports two ways to implement tools and pipelines. JIP
 :ref:`scripts <jip_tool_scripts>` and python :ref:`modules with decorators
@@ -217,6 +223,18 @@ All validation blocks are written in *python* and the :ref:`context
 <python_context>` exposes a set of helper functions to perform checks on files
 and raise arbitrary validation errors. See :ref:`Validation <validation>` for
 more about tool validation.
+
+The execution environment
+*************************
+A tool implementation carries its own job environment. This options you can
+modify on a per-tool bases are covered in the :py:class:`~jip.profiles.Profile`
+class. Job profiles can also be applied *outside* of the tool implementation,
+when you submit or execute the tool or pipeline. Please note that specifying
+the job options is the preferred way. This enhances portability and flexibility
+and allows you as a user of a tool to modify its execution environment without
+touching the tool implementation. The documentation contains an :ref:`example 
+<tut_job_env>` that covers the aspects of how you can modify the jobs 
+environment both in the tool implementation as well as on the command line.
 
 
 .. _jip_tool_modules:

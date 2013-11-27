@@ -6,6 +6,7 @@ from jip.tools import tool, pytool, pipeline, Scanner, ValidationError, Tool
 from jip.jobs import set_state
 from jip.jobs import create as create_jobs
 from jip.pipelines import Pipeline
+from jip.profiles import Profile
 from jip.configuration import Config
 from jip.options import ParserException
 from jip.db import STATE_DONE, STATE_QUEUED, STATE_CANCELED, STATE_HOLD, \

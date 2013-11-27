@@ -837,7 +837,7 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
             if validate:
                 raise
         if profile is not None:
-            profile.apply(job)
+            profile.apply(job, pipeline=True)
     return jobs
 
 

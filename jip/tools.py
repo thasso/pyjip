@@ -214,9 +214,13 @@ class tool(object):
     # tool delegates
     ################################################################
     def _update_delegate(self, wrapper, instance):
+        # helper function to expose a name function directly
+        def set_name(name):
+            # set the job name
+            wrapper._job_name = name
         # inject helper functions
         helper_function = {
-            "name": wrapper.name,
+            "name": set_name,
             "add_output": wrapper.options.add_output,
             "add_input": wrapper.options.add_input,
             "add_option": wrapper.options.add_option,
