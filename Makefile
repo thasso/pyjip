@@ -5,6 +5,9 @@ all:
 develop:
 	python setup.py develop
 
+tests:
+	py.test
+
 doc:
 	$(MAKE) -C docs html
 

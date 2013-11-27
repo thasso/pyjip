@@ -851,7 +851,7 @@ that demonstrates the usage of the filters::
     echo "========================================="
 
 Option translation
-******************
+^^^^^^^^^^^^^^^^^^
 The template context offers access to the ``options``, which can be used for
 a quick one to one translation of your input parameter in a command template.
 For example:

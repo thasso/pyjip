@@ -17,9 +17,11 @@ How can I define and use a tool?
 
 Have a look at the following code::
 
-    @tool()
-    def nop():
-        return ""
+    >>> from jip import *
+    >>> @tool()
+    ... def nop():
+    ...    return ""
+    >>>
 
 this defines a tool called ``nop``, by default the function name is used, you
 can drop one in the ``@tool`` :ref:`decorator <decorators>`.
@@ -28,9 +30,11 @@ The pipeline ``run()`` function takes a string or a tool instance.
 The string is used as tool name and a search is performed.
 
 In this example, this would be enough to get the tool and run it::
-
+    
+    >>> from jip import *
     >>> p = Pipeline()
     >>> p.run('nop')
+    nop
 
 The ``run()`` method returns a :py:class:`~jip.pipelines.Node` object and also
 exposes all the properties of the node including its options.
@@ -42,10 +46,9 @@ Following the example before we can get a :class:`~jip.pipelines.Node` object
 from a pipeline and assign options to it::
 
     >>> p = Pipeline()
-    >>> n = p.run(tool)
+    >>> n = p.bash('cat ${input}')
     >>> n.input = "Makefile"
     >>> n.output = "out.txt"
-    >>> n.inter = "inter.out"
 
 The node has a ``set()`` function as a fall-back if direct assignment does not
 work, for example, if your option name conflicts with a function name of the
@@ -77,10 +80,7 @@ For example::
     bash
     >>> b = jip.create_jobs(p)[0]
     >>> assert b is not None
-    >>> assert b.command == '(wc -l Makefile)'
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    AssertionError
+    >>> assert b.command == '(wc -l ${a})'
     >>>
 
 Note that the nodes ``cmd`` option references "a", a local variable. To resolve
@@ -94,4 +94,6 @@ function before you return the pipeline or do anything with it::
     >>> p.context(locals())
     >>> b = jip.create_jobs(p)[0]
     >>> assert b is not None
-    >>> assert b.command == '(wc -l Makefile)'
+    >>> print b.command
+    (wc -l Makefile)
+    >>> assert str(b.command) == '(wc -l Makefile)', b.command + "haha"

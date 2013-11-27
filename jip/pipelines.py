@@ -172,6 +172,8 @@ class Pipeline(object):
                        configurations
         :returns: the newly added node
         :rtype: :class:`Node`
+        :raises jip.tool.ToolNotFoundException: if the specified tool could not
+                                                be found
         """
         if not isinstance(_tool_name, Tool):
             from jip import find
@@ -338,6 +340,7 @@ class Pipeline(object):
 
             >>> p = Pipeline()
             >>> p.run('bash', cmd='ls')
+            bash
             >>> p.expand()
             >>> assert p.get("bash") is not None
 
@@ -454,7 +457,8 @@ class Pipeline(object):
         not change any more and you have to iterate the nodes in order
         more than once, you might want to cache the results::
 
-            >>>ordered = list(pipeline.topological_order())
+            >>> pipeline = Pipeline()
+            >>> ordered = list(pipeline.topological_order())
 
         :returns: yields nodes in topological order
         """
@@ -654,11 +658,12 @@ class Pipeline(object):
         to give the template system access to your local environment. For
         example::
 
-            >>>p = Pipeline
-            >>>a = "myinput.txt"
-            >>>p.bash('wc -l ${a}')
-            >>>p.expand(locals())
-            >>>assert p.get("bash").cmd.get() == 'wc -l myinput.txt'
+            >>> p = Pipeline()
+            >>> a = "myinput.txt"
+            >>> p.bash('wc -l ${a}')
+            bash
+            >>> p.expand(locals())
+            >>> assert p.get("bash").cmd.get() == 'wc -l myinput.txt'
 
         :param validate: disable validation by setting this to false
         :param context: specify a local context that is taken into account

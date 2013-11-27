@@ -90,6 +90,7 @@ import re
 import os
 from os.path import exists
 import logging
+from StringIO import StringIO
 
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
@@ -453,7 +454,7 @@ class Option(object):
 
     def _is_stream(self, v):
         """Returns true if v is a stream or stream like"""
-        if v and (isinstance(v, file) or hasattr(v, 'fileno')):
+        if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno')):
             return True
         return False
 
@@ -507,7 +508,7 @@ class Option(object):
         exception is raised if the option setting is not valid. For example::
 
             >>> o = Option("input", "-i", "--long", value="data.csv")
-            >>> assert o.to_cmd() == '-s data.csv'
+            >>> assert o.to_cmd() == '-i data.csv'
 
         Hidden options and boolean options where the value is False or None are
         represented as empty string.
@@ -581,7 +582,10 @@ class Options(object):
     Option values can also be set directly using the dictionary notation. For
     example::
 
-        >>>opts['input'] = "data.txt"
+        >>> opts = Options()
+        >>> opts.add_input('input')
+        {input(<no-source>)::None}
+        >>> opts['input'] = "data.txt"
 
     This assigned the value ``data.txt`` to the ``input`` option.
 
@@ -803,7 +807,9 @@ class Options(object):
             >>> from jip.options import Options
             >>> opts = Options()
             >>> opts.add_input("input", short="-i", value="data.in", hidden=False)
+            {input(<no-source>)::data.in}
             >>> opts.add_output("output", short="-o", value="data.out", hidden=False)
+            {output(<no-source>)::data.out}
             >>> assert opts.to_cmd() == '-i data.in -o data.out'
 
         :returns: command line representation of all non-hidden options

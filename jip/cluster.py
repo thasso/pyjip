@@ -67,6 +67,7 @@ configured values::
     ...     def __init__(self):
     ...         cfg = jip.config.get('myconfig', {})
     ...         self.myvalue = cfg.get('myvalue', 1)
+    >>>
 
 If you need to allow for custom configuration, please do not forget to
 document the blocks and fields that are supported and have to be added to
@@ -79,8 +80,8 @@ statements. If you submit jobs by calling an external command, for example with
 python subprocess, please log the full command at ``debug`` log level. You can
 get a logger instance like this::
 
-    >>> import jip.logging
-    >>> log = jip.logging.getLogger('my.module')
+    >>> import jip.logger
+    >>> log = jip.logger.getLogger('my.module')
 
 Besides the cluster class, this module has a :py:func:`get` function that
 can be used to get an instance of the currently configured cluster environment.

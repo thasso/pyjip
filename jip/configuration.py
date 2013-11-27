@@ -9,14 +9,14 @@ loaded first and the users configuration can extend it.
 
 An instance of the loaded configuration is exposed in the ``jip`` main module::
 
-    >>>import jip
-    >>>assert jip.config is not None
+    >>> import jip
+    >>> assert jip.config is not None
 
 The :class:`Config` object provides general accessors in a dictionary fashion
 to the jip configuration by also allows dotted access::
 
-    >>>import jip
-    >>>assert jip.config['jip_path'] == jip.config.jip_path
+    >>> import jip
+    >>> assert jip.config['jip_path'] == jip.config.jip_path
 
 """
 import collections
@@ -51,8 +51,9 @@ class Config(object):
     dotted access to the configuration. Please note that
     the dotted access works if you request it as a single key::
 
-        >>>c = Config()
-        >>>print c['profiles.default']
+        >>> c = Config()
+        >>> print c['profiles.default']
+        {}
 
     But it will **not** work recursively through all attribute (
     ``c.profiles.default`` will raise an exception)
