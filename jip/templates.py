@@ -7,7 +7,7 @@ and implements the JIP filter functions. The template environment
 is stored as a global reverence and the template engine is exposed
 thought the :py:func:`render_template` function.
 """
-
+import os
 from jinja2 import Environment, Undefined, contextfilter
 from jip.logger import getLogger
 from jip.options import Option
@@ -171,6 +171,31 @@ def name_filter(ctx, value):
 
 
 @contextfilter
+def abs_filter(ctx, value, base=None):
+    if isinstance(value, JipUndefined):
+        return "${%s|abs}" % (value._undefined_name)
+    try:
+        value = __resolve_options(ctx, value)
+
+        if not isinstance(value, Option):
+            v = str(value)
+        else:
+            v = value.get()
+            if value.source._job is not None:
+                base = value.source.job.working_dir
+
+        if base is None:
+            base = os.getcwd()
+
+        if isinstance(v, basestring) and v and len(v) > 0 and\
+                not v.startswith('/'):
+            v = os.path.join(os.path.abspath(base), v)
+        return v
+    except:
+        return value
+
+
+@contextfilter
 def parent_filter(ctx, value):
     """Returns the name of the parent directory of the given file path
 
@@ -275,6 +300,7 @@ def _get_environment():
         environment.filters['else'] = else_filter
         environment.filters['name'] = name_filter
         environment.filters['ext'] = ext_filter
+        environment.filters['abs'] = abs_filter
         environment.filters['suf'] = suf_filter
         environment.filters['pre'] = pre_filter
         environment.filters['parent'] = parent_filter

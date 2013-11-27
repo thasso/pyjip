@@ -152,7 +152,8 @@ class Profile(object):
         self.extra = extra
         self.job_specs = None
         self.tool_name = tool_name
-        self.working_dir = working_dir
+        self.working_dir = working_dir if working_dir is not None \
+            else os.getcwd()
         if profile is not None and _load:
             self.load(profile)
 

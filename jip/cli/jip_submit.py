@@ -4,7 +4,7 @@ Submit a jip script to a remote cluster
 
 usage: jip-submit [-f] [-k] [-P <profile>] [-s <spec>] [-t <time>] [-q <queue>]
                   [-p <prio>] [-A <account>] [-m <mem>] [-n <name>]
-                  [-o <out>] [-e <err>] [-C <threads>] [-T <tasks>]
+                  [-o <out>] [-e <err>] [-D <dir>] [-C <threads>] [-T <tasks>]
                   [-N <nodes>] [--tasks-per-node <n>] [-E <pe>]
                   [-H] [--dry] [--show] [--with-profiler] <tool> [<args>...]
 
@@ -35,6 +35,7 @@ Options:
   -n, --name <name>        Job name
   -o, --out <out>          Stdout log file
   -e, --log <err>          Stderr log file
+  -D, --working-dir <dir>  The jobs working directory
   -H, --hold               submit job put put in on hold and don't send
                            it to the queue
   --dry                    Do not submit but show the dry configuration

@@ -146,7 +146,7 @@ class GemTranscriptomeIndex(object):
                                             are created
                                             [default: ${annotation|parent}]
         -p, --prefix <output_prefix>        The name to be used for the output
-                                            files [default: ${annotation}]
+                                            files [default: ${annotation|name}]
         -t, --threads <threads>             The number of execution threads
                                             [default: 1]
         -m, --max-length <max_read_length>  Maximum read length [default: 150]
@@ -166,7 +166,7 @@ class GemTranscriptomeIndex(object):
 
     def get_command(self):
         return 'bash', 'gemtools t-index -i ${index} -a ${annotation} ' \
-                       '-o ${output_dir}/${prefix} -t ${threads} ' \
+                       '-o ${output_dir|abs}/${prefix} -t ${threads} ' \
                        '-m ${max_length}'
 
 
@@ -174,7 +174,6 @@ def test_gemtools_index_command_rendering_for_options():
     p = jip.Pipeline()
     p.run('gem_index', input="Makefile", output_dir='test')
     p.expand(validate=False)
-    print ">>>OUTPUT ??", p.get("gem_index")._tool.options
     job = jip.create_jobs(p)[0]
     infile = os.path.abspath("Makefile")
     base = os.path.dirname(infile)
@@ -184,6 +183,24 @@ def test_gemtools_index_command_rendering_for_options():
     outfiles = list(job.get_output_files())
     assert len(outfiles) == 1
     assert outfiles[0] == os.path.join(base, "test/Makefile.gem")
+
+
+def test_gemtools_t_index_inputs():
+    p = jip.Pipeline()
+    p.run('gem_t_index', index="Makefile", annotation='setup.py',
+          output_dir='test')
+    p.expand(validate=False)
+    job = jip.create_jobs(p)[0]
+    infile = os.path.abspath("Makefile")
+    annotation = os.path.abspath("setup.py")
+    base = os.path.dirname(infile)
+    assert job.command == 'gemtools t-index -i %s -a %s -o %s -t 1 -m 150' % (
+        infile, annotation, os.path.join(base, "test/setup.py"))
+
+    outfiles = list(job.get_output_files())
+    assert len(outfiles) == 2
+    assert outfiles[0] == os.path.join(base, "test/setup.py.junctions.gem")
+    assert outfiles[1] == os.path.join(base, "test/setup.py.junctions.keys")
 
 
 if __name__ == '__main__':

@@ -779,7 +779,8 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     pipeline = source
     if not isinstance(source, jip.pipelines.Pipeline):
         log.info("Wrapping tool in pipeline: %s", source)
-        p = jip.pipelines.Pipeline()
+        p = jip.pipelines.Pipeline(cwd=profile.working_dir
+                                   if profile else None)
         p.run(source)
         pipeline = p
 

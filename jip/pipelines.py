@@ -93,10 +93,10 @@ class Job(Profile):
 class Pipeline(object):
     """A pipeline is a directed acyclic graph of Nodes and edges"""
 
-    def __init__(self):
+    def __init__(self, cwd=None):
         self._nodes = {}
         self._edges = set([])
-        self._job = Job(self)
+        self._job = Job(self, working_dir=cwd)
         self._current_job = self._job
         self._component_index = {}
         self._cleanup_nodes = []

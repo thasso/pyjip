@@ -722,6 +722,13 @@ The following filters are currently available:
     **name**
         Returns the basename of a file
 
+    **abs**
+        Returns the absolute path of a file. If no argument is specified, and
+        the rendered value is an option instance, the absolute path is 
+        calculated relative to the tool jobs working directory. Otherwise
+        the current working directory is used as a base. You can specify a
+        base folder as an optional argument to the filter.
+
     **parent**
         Return the name of the parent directory of a given file path
 
