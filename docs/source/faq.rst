@@ -21,7 +21,7 @@ Have a look at the following code::
     def nop():
         return ""
 
-this defines a tool called "hop", by default the function name is used, you can drop one in the @tool decorator.
+this defines a tool called ``nop``, by default the function name is used, you can drop one in the @tool decorator.
 
 The pipeline ``run()`` function takes a string or a tool instance.
 The string is treated as tool and a search is performed.
@@ -34,8 +34,8 @@ In this example, this would be enough to ge the tool and run it::
 The ``run()`` method returns a :py:class:`Node` object and also exposes all the properties of the node including its options.
 
 
-How can I access tehe tool options?
------------------------------------
+How can I access the tool options?
+----------------------------------
 Following the example before we can get a :class:Node object from a pipeline and assign options to it::
 
     >>> p = Pipeline()
