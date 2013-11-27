@@ -75,6 +75,8 @@ For example::
 
 Note that the nodes cmd option references "a", a local variable. In this case you should to drop the ``locals()`` to the pipeline context function before you return the pipeline or do anything with it::
 
+    >>> p = jip.Pipeline()
+    >>> a = "Makefile"
     >>> p.context(locals())
     >>> p.job().bash("wc -l ${a}")
     bash
