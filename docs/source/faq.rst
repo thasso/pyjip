@@ -65,22 +65,22 @@ For example::
     >>> a = "Makefile"
     >>> p.job().bash("wc -l ${a}")
     bash
-    >>> b = p.get('bash')
+    >>> b = jip.create_jobs(p)[0]
     >>> assert b is not None
-    >>> assert b.cmd.get() == 'wc -l Makefile'
+    >>> assert b.command == '(wc -l Makefile)'
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     AssertionError
     >>>
 
-Note that the nodes cmd option references "a", a local variable. In this case you should to drop the ``locals()`` to the pipeline context function before you return the pipeline or do anything with it::
+Note that the nodes cmd option references "a", a local variable. To resolve local variables you should drop the ``locals()`` to the pipeline context function before you return the pipeline or do anything with it::
 
     >>> p = jip.Pipeline()
     >>> a = "Makefile"
     >>> p.context(locals())
     >>> p.job().bash("wc -l ${a}")
     bash
-    >>> b = p.get('bash')
+    >>> b = jip.create_jobs(p)[0]
     >>> assert b is not None
-    >>> assert b.cmd.get() == 'wc -l Makefile'
+    >>> assert b.command == '(wc -l Makefile)'
     >>>
