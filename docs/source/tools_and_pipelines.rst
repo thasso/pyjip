@@ -843,6 +843,41 @@ that demonstrates the usage of the filters::
     echo "RAW BOOLEAN : ${boolean|re('no', 'effect')}"
     echo "========================================="
 
+Option translation
+******************
+The template context offers access to the ``options``, which can be used for
+a quick one to one translation of your input parameter in a command template.
+For example:
+
+.. code-block:: bash
+
+    #!/usr/bin/env jip
+    The GEM Indexer tool
+
+    Usage:
+        gem_index -i <genome> [-o <genome_index>] [-t <threads>] [--no-hash]
+
+    Options:
+        --help  Show this help message
+        -o, --output-dir <output_dir>  The folder where the output GEM
+                                       index is created
+        -t, --threads <threads>        The number of execution threads
+                                       [default: 1]
+        --no-hash                      Do not produce the hash file
+                                       [default: false]
+
+    Inputs:
+        -i, --input <genome>  The fasta file for the genome
+    """
+    gemtools index ${options()}
+
+Here, all specified options will be rendered after ``gemtools index``. This
+only applies to non-hidden options that have a long or a short name. That 
+means, if you want dynamically created options to be rendered, you have to 
+set the ``long`` or ``short`` flags and make them non-hidden::
+
+    add_output("output", short='-o', hidden=False)
+
 .. _python_context:
 
 The script context

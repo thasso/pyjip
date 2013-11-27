@@ -829,14 +829,8 @@ def create(source, args=None, excludes=None, skip=None, keep=False,
     # an output file occurs twice
     for job in jobs:
         log.info("Validate %s", job)
-        # set pipeline and job so validation can modify values
         job.tool._pipeline = pipeline
         job.tool._job = job
-        try:
-            job.validate()
-        except:
-            if validate:
-                raise
         if profile is not None:
             profile.apply(job, pipeline=True)
     return jobs

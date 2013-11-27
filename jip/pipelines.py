@@ -855,8 +855,17 @@ class Pipeline(object):
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
         # apply all _job_names of nodes that might have been
-        # applied during validation
+        # applied and perform the final validation on all nodes
         for node in self.nodes():
+            try:
+                node._tool.validate()
+            except Exception as err:
+                if validate:
+                    raise
+                else:
+                    log.debug("Node validation failed, but validation is "
+                              "disabled: %s", err)
+            #node.update_options()
             if node._tool._job_name is not None:
                 self._apply_node_name(node, node._tool._job_name)
 
