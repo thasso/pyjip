@@ -137,6 +137,7 @@ Contents
    examples/index
    cli/index
    api/index
+   faq
 
 
 Indices and tables
