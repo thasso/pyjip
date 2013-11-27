@@ -804,11 +804,21 @@ def test_node_options_with_assignment():
     print t2._tool.options
 
 
-def test_pipeline_with_local_context():
+def test_pipeline_with_local_context_in_expand():
     p = jip.Pipeline()
     a = "Makefile"
     p.job().bash("wc -l ${a}")
     p.expand(locals())
+    b = p.get('bash')
+    assert b is not None
+    assert b.cmd.get() == 'wc -l Makefile'
+
+
+def test_pipeline_with_local_context():
+    p = jip.Pipeline()
+    a = "Makefile"
+    p.job().bash("wc -l ${a}")
+    p.context(locals())
     b = p.get('bash')
     assert b is not None
     assert b.cmd.get() == 'wc -l Makefile'
