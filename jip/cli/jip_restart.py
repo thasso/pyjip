@@ -77,7 +77,7 @@ def main():
                     env.get('JIP_PATH', "")
                 )
             p = jip.jobs.get_pipe_parent(j)
-            for t in jip.jobs.group([p]):
+            for t in jip.jobs.create_groups([p]):
                 updated += len(t)
                 map(profile.apply, t)
         # submit the parents

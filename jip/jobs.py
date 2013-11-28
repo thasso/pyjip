@@ -133,7 +133,7 @@ def topological_order(jobs):
                 ready.append(successor)
 
 
-def group(jobs):
+def create_groups(jobs):
     """Group jobs that will be executed in one step. This returns
     a list of lists. Each list starts with the 'primary' job. This job is
     the ONLY job that has to be executed. But note that when you submit jobs

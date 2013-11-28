@@ -154,7 +154,7 @@ def show_commands(jobs):
     print ""
     print "Job commands"
     print "------------"
-    for g in jip.jobs.group(jobs):
+    for g in jip.jobs.create_groups(jobs):
         job = g[0]
         deps = [str(d) for j in g
                 for d in j.dependencies if d not in g]
@@ -211,7 +211,7 @@ def show_job_states(jobs, title="Job states"):
             name=colorize(title, BLUE)
         )
     rows = []
-    for g in jip.jobs.group(jobs):
+    for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
         outs = [_clean_value(f) for j in g for f in j.tool.get_output_files()]
@@ -266,7 +266,7 @@ def show_job_profiles(jobs, title="Job profiles"):
         print "#" * 149
         print "| {name:^153}  |".format(name=colorize(title, BLUE))
     rows = []
-    for g in jip.jobs.group(jobs):
+    for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
         rows.append([
@@ -621,7 +621,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         for parent in parents:
             log.info("Checking state for graph at %s", parent)
             parent_jobs = jip.jobs.get_subgraph(parent)
-            for g in jip.jobs.group(parent_jobs):
+            for g in jip.jobs.create_groups(parent_jobs):
                 job = g[0]
                 if job.state != jip.db.STATE_DONE:
                     if not parent in unfinished_jobs:
@@ -680,7 +680,7 @@ def submit(script, script_args, keep=False, force=False, silent=False,
         pass
 
     try:
-        for g in jip.jobs.group(jobs):
+        for g in jip.jobs.create_groups(jobs):
             job = g[0]
             name = "|".join(str(j) for j in g)
             if job.state == jip.db.STATE_DONE and not force:
@@ -741,7 +741,7 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
     if len(jobs) == 1:
         silent = True
 
-    for g in jip.jobs.group(jobs):
+    for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
         if job.state == jip.db.STATE_DONE and not force:
