@@ -24,6 +24,8 @@ in the specified order:
     16) box net io write bytes
     17) box memory used
     18) box memory free
+    19) box physical memory free
+    20) box total memory
 """
 import os
 import multiprocessing
@@ -86,7 +88,9 @@ class Profiler(object):
                 netio.bytes_recv - netstat.bytes_recv,
                 netio.bytes_sent - netstat.bytes_sent,
                 box_mem.used,
-                box_mem.free
+                box_mem.free,
+                (psutil.used_phymem() - psutil.cached_phymem()),
+                box_mem.total
             ]
         else:
             box_data = [0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -122,7 +126,8 @@ class Profiler(object):
                             "mem_percent\tmem_rss\tmem_vms\t" \
                             "box_cpu_user\tbox_cpu_system\tbox_cpu_idle\t" \
                             "disk_read\tdisk_write\tnet_read\tnet_write\t" \
-                            "box_mem_used\tbox_mem_free"
+                            "box_mem_used\tbox_mem_free\tbox_phy_mem_free\t" \
+                            "box_mem_tot"
 
             while True:
                 try:
