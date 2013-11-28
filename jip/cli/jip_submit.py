@@ -86,7 +86,7 @@ def main(argv=None):
     if args['--dry'] or args['--show']:
         # we handle --dry and --show separatly,
         # create the jobs and call the show commands
-        jobs = jip.jobs.create(script, args=script_args, profile=profile)
+        jobs = jip.jobs.create_jobs(script, args=script_args, profile=profile)
         if args['--dry']:
             show_dry(jobs, options=script.options, profiles=True)
         if args['--show']:

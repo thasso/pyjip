@@ -741,7 +741,7 @@ def from_node(node, env=None, keep=False):
     return job
 
 
-def create(source, args=None, excludes=None, skip=None, keep=False,
+def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
            profile=None, validate=True, profiler=False):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.

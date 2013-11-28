@@ -587,8 +587,8 @@ def submit(script, script_args, keep=False, force=False, silent=False,
     cluster = jip.cluster.get()
     log.info("Cluster engine: %s", cluster)
 
-    jobs = jip.jobs.create(script, args=script_args, keep=keep,
-                           profile=profile, profiler=profiler)
+    jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
+                                profile=profile, profiler=profiler)
     jip.jobs.check_output_files(jobs)
 
     # we reached final submission time. Time to
@@ -731,8 +731,8 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
         # reset threads
         profile.threads = threads
 
-    jobs = jip.jobs.create(script, args=script_args, keep=keep,
-                           profile=profile)
+    jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
+                                profile=profile)
     # assign job ids
     for i, j in enumerate(jobs):
         j.id = i + 1
@@ -781,7 +781,7 @@ def dry(script, script_args, dry=True, show=False):
     """
     # we handle --dry and --show separately,
     # create the jobs and call the show commands
-    jobs = jip.jobs.create(script, args=script_args)
+    jobs = jip.jobs.create_jobs(script, args=script_args)
     if dry:
         show_dry(jobs, options=script.options
                  if isinstance(script, jip.tools.Tool) else None)
