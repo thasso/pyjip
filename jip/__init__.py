@@ -5,7 +5,9 @@ from jip.logger import log_level
 from jip.tools import tool, pytool, pipeline, Scanner, ValidationError, Tool,\
     ToolNotFoundException
 from jip.jobs import set_state
+from jip.jobs import group as create_groups
 from jip.jobs import create as create_jobs
+from jip.jobs import run as run_job
 from jip.pipelines import Pipeline
 from jip.profiles import Profile
 from jip.configuration import Config

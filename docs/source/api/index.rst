@@ -28,9 +28,7 @@ set of jobs. These jobs can then be executed in order or submitted to a
 compute cluster. 
 
 Lets start with creating a pipeline instance. You can import the necessary 
-classes and function directly from the ``jip`` module:
-
-.. doctest::
+classes and function directly from the ``jip`` module::
 
     >>> from jip import *
 
@@ -41,9 +39,7 @@ tools, but reference them by name. If the tool can not be found, a
 :py:exc:`jip.tools.ToolNotFoundException` is raised. In that case, you either
 misspelled the tool name or you have to configure the ``jip.scanner`` instance
 in order to add custom search paths (see :ref:`api_scanner` on how to 
-customize the search paths):
-
-.. doctest::
+customize the search paths)::
 
     >>> p = Pipeline()
     >>> p.run("unknown")
@@ -54,6 +50,59 @@ customize the search paths):
       File "jip/tools.py", line 410, in find
           raise ToolNotFoundException("No tool named '%s' found!" % name)
     ToolNotFoundException: No tool named 'unknown' found!
+
+In case you want to be sure, catch and handle the ``ToolNotFoundException``,
+but typically this is a serious issue and the exception should be raised up.
+
+Now lets go through the process once more, this time adding a ``bash`` run
+to the pipeline::
+
+    >>> p = Pipeline()
+    >>> p.bash('ls')
+    bash
+    >>> print len(p)
+    1
+
+We now have a pipeline graph with exactly one :class:`~jip.pipelines.Node`.
+
+Running pipelines locally
+-------------------------
+Pipeline instances represent the execution graph and its properties, but they
+are not ment to be executed directly. We have to convert the pipeline nodes 
+into :class:`jobs <jip.db.Job>` that can be executed wither locally or send 
+to a remote cluster. The first step here is to :py:fun:`create 
+<jip.jobs.create>` the job instances::
+
+    >>> jobs = create_jobs(p)
+    >>> assert len(jobs) == 1
+
+In the background, the pipeline was *expanded*, options were rendered, and the
+job were validated. In case one of the tools in the pipeline was misconfigured
+and the validation would step would raise a ``ValidationError``. These are 
+rather common, especially when you pass along user input, so you might want
+to run the ``create_jobs`` call in a ``try/except`` block to catch any 
+exceptions.
+
+Now that we have a list of jobs to execute, you might think we are ready to 
+go, but unfortunately that is not yet the case. The call to ``create_jobs``
+returns an ordered list of *all* the jobs in the pipeline graph, but we do
+not want to start all of them independently. The main reason is that JIP allows
+you to create data streams between jobs. That means the jobs involved have to
+run in parallel and their input and output streams have to be handled 
+appropriately. These sets of jobs for *groups* and we only have to start
+the **first job of each group**. The other jobs will be started automatically
+in the right order and with the right I/O setup::
+
+    >>> for group in create_groups(jobs):
+    ...     print "Running %s:" % group[0],
+    ...     if run_job(group[0]):
+    ...         print "Success"
+    ...     else:
+    ...         print "Failure"
+    ...     
+    Running bash: Success
+    >>> 
+
 
 .. _api_scanner:
 

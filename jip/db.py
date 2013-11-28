@@ -382,11 +382,29 @@ class Job(Base):
                 #cmd += self.interpreter_args
             log.debug("%s | starting process with in: %s out: %s", self,
                       self.stream_in, self.stream_out)
-            self._process = subprocess.Popen(
-                cmd + [script_file.name],
-                stdin=self.stream_in,
-                stdout=self.stream_out,
-            )
+            # handle pseudo files
+            sin = self.stream_in
+            sout = self.stream_out
+            try:
+                self._process = subprocess.Popen(
+                    cmd + [script_file.name],
+                    stdin=sin,
+                    stdout=sout,
+                )
+            except ValueError as err:
+                if str(err) == "redirected Stdin is pseudofile, "\
+                        "has no fileno()":
+                    log.error("pseudo file found for stdin! We work around"
+                              "this and start the process without any "
+                              "stream setup to make the doctest work! "
+                              "Don't tell me, I know this is dirty and "
+                              "if you reach this message outside of a doctest "
+                              "please let us now and we have to find another "
+                              "workaround!")
+                    self._process = subprocess.Popen(cmd + [script_file.name])
+                    return self._process
+                else:
+                    raise
             return self._process
         except OSError, err:
             # catch the errno 2 No such file or directory, which indicates the
