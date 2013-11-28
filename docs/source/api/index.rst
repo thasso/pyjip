@@ -65,8 +65,8 @@ to the pipeline::
 
 We now have a pipeline graph with exactly one :class:`~jip.pipelines.Node`.
 
-Running pipelines locally
--------------------------
+Running jobs locally
+--------------------
 Pipeline instances represent the execution graph and its properties, but they
 are not ment to be executed directly. We have to convert the pipeline nodes 
 into :class:`jobs <jip.db.Job>` that can be executed wither locally or send 
@@ -86,23 +86,63 @@ exceptions.
 Now that we have a list of jobs to execute, you might think we are ready to 
 go, but unfortunately that is not yet the case. The call to ``create_jobs``
 returns an ordered list of *all* the jobs in the pipeline graph, but we do
-not want to start all of them independently. The main reason is that JIP allows
-you to create data streams between jobs. That means the jobs involved have to
-run in parallel and their input and output streams have to be handled 
-appropriately. These sets of jobs for *groups* and we only have to start
-the **first job of each group**. The other jobs will be started automatically
-in the right order and with the right I/O setup::
+not want to start all of them independently. We might also want to perform 
+further checks on the jobs. Some of them might already be completed and unless
+we want to force execution, we do not have to send them again. We also want to
+*group* jobs. The main reason is that JIP allows you to create data streams
+between jobs. That means the jobs involved have to run in parallel and their
+input and output streams have to be handled appropriately. These sets of jobs
+form *groups* and we only have to start the **primary job of each group**. The
+other jobs will be started automatically in the right order and with the right
+I/O setup. The JIP API, specifically, the :py:mod:`jip.jobs` module, provides
+a set of low level functions to perform the grouping and additional checks,
+but it also contains a few helper functions that wrap around common use cases.
+We are trying to implement one of these common ones, running a pipeline. 
+Therefore we are lucky and can leverage some of the helpers::
 
-    >>> for group in create_groups(jobs):
-    ...     print "Running %s:" % group[0],
-    ...     if run_job(group[0]):
+    >>> for exe in create_executions(jobs, check_outputs=True):
+    ...     print "Running %s:" % exe.name,
+    ...     if exe.completed:
+    ...         print "Skipped"
+    ...     elif run_job(exe.job):
     ...         print "Success"
     ...     else:
     ...         print "Failure"
+    ...         break
     ...     
     Running bash: Success
     >>> 
 
+What happens is that we iterate over all available execution and run all
+jobs that are not yet in completed state. In case of a failure, we break the 
+loop and stop executing.
+
+Save and submit jobs
+--------------------
+The same rules that apply to running jobs locally also apply when you want
+to *submit* jobs to a remote cluster, but we need to do a little bit more work.
+In order to get jobs submitted, we have to store them in a JIP database that
+is accessible by the cluster before we can use in instance of your compute 
+cluster to actually submit the job. The JIP database location and the JIP
+cluster instance can both be configured within the JIP configuration. In the 
+command line application that is shipped with JIP, this is the way to modify
+both the database and the cluster. When using the JIP API directly, you can
+leverage the same functionality and we provide examples of how you can get the
+pre-configured database and cluster instance :ref:`below 
+<api_jip_configuration>`. For this example, we will go through the process of 
+manually configuring both the cluster instance as well as the database.
+
+Customize the database location
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Without any further specification, the JIP database is configured by the user
+in the JIP configuration files. You can however use the API to alter and 
+modify the location.
+
+
+.. _api_jip_configuration:
+
+Use the JIP configuration
+-------------------------
 
 .. _api_scanner:
 

@@ -859,6 +859,12 @@ class Pipeline(object):
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
+        # apply names from global context
+        if self.utils and self.utils._global_env:
+            for k, v in self.utils._global_env.iteritems():
+                if isinstance(v, Node):
+                    if v._job.name is None:
+                        v._job.name = k
         # apply all _job_names of nodes that might have been
         # applied and perform the final validation on all nodes
         for node in self.nodes():

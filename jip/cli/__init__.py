@@ -736,34 +736,32 @@ def run(script, script_args, keep=False, force=False, silent=False, threads=1,
     # assign job ids
     for i, j in enumerate(jobs):
         j.id = i + 1
-    jip.jobs.check_output_files(jobs)
+
     # force silent mode for single jobs
     if len(jobs) == 1:
         silent = True
 
-    for g in jip.jobs.create_groups(jobs):
-        job = g[0]
-        name = "|".join(str(j) for j in g)
-        if job.state == jip.db.STATE_DONE and not force:
+    for exe in jip.jobs.create_executions(jobs):
+        if exe.completed and not force:
             if not silent:
-                print >>sys.stderr, colorize("Skipping", YELLOW), name
+                print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
         else:
             if not silent:
                 sys.stderr.write(colorize("Running", YELLOW) +
                                  " {name:30} ".format(
-                                     name=colorize(name, BLUE)
+                                     name=colorize(exe.name, BLUE)
                                  ))
                 sys.stderr.flush()
             start = datetime.now()
-            success = jip.jobs.run(job, profiler=profiler)
+            success = jip.jobs.run(exe.job, profiler=profiler)
             end = timedelta(seconds=(datetime.now() - start).seconds)
             if success:
                 if not silent:
-                    print >>sys.stderr, colorize(job.state, GREEN),\
+                    print >>sys.stderr, colorize(exe.job.state, GREEN),\
                         "[%s]" % (end)
             else:
                 if not silent:
-                    print >>sys.stderr, colorize(job.state, RED)
+                    print >>sys.stderr, colorize(exe.job.state, RED)
                 sys.exit(1)
 
 

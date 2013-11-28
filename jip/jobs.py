@@ -2,6 +2,7 @@
 """Job utilities that cover basic pipeline graph traversals and
 wrappers around common actions.
 """
+import collections
 from datetime import datetime
 import getpass
 import os
@@ -161,6 +162,58 @@ def create_groups(jobs):
         map(done.add, group)
         groups.append(group)
     return groups
+
+
+def create_executions(jobs, check_outputs=True):
+    """Yields named tuples that reference jobs that can be executed in the
+    right order. The named tuples yield by this generator have the following
+    properties:
+
+        name
+            a joined name created for each job group
+        job
+            the :class:`~jip.db.Job` instance that can be submitted or
+            executed.
+        done
+            boolean that indicates whether the job (and therefore all jobs
+            in the job group) is in "Done" state and marked as completed.
+
+    If you need to execute a pipeline, you can use this in conjunction with
+    :py:fun:`create_jobs` to yield a list of jobs that you might want to
+    execute or submit::
+
+        >>> p = jip.Pipeline()
+        >>> files = p.bash("ls")
+        >>> count = p.bash("wc -l", input=files)
+        >>> p.context(locals())
+        >>> jobs = create_jobs(p)
+        >>> for r in create_executions(jobs):
+        ...     assert r.completed == False
+        ...     assert r.job is not None
+        ...     assert r.name == 'files|count'
+        >>>
+
+
+    :param jobs: list of input jobs
+    :param check_outputs: if True, duplicated output file names are checked
+                          and a ``ValidationError`` is raised if duplications
+                          are detected
+    :returns: generates list of named tuples with
+    :raises Validationerror: if output file checks are enabled and duplications
+                             are detected
+    """
+    if check_outputs:
+        check_output_files(jobs)
+
+    # the instance
+    Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
+
+    # create the job groups
+    for g in jip.jobs.create_groups(jobs):
+        job = g[0]
+        name = "|".join(str(j) for j in g)
+        completed = job.state == jip.db.STATE_DONE
+        yield Runable(name, job, completed)
 
 
 def submit_pipeline(job, silent=False, clean=False, force=False, session=None):
@@ -839,7 +892,7 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
 
 def check_output_files(jobs):
     """Ensures that there are no output file duplication in the given set
-    of jobs and raises a ValidationError if there are.
+    of jobs and raises a :py:exc:`~jip.tools.ValidationError` if there are.
 
     :param jobs: list of jobs
     :raises ValidationError: if duplicated output files are found
