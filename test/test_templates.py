@@ -29,6 +29,35 @@ def test_render_boolean_option():
     assert render_template("${t|arg}", tool=tool, test="1") == "-t"
 
 
+def test_jinja_python_block_context():
+    @jip.tool("simple")
+    def SimpleTool():
+        """\
+        Test tool
+        Usage:
+            tool <myopt>
+        Options:
+            myopt   some option
+        """
+        return """
+CONTENT
+myval = ${myopt}
+{% set x = myopt %}
+x = ${x}
+
+"""
+    p = jip.Pipeline()
+    p.run('simple', myopt='testval')
+    jobs = jip.create_jobs(p)
+    print jobs[0].command
+    assert jobs[0].command == """
+CONTENT
+myval = testval
+
+x = testval
+"""
+
+
 def test_render_value_option():
     @jip.tool("simple")
     class SimpleTool(object):

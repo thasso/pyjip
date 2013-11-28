@@ -164,10 +164,10 @@ def create_groups(jobs):
     return groups
 
 
-def create_executions(jobs, check_outputs=True):
-    """Yields named tuples that reference jobs that can be executed in the
-    right order. The named tuples yield by this generator have the following
-    properties:
+def create_executions(jobs, check_outputs=True, session=None):
+    """Return a list of named tuples that reference jobs that can be executed
+    in the right order. The named tuples yield by this generator have the
+    following properties:
 
         name
             a joined name created for each job group
@@ -198,7 +198,9 @@ def create_executions(jobs, check_outputs=True):
     :param check_outputs: if True, duplicated output file names are checked
                           and a ``ValidationError`` is raised if duplications
                           are detected
-    :returns: generates list of named tuples with
+    :param session: if specified, all jobs are added to the session and the
+                    session is committed if no exception occurs
+    :returns: list of named tuples with name, job, and done properties
     :raises Validationerror: if output file checks are enabled and duplications
                              are detected
     """
@@ -207,13 +209,19 @@ def create_executions(jobs, check_outputs=True):
 
     # the instance
     Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
+    runnables = []
 
     # create the job groups
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
         completed = job.state == jip.db.STATE_DONE
-        yield Runable(name, job, completed)
+        runnables.append(Runable(name, job, completed))
+
+    if session:
+        map(session.add, jobs)
+        session.commit()
+    return runnables
 
 
 def submit_pipeline(job, silent=False, clean=False, force=False, session=None):
@@ -478,7 +486,7 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
              clean_logs=clean_logs, silent=silent)
 
 
-def submit(job, silent=False, clean=False, force=False, session=None,
+def submit(job, silent=True, clean=False, force=False, session=None,
            cluster=None):
     """Submit the given job to the cluster. This only submits jobs that are not
     `DONE`. The job has to be in `canceled`, `failed`, `queued`,
@@ -526,7 +534,6 @@ def submit(job, silent=False, clean=False, force=False, session=None,
     # set state queued and submit
     if cluster is None:
         cluster = jip.cluster.get()
-
     set_state(job, db.STATE_QUEUED)
     cluster.submit(job)
     if not silent:
@@ -766,6 +773,26 @@ def from_node(node, env=None, keep=False):
             if not a in node_options:
                 job.additional_options.add(a)
 
+    from py._io.capture import DontReadFromInput, EncodedFile
+    for o in job.configuration:
+        if isinstance(o.raw(), (DontReadFromInput, EncodedFile)):
+            log.error("pseudo file found as option! We work around "
+                      "this and reset to None! "
+                      "Don't tell me, I know this is dirty and "
+                      "if you reach this message outside of a doctest "
+                      "please let us now and we have to find another "
+                      "workaround!")
+            o._value = []
+        if o.default and isinstance(o.default, (DontReadFromInput,
+                                                EncodedFile)):
+            log.error("pseudo file found as default! We work around "
+                      "this and reset to None! "
+                      "Don't tell me, I know this is dirty and "
+                      "if you reach this message outside of a doctest "
+                      "please let us now and we have to find another "
+                      "workaround!")
+            o.default = None
+
     # check for special options
     if node._tool.options['threads'] is not None:
         try:
@@ -795,13 +822,13 @@ def from_node(node, env=None, keep=False):
 
 
 def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
-           profile=None, validate=True, profiler=False):
+                profile=None, validate=True, profiler=False):
     """Create a set of jobs from the given tool or pipeline.
     This expands the pipeline and creates a job per pipeline node.
 
     You can specify a list of excludes. The list must contain job names. All
     jobs with these names will be excluded. This also covered all child jobs
-    of excluded job, effectively disabeling a the full subgraph that contains
+    of excluded job, effectively disabling the full subgraph that contains
     the excluded node.
 
     After all jobs are created, they are validated and a `ValidationError` is

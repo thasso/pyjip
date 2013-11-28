@@ -876,9 +876,11 @@ class Pipeline(object):
                 else:
                     log.debug("Node validation failed, but validation is "
                               "disabled: %s", err)
-            #node.update_options()
+            node.update_options()
             if node._tool._job_name is not None:
                 self._apply_node_name(node, node._tool._job_name)
+
+            node._tool.options.make_absolute(node._job.working_dir)
 
     def validate(self):
         """Validate all nodes in the graph"""

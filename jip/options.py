@@ -258,8 +258,11 @@ class Option(object):
             return
         values = []
         for v in self._value:
+            # only make strings absolute that content content
+            # do not start with / and do not contain a ${. The ${ check
+            # is there to avoid making things absolute too early
             if isinstance(v, basestring) and v and len(v) > 0 and\
-                    not v.startswith('/'):
+                    not v.startswith('/') and "${" not in v:
                 log.debug("Make option %s absolute to %s",
                           self.name, path)
                 v = os.path.join(os.path.abspath(path), v)

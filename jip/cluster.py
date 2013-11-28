@@ -90,9 +90,11 @@ instance and all implementation should avoid storing instance variables that
 are job dependent.
 
 """
+import collections
 import os
 import re
 from subprocess import Popen, PIPE
+import multiprocessing
 
 import jip
 from jip.logger import getLogger

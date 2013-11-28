@@ -44,4 +44,3 @@ def test_sge_threads_pe_loading():
     }
     sge = cl.SGE()
     assert sge.threads_pe == 'threads'
-

@@ -32,8 +32,8 @@ def test_job_names_after_multiplexing():
 
 def test_job_names_after_multiplexing_with_name_template():
     p = jip.Pipeline()
-    j = p.job("${input}").run('nop_noval')
-    assert p.get("${input}") == j
+    j = p.job("${input|name}").run('nop_noval')
+    assert p.get("${input|name}") == j
     j.input = ["A", "B", "C"]
     p.expand(validate=False)
 

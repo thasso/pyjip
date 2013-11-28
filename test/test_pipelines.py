@@ -202,7 +202,8 @@ def test_expand_single_node():
     inputs = []
     for node in p.nodes():
         inputs.append(node.input.get())
-    assert sorted(inputs) == ["test_1.txt", "test_2.txt"]
+    assert sorted(inputs) == [os.path.join(os.getcwd(), "test_1.txt"),
+                              os.path.join(os.getcwd(), "test_2.txt")]
 
 
 def test_expand_two_nodes_both_fan_out():
@@ -676,13 +677,13 @@ def test_node_naming_in_simple_multiplex():
         p.get("1")
     assert len(p) == 3
     assert p.get("1.0") is not None
-    assert p.get("1.0").input.get() == "A"
+    assert p.get("1.0").input.get() == os.path.join(os.getcwd(), "A")
 
     assert p.get("1.1") is not None
-    assert p.get("1.1").input.get() == "B"
+    assert p.get("1.1").input.get() == os.path.join(os.getcwd(), "B")
 
     assert p.get("1.2") is not None
-    assert p.get("1.2").input.get() == "C"
+    assert p.get("1.2").input.get() == os.path.join(os.getcwd(), "C")
 
 
 @jip.pipeline()

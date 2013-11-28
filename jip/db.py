@@ -342,7 +342,7 @@ class Job(Base):
                 else:
                     # nothing worked, kill the job
                     import signal
-                    os.kill(self.process._popen.pid, signal.SIGKILL)
+                    os.kill(self._process._popen.pid, signal.SIGKILL)
 
     def _load_job_env(self):
         """Load the job environment"""
