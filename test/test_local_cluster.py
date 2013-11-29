@@ -102,6 +102,11 @@ def test_single_job_master_termination(tmpdir):
     # and we should have one job in Failed state in our database
     # we do the query with a fresh session though
     job = jip.db.find_job_by_id(jip.db.create_session(), 1)
+    # print the log files
+    print ">>>STD ERR LOG"
+    print open(c.resolve_log(job, job.stderr)).read()
+    print ">>>STD OUT LOG"
+    print open(c.resolve_log(job, job.stdout)).read()
     assert job is not None
     assert job.state == jip.db.STATE_FAILED
 
@@ -157,6 +162,6 @@ def test_job_hierarchy_execution(tmpdir):
 
     # check the content of the output files
     assert open(target_file + ".1").read() == "hello world\n"
-    assert open(target_file + ".2").read() == "       2 %s\n" % \
+    assert open(target_file + ".2").read().strip() == "2 %s" % \
         (target_file + ".1")
     assert open(target_file + ".3").read() == "Other\n"

@@ -628,7 +628,7 @@ def create_job_env(profiler=False):
             command line utilities works as expected and the same JIP version
             is loaded at job runtime.
 
-        ``JIP_PATH``, ``JIP_MODULES``, ``JIP_LOGLEVEL``
+        ``JIP_PATH``, ``JIP_MODULES``, ``JIP_LOGLEVEL``, ``JIP_DB_LOGLEVEL``
             Any local modification of the paths to search for tools or the
             module search paths are stored. In addition, the current log
             level is passed on to the job, which effectively allows you
@@ -647,6 +647,7 @@ def create_job_env(profiler=False):
         "JIP_PATH": os.getenv("JIP_PATH", ""),
         "JIP_MODULES": os.getenv("JIP_MODULES", ""),
         "LD_LIBRARY_PATH": os.getenv("LD_LIBRARY_PATH", ""),
+        "JIP_DB_LOGLEVEL": os.getenv("JIP_DB_LOGLEVEL", ""),
         "JIP_LOGLEVEL": str(log.getEffectiveLevel())
     }
     if profiler:

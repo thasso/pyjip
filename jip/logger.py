@@ -47,6 +47,11 @@ log.handler = []
 log.propagate = False
 level = _get_level(getenv("JIP_LOGLEVEL", logging.WARN))
 log_level(level)
+if getenv("JIP_DB_LOGLEVEL", "") != "":
+    getLogger('sqlalchemy.engine').setLevel(
+        getenv("JIP_DB_LOGLEVEL", logging.INFO)
+    )
+
 
 console = logging.StreamHandler()
 fmt = DEFAULT_FMT

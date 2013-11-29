@@ -186,7 +186,7 @@ class Cluster(object):
         """
         pass
 
-    def resolve_log(job, path):
+    def resolve_log(self, job, path):
         """Resolve cluster specific file pattern to get the path to a log file.
 
         Log file paths support cluster engine specific place holders and this

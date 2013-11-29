@@ -9,4 +9,4 @@ install:
     # Deal with issue on Travis builders re: multiprocessing.Queue :(
     - "sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm"
 # command to run tests, e.g. python setup.py test
-script:  py.test
+script:  JIP_LOGLEVEL=DEBUG JIP_DB_LOGLEVEL=DEBUG py.test

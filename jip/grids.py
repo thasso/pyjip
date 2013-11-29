@@ -128,12 +128,6 @@ class LocalCluster(jip.cluster.Cluster):
         if id in self.processes:
             pass  # TODO: kill the process and remove all child jobs
 
-    def update(self, job):
-        pass
-
-    def resolve_log(job, path):
-        return path
-
     @staticmethod
     def master(requests, response):
         """The master process function.
