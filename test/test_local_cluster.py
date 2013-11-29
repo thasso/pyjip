@@ -9,12 +9,12 @@ import time
 
 def test_sorting_local_jobs():
     jobs = [
-        cl.LocalJob(job_id=4),
-        cl.LocalJob(job_id=1),
-        cl.LocalJob(job_id=2, dependencies=set([1])),
-        cl.LocalJob(job_id=3),
-        cl.LocalJob(job_id=5, dependencies=set([1, 2, 3])),
-        cl.LocalJob(job_id=6, dependencies=set([1, 2])),
+        cl._Job(job_id=4),
+        cl._Job(job_id=1),
+        cl._Job(job_id=2, dependencies=set([1])),
+        cl._Job(job_id=3),
+        cl._Job(job_id=5, dependencies=set([1, 2, 3])),
+        cl._Job(job_id=6, dependencies=set([1, 2])),
     ]
     sorted_jobs = sorted(jobs)
     assert [j.job_id for j in sorted_jobs] == [1, 3, 4, 2, 6, 5]
