@@ -111,6 +111,52 @@ def test_single_job_master_termination(tmpdir):
     assert job.state == jip.db.STATE_FAILED
 
 
+def test_job_cancelation(tmpdir):
+    tmpdir = str(tmpdir)
+    db_file = os.path.join(tmpdir, "test.db")
+
+    # create a JIP database and a session
+    jip.db.init(db_file)
+    session = jip.db.create_session()
+
+    # create the cluster instance
+    c = cl.LocalCluster()
+
+    # create the pipeline
+    p = jip.Pipeline()
+    first = p.job(dir=tmpdir).bash('sleep 10')
+    p.job(dir=tmpdir).bash('sleep 10').depends_on(first)
+    p.context(locals())
+
+    # create the jobs
+    jobs = jip.create_jobs(p)
+
+    # iterate the executions and pass the session so all jobs are stored
+    for e in jip.create_executions(jobs, session=session):
+        jip.submit_job(e.job, session=session, cluster=c)
+    # sleep for a second to give the job time to start
+    time.sleep(0.1)
+
+    # cancel the job
+    job = jip.db.find_job_by_id(jip.db.create_session(), 1)
+    jip.jobs.cancel(job, cluster=c, session=True)
+
+    c.wait()
+
+    # and we should have one job in Failed state in our database
+    # we do the query with a fresh session though
+    job_1 = jip.db.find_job_by_id(jip.db.create_session(), 1)
+    job_2 = jip.db.find_job_by_id(jip.db.create_session(), 2)
+    # print the log files
+    print ">>>JOB 1 STD ERR LOG"
+    print open(c.resolve_log(job, job_1.stderr)).read()
+    print ">>>JOB 1 STD OUT LOG"
+    print open(c.resolve_log(job, job_1.stdout)).read()
+
+    assert job_1.state == jip.db.STATE_CANCELED
+    assert job_2.state == jip.db.STATE_CANCELED
+
+
 def test_job_hierarchy_execution(tmpdir):
     print ">>>", tmpdir
     tmpdir = str(tmpdir)

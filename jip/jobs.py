@@ -244,7 +244,7 @@ def submit_pipeline(job, silent=False, clean=False, force=False, session=None):
     #for j in jobs:
         #log.info("Validating %s", j)
         #j.validate()
-    for g in group(jobs):
+    for g in create_groups(jobs):
         j = g[0]
         submit(j, silent=silent, clean=clean, force=force, session=session)
         map(send.add, g)
@@ -427,7 +427,8 @@ def clean(job):
             os.remove(stdout)
 
 
-def cancel(job, clean_job=False, clean_logs=False, silent=True):
+def cancel(job, clean_job=False, clean_logs=False, silent=True,
+           cluster=None, session=None):
     """Cancel the given job and make sure its no longer on the cluster.
 
     The function takes only jobs that are in active state and takes
@@ -438,6 +439,10 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True):
     :param clean_logs: if True, the job log files will be deleted
     :param clean_job: if True, the job results will be removed
     :param silent: if False, the method will print status messages
+    :param cluster: if not Cluster is specified and this is the parent
+                    job in a group, the default cluster is loaded
+    :param session: if a database session is given, the session is committed
+                    after the state change
     """
     if not job.state in db.STATES_ACTIVE and job.state != db.STATE_CANCELED:
         return
@@ -445,16 +450,21 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True):
     if not silent:
         print "Canceling", job.id
     log.info("Canceling job: %s-%d", str(job), job.id)
-    if len(job.pipe_from) == 0:
-        cluster = jip.cluster.get()
-        cluster.cancel(job)
     set_state(job, db.STATE_CANCELED, cleanup=clean_job)
+    if session:
+        session = db.create_session()
+        job = session.merge(job)
+        session = db.commit_session(session)
+    if len(job.pipe_from) == 0:
+        cluster = jip.cluster.get() if not cluster else cluster
+        cluster.cancel(job)
     if clean_logs:
         clean(job)
     # cancel children
     for child in job.children:
         cancel(child, clean_job=clean_job,
-               clean_logs=clean_logs, silent=silent)
+               clean_logs=clean_logs, silent=silent, cluster=cluster,
+               session=session)
 
 
 def hold(job, clean_job=False, clean_logs=False, silent=True):

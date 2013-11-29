@@ -124,9 +124,7 @@ class LocalCluster(jip.cluster.Cluster):
     def cancel(self, job):
         id = job.job_id
         self.log.info("Send cancel request for %s", id)
-        self.master_requests(["CANCEL", id])
-        if id in self.processes:
-            pass  # TODO: kill the process and remove all child jobs
+        self.master_requests.put(["CANCEL", id])
 
     @staticmethod
     def master(requests, response):
@@ -164,6 +162,7 @@ class LocalCluster(jip.cluster.Cluster):
 
         def run_job(job):
             job_id = job.job_id
+            log.info("Master | Starting job %s", job_id)
             process = multiprocessing.Process(
                 target=LocalCluster.execute,
                 args=[requests, job_id, job],
@@ -213,13 +212,14 @@ class LocalCluster(jip.cluster.Cluster):
                 for job_id, p in running.iteritems():
                     log.warn("Master | Terminating %s", job_id)
                     p.process.terminate()
+                    p.process.join()
                 break
             elif command == "JOBS":
                 log.info("Master | list jobs")
                 # queued and running
                 response.put(list(jobs.keys()) + list(running.keys()))
             elif command == "SUBMIT":
-                job_id = msg[1]
+                job_id = int(msg[1])
                 job = msg[2]
                 job.job_id = job_id
                 jobs[job_id] = job
@@ -232,34 +232,59 @@ class LocalCluster(jip.cluster.Cluster):
                 log.info("Master | Queue new job %s", job_id)
                 schedule()
             elif command == "DONE":
-                job_id = msg[1]
+                job_id = int(msg[1])
                 state = msg[2]
-                job = running[job_id]
-                job.process.join()
-                job.process = None
-                slots[0] = slots[0] + job.threads
-                update_dependencies(job)
-                if state != 0:
-                    log.error("Master | Job %s failed with %s", job_id, state)
-                    remove_children(job)
-                else:
-                    log.info("Master | Job %s finished with %s", job_id, state)
-                job.process = None
-                del running[job_id]
-                schedule()
+                if job_id in running:
+                    job = running[job_id]
+                    job.process.join()
+                    job.process = None
+                    slots[0] = slots[0] + job.threads
+                    update_dependencies(job)
+                    if state != 0:
+                        log.error("Master | Job %s failed with %s",
+                                  job_id, state)
+                        remove_children(job)
+                    else:
+                        log.info("Master | Job %s finished with %s",
+                                 job_id, state)
+                    job.process = None
+                    del running[job_id]
+                    schedule()
             elif command == "WAIT":
-                log.info("Master | Wait mode enabled")
-                wait = True
+                if not wait:
+                    log.info("Master | Wait mode enabled")
+                    wait = True
             elif command == "FAILED":
-                job_id = msg[1]
+                job_id = int(msg[1])
                 error = msg[2]
-                log.error("Master | Execution of %s failed: ", job_id, error)
-                job.process = None
-                update_dependencies(job)
-                remove_children(job)
-                slots[0] = slots[0] + job.threads
-                del running[job_id]
-                schedule()
+                log.error("Master | Execution of %s failed: %s", job_id, error)
+                if job_id in running:
+                    job = running[job_id]
+                    job.process = None
+                    update_dependencies(job)
+                    remove_children(job)
+                    slots[0] = slots[0] + job.threads
+                    del running[job_id]
+                    schedule()
+            elif command == "CANCEL":
+                job_id = int(msg[1])
+                log.warn("Master | Execution of %s canceled", job_id)
+                job = None
+                if job_id in running:
+                    log.warn("Master | Terminating %s", job_id)
+                    job = running[job_id]
+                    job.process.terminate()
+                    job.process.join()
+                    job.process = None
+                    slots[0] = slots[0] + job.threads
+                    del running[job_id]
+                elif job_id in jobs:
+                    job = jobs[job_id]
+                    del jobs[job_id]
+                if job:
+                    update_dependencies(job)
+                    remove_children(job)
+                    schedule()
 
             if wait and (len(jobs) + len(running) == 0):
                 break
