@@ -788,25 +788,28 @@ def from_node(node, env=None, keep=False):
             if not a in node_options:
                 job.additional_options.add(a)
 
-    from py._io.capture import DontReadFromInput, EncodedFile
-    for o in job.configuration:
-        if isinstance(o.raw(), (DontReadFromInput, EncodedFile)):
-            log.error("pseudo file found as option! We work around "
-                      "this and reset to None! "
-                      "Don't tell me, I know this is dirty and "
-                      "if you reach this message outside of a doctest "
-                      "please let us now and we have to find another "
-                      "workaround!")
-            o._value = []
-        if o.default and isinstance(o.default, (DontReadFromInput,
-                                                EncodedFile)):
-            log.error("pseudo file found as default! We work around "
-                      "this and reset to None! "
-                      "Don't tell me, I know this is dirty and "
-                      "if you reach this message outside of a doctest "
-                      "please let us now and we have to find another "
-                      "workaround!")
-            o.default = None
+    try:
+        from py._io.capture import DontReadFromInput, EncodedFile
+        for o in job.configuration:
+            if isinstance(o.raw(), (DontReadFromInput, EncodedFile)):
+                log.error("pseudo file found as option! We work around "
+                          "this and reset to None! "
+                          "Don't tell me, I know this is dirty and "
+                          "if you reach this message outside of a doctest "
+                          "please let us now and we have to find another "
+                          "workaround!")
+                o._value = []
+            if o.default and isinstance(o.default, (DontReadFromInput,
+                                                    EncodedFile)):
+                log.error("pseudo file found as default! We work around "
+                          "this and reset to None! "
+                          "Don't tell me, I know this is dirty and "
+                          "if you reach this message outside of a doctest "
+                          "please let us now and we have to find another "
+                          "workaround!")
+                o.default = None
+    except:
+        pass
 
     # check for special options
     if node._tool.options['threads'] is not None:
