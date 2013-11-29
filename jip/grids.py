@@ -266,10 +266,12 @@ class LocalCluster(jip.cluster.Cluster):
         log.info("Master | Master loop terminated")
 
     @staticmethod
-    def _terminate_process(process):
+    def _terminate_process(process, log):
         """Helper function that terminates the given process"""
         if process is not None:
-            process.terminate()
+            log.info("Exec | Sending SIGTERM")
+            process.send_signal(signal.SIGTERM)
+            #process.terminate()
             # check if the job is dead. if not
             # sleep for a moment and check again.
             if process.poll() is None:
@@ -281,9 +283,11 @@ class LocalCluster(jip.cluster.Cluster):
                           0.10, 1, 2, 5]:
                     time.sleep(t)
                     if process.poll() is not None:
+                        log.info("Exec | Processes terminated after SIGTERM")
                         break
                 else:
                     # nothing worked, kill the job
+                    log.info("Exec | Processes still running, sending SIGKILL")
                     os.kill(process._popen.pid, signal.SIGKILL)
 
     @staticmethod
@@ -302,7 +306,7 @@ class LocalCluster(jip.cluster.Cluster):
         # setup local signal handling
         def handle_term(sig, frame):
             log.error("Exec | Received termination signal")
-            LocalCluster._terminate_process(process)
+            LocalCluster._terminate_process(process, log)
             requests.put(['DONE', job_id, 1])
             sys.exit(1)
 
@@ -315,7 +319,7 @@ class LocalCluster(jip.cluster.Cluster):
             stdout = open(job.stdout, 'w')
             stderr = open(job.stderr, 'w')
             cmd = job.cmd
-            process = subprocess.Popen(cmd,
+            process = subprocess.Popen("exec " + cmd,
                                        stdout=stdout,
                                        stderr=stderr,
                                        shell=True,

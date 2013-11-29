@@ -307,8 +307,8 @@ def _setup_signal_handler(job, session=None):
         log.warn("Signal %s received, going to fail state", signum)
         set_state(job, jip.db.STATE_FAILED, session=session)
         if session:
-            session.commit()
-            session.close()
+            s = db.commit_session(session)
+            s.close()
         sys.exit(1)
     log.debug("Setting up signal handler for %s", job)
     signal(SIGTERM, handle_signal)
