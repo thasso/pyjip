@@ -6,8 +6,8 @@ from os import getenv
 import logging
 
 
-DEFAULT_FMT = "[%(levelname)s][%(asctime)s][%(name)s]: %(message)s"
-DEBUG_FMT = "[%(levelname)s][%(asctime)s][%(name)s]"\
+DEFAULT_FMT = "[%(levelname)6s][%(asctime)s][%(name)s]: %(message)s"
+DEBUG_FMT = "[%(levelname)6s][%(asctime)s][%(name)s]"\
             "[%(module)s.%(funcName)s:%(lineno)d]: %(message)s"
 
 
@@ -42,7 +42,7 @@ def log_level(level):
 
 
 # main jip logger configuration
-log = logging.getLogger('jip')
+log = logging.getLogger()
 log.handler = []
 log.propagate = False
 level = _get_level(getenv("JIP_LOGLEVEL", logging.WARN))
