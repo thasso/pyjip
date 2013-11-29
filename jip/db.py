@@ -548,6 +548,9 @@ def init(path=None, in_memory=False):
     type, folder = path_split
     if not exists(folder) and not exists(dirname(folder)):
         makedirs(dirname(folder))
+    # logging cinfiguration
+    #import logging
+    #getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
     db_path = path
     db_in_memory = False
@@ -558,7 +561,8 @@ def init(path=None, in_memory=False):
     # create tables
     if create_tables:
         Base.metadata.create_all(engine)
-    Session = sessionmaker(autoflush=False, expire_on_commit=False)
+    Session = sessionmaker(autoflush=False,
+                           expire_on_commit=False)
     #Session = sessionmaker(expire_on_commit=False)
     Session.configure(bind=engine)
 
@@ -574,6 +578,60 @@ def create_session(embedded=False):
     if engine is None:
         init(in_memory=embedded)
     return Session()
+
+
+def commit_session(session):
+    """Helper class to work around the locking issues
+    the can happen with sqlite and session commits.
+
+    This is a very naive approach and we simply try a couple of
+    times to commit the session. If the commit failes, we recreate the
+    session and merge dirty object, add new, and delte deleted object.
+    The new session is then returned.
+
+    :returns: the old session in case all went fine, other wise the new sess
+              is returned.
+    :raises Exception: if retrying could not resolve the problem
+    """
+    global engine
+    last_error = None
+
+    # store the dirty work
+    dirty = session.dirty
+    new = list(session.new)
+    deleted = list(session.deleted)
+    for i in range(5):
+        try:
+            log.debug("Commiting session, attempt %d", i)
+            session.commit()
+            break
+        except Exception as err:
+            session.close()
+            engine.dispose()
+            engine = None
+            last_error = err
+            log.error("Error while commiting session in attempt %d: %s",
+                      i, err, exc_info=True)
+            # recreate the session
+            import time
+            time.sleep(0.05)
+            log.debug("Reinitialize DB engine")
+            init(db_path)
+            log.debug("Recreate session")
+            session = create_session()
+            for j in dirty:
+                log.debug('Merging dirty instance %s', j)
+                session.merge(j)
+            for j in new:
+                log.debug("Adding new instance %s", j)
+            for j in deleted:
+                log.debug("Deleting old instance %s", j)
+                session.delete(j)
+    else:
+        # unable to commit
+        log.error("Unable to re-try failed commits: %s", last_error)
+        raise last_error
+    return session
 
 
 def find_job_by_id(session, id):
