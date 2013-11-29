@@ -20,7 +20,7 @@ import sys
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
-from sqlalchemy import Text, Boolean, PickleType
+from sqlalchemy import Text, Boolean, PickleType, update, bindparam
 from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -595,6 +595,7 @@ def commit_session(session):
     """
     global engine
     last_error = None
+    log.info("DB | committing session")
 
     # store the dirty work
     dirty = session.dirty
@@ -602,7 +603,7 @@ def commit_session(session):
     deleted = list(session.deleted)
     for i in range(5):
         try:
-            log.debug("Commiting session, attempt %d", i)
+            log.debug("Committing session, attempt %d", i)
             session.commit()
             break
         except Exception as err:
@@ -610,8 +611,8 @@ def commit_session(session):
             engine.dispose()
             engine = None
             last_error = err
-            log.error("Error while commiting session in attempt %d: %s",
-                      i, err, exc_info=True)
+            log.warn("Error while committing session in attempt %d: %s. "
+                     "Retrying", i, err)
             # recreate the session
             import time
             time.sleep(0.05)
@@ -630,6 +631,7 @@ def commit_session(session):
     else:
         # unable to commit
         log.error("Unable to re-try failed commits: %s", last_error)
+        session.close()
         raise last_error
     return session
 
@@ -648,3 +650,22 @@ def find_job_by_id(session, id):
     """
     query = session.query(Job).filter(Job.id == id)
     return query.one()
+
+
+def update_job_states(jobs):
+    table = Job.__table__
+    up = table.update().where(
+        Job.id == bindparam("_id")
+    ).values(
+        job_id=bindparam("_job_id")
+    )
+
+    values = [
+        {"_id": j.id, "_job_id": j.job_id} for j in jobs
+    ]
+
+    conn = engine.connect()
+    r = conn.execute(up, values)
+    print str(r)
+    conn.close()
+

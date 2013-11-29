@@ -55,8 +55,8 @@ def test_single_job_execution(tmpdir):
     jobs = jip.create_jobs(p)
 
     # iterate the executions and pass the session so all jobs are stored
-    for e in jip.create_executions(jobs, session=session):
-        jip.submit_job(e.job, session=session, cluster=c)
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
 
     c.wait()
     # now the file should be there
@@ -92,8 +92,8 @@ def test_single_job_master_termination(tmpdir):
     jobs = jip.create_jobs(p)
 
     # iterate the executions and pass the session so all jobs are stored
-    for e in jip.create_executions(jobs, session=session):
-        jip.submit_job(e.job, session=session, cluster=c)
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
     # sleep for a second to give the job time to start
     time.sleep(1)
 
@@ -132,8 +132,8 @@ def test_job_cancelation(tmpdir):
     jobs = jip.create_jobs(p)
 
     # iterate the executions and pass the session so all jobs are stored
-    for e in jip.create_executions(jobs, session=session):
-        jip.submit_job(e.job, session=session, cluster=c)
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
     # sleep for a second to give the job time to start
     time.sleep(0.1)
 
@@ -183,8 +183,8 @@ def test_job_hierarchy_execution(tmpdir):
     jobs = jip.create_jobs(p)
 
     # iterate the executions and pass the session so all jobs are stored
-    for e in jip.create_executions(jobs, session=session):
-        jip.submit_job(e.job, session=session, cluster=c)
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
 
     c.wait()
     # now the file should be there

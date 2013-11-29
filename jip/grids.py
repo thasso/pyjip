@@ -13,19 +13,37 @@ from jip.logger import getLogger
 
 class LocalCluster(jip.cluster.Cluster):
 
-    def __init__(self, _start=True):
+    def __init__(self, _start=True, _remote_ids=False):
         self._current_id = 0
         self.log = getLogger("jip.grids.LocalCluster")
-        self.master_requests = multiprocessing.Queue()
-        self.master_response = multiprocessing.Queue()
+        self.master_requests = None
+        self.master_response = None
         self.master_process = None
+        self._current_id
+        self._remote_ids = _remote_ids
         # start the mater process
         if _start:
             self.start()
 
+    def _next_id(self):
+        """Increment the current id and return the next available job
+        id.
+
+            >>> c = LocalCluster(_start=False)
+            >>> assert c._current_id == 0
+            >>> assert c._next_id() == 1
+            >>> assert c._next_id() == 2
+
+        :returns: next id
+        """
+        self._current_id += 1
+        return self._current_id
+
     def start(self):
         if self.master_process is None:
             self.log.info("Starting local cluster master")
+            self.master_requests = multiprocessing.Queue()
+            self.master_response = multiprocessing.Queue()
             self.master_process = multiprocessing.Process(
                 target=_GridMaster.create_master,
                 args=[self.master_requests, self.master_response],
@@ -84,11 +102,16 @@ class LocalCluster(jip.cluster.Cluster):
             dependencies=deps,
             threads=job.threads
         )
+        if not self._remote_ids:
+            local_job.job_id = self._next_id()
 
         self.master_requests.put([
             "SUBMIT", local_job,
         ])
-        job.job_id = self.master_response.get()
+        if self._remote_ids:
+            job.job_id = self.master_response.get()
+        else:
+            job.job_id = local_job.job_id
         self.log.info("Submitted new job with id %s", job.job_id)
         return job
 
@@ -313,7 +336,8 @@ class _GridMaster(object):
     def _handle_submit(self, *args):
         """The SUBMIT handler"""
         job = args[1]
-        job_id = self._next_id()
+        create_id = job.job_id is None
+        job_id = self._next_id() if create_id else job.job_id
         job.job_id = job_id
         job.stdout = self._resolve_log(job_id, job.stdout)
         job.stderr = self._resolve_log(job_id, job.stderr)
@@ -326,7 +350,8 @@ class _GridMaster(object):
             if d in self.running:
                 self.running[d].children.add(job_id)
         self.log.info("Master | Queue new job %s", job_id)
-        self.response.put(job_id)
+        if create_id:
+            self.response.put(job_id)
         if self.slots_available >= 1:
             self.schedule()
         return True

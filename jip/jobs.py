@@ -164,7 +164,7 @@ def create_groups(jobs):
     return groups
 
 
-def create_executions(jobs, check_outputs=True, session=None):
+def create_executions(jobs, check_outputs=True, save=True):
     """Return a list of named tuples that reference jobs that can be executed
     in the right order. The named tuples yield by this generator have the
     following properties:
@@ -198,10 +198,10 @@ def create_executions(jobs, check_outputs=True, session=None):
     :param check_outputs: if True, duplicated output file names are checked
                           and a ``ValidationError`` is raised if duplications
                           are detected
-    :param session: if specified, all jobs are added to the session and the
-                    session is committed if no exception occurs
+    :param save: if True, all jobs are added to a new session and the
+                 session is committed if no exception occurs
     :returns: list of named tuples with name, job, and done properties
-    :raises Validationerror: if output file checks are enabled and duplications
+    :raises ValidationError: if output file checks are enabled and duplications
                              are detected
     """
     if check_outputs:
@@ -218,9 +218,11 @@ def create_executions(jobs, check_outputs=True, session=None):
         completed = job.state == jip.db.STATE_DONE
         runnables.append(Runable(name, job, completed))
 
-    if session:
-        map(session.add, jobs)
-        session.commit()
+    if save:
+        session = db.create_session()
+        for j in jobs:
+            session.add(j)
+        db.commit_session(session).close()
     return runnables
 
 
@@ -496,8 +498,8 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
              clean_logs=clean_logs, silent=silent)
 
 
-def submit(job, silent=True, clean=False, force=False, session=None,
-           cluster=None):
+def submit_job(job, silent=True, clean=False, force=False, save=False,
+               cluster=None):
     """Submit the given job to the cluster. This only submits jobs that are not
     `DONE`. The job has to be in `canceled`, `failed`, `queued`,
     or `hold` state to be submitted, unless `force` is set to True. This will
@@ -508,9 +510,9 @@ def submit(job, silent=True, clean=False, force=False, session=None,
     is canceled first to ensure there is only a single instance of the
     job on the cluster.
 
-    You have to specify a database session on order to save the jobs after
-    successful submission. Use :py:meth:`jip.db.create_session` to get a
-    session instance.
+    You have to set save to True in order to save the jobs after
+    successful submission. This will use :py:meth:`jip.db.create_session` to
+    get a session instance.
 
     If no cluster is specified, :py:func:`jip.cluster.get` is used to load
     the default cluster. This will raise a
@@ -522,7 +524,7 @@ def submit(job, silent=True, clean=False, force=False, session=None,
                    ``stdout``
     :param clean: if True, the job log files will be deleted
     :param force: force job submission
-    :param session: the database session
+    :param save: if True, jobs will be saved to the database
     :param cluster: the compute cluster instance. If ``None``, the default
                     cluster will be loaded from the jip configuration
     :returns: True if the jobs was submitted
@@ -537,28 +539,69 @@ def submit(job, silent=True, clean=False, force=False, session=None,
 
     # cancel or clean the job
     if job.state in db.STATES_ACTIVE:
-        cancel(job, clean_logs=True)
+        cancel(job, clean_logs=True)  # TODO: delegate save state to cancel ?
     elif clean:
         jip.jobs.clean(job)
 
     # set state queued and submit
     if cluster is None:
         cluster = jip.cluster.get()
+
+    # set the job state
     set_state(job, db.STATE_QUEUED)
+
+    session = None
+    if save:
+        session = db.create_session()
+
+    if job.id is None:
+        if not save:
+            raise Exception("No ID assigned to your job! You have to enable "
+                            "database save with save=True to store the "
+                            "job and get an ID.")
+        session.add(job)
+        session = db.commit_session(session)
+        session.close()
+
+    # submit the job to the cluster
     cluster.submit(job)
     if not silent:
         print "Submitted %s with remote id %s" % (job.id, job.job_id)
+    all_jobs = [job]
 
-    # recursively apply the newly assigned job id to
-    # all embedded jobs
+    # update child ids
     def _set_id(child):
+        all_jobs.append(child)
         child.job_id = job.job_id
         for c in child.pipe_to:
             _set_id(c)
-    for child in job.pipe_to:
-        _set_id(child)
-    if session is not None:
-        session.commit()
+    map(_set_id, job.pipe_to)
+
+    if save:
+        # save updates to job_id and dates for all_jobs
+        db.update_job_states(all_jobs)
+
+
+
+    #session = None
+    #if save:
+        #session = db.create_session()
+        #job = session.merge(job)
+
+    ## recursively apply the newly assigned job id to
+    ## all embedded jobs and merge the child jobs in to the session if
+    ## the session exists
+    #def _set_id(child):
+        #child = session.merge(child) if session else child
+        #child.job_id = job.job_id
+        #for c in child.pipe_to:
+            #_set_id(c)
+    #map(_set_id, job.pipe_to)
+
+    ## save the job and its pipe_to children
+    #if session:
+        #db.commit_session(session)
+        #session.close()
     return True
 
 
