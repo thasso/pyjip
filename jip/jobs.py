@@ -584,7 +584,7 @@ def run(job, session=None, profiler=False):
         dispatcher_node.run(profiler=profiler)
 
     if session:
-        session.commit()
+        session = db.commit_session(session)
 
     success = True
     # we collect the state of all job in the dipatcher first
@@ -594,13 +594,17 @@ def run(job, session=None, profiler=False):
         success &= dispatcher_node.wait()
     # get the new state and update all jobs
     new_state = db.STATE_DONE if success else db.STATE_FAILED
+    if session:
+        session = db.create_session()
     for dispatcher_node in reversed(dispatcher_nodes):
         for job in dispatcher_node.sources:
+            if session:
+                job = session.merge(job)
             jip.jobs.set_state(job, new_state, update_children=False)
 
     if session:
-        session.commit()
-
+        session = db.commit_session(session)
+        session.close()
     return success
 
 
