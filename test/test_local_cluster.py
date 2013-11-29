@@ -107,6 +107,7 @@ def test_single_job_master_termination(tmpdir):
 
 
 def test_job_hierarchy_execution(tmpdir):
+    print ">>>", tmpdir
     tmpdir = str(tmpdir)
     target_file = os.path.join(tmpdir, 'result')
     db_file = os.path.join(tmpdir, "test.db")
