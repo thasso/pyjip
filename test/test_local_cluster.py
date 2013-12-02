@@ -67,7 +67,7 @@ def test_single_job_execution(tmpdir):
     assert os.path.exists(os.path.join(tmpdir, "jip-1.err"))
     # and we should have one job in Done state in our database
     # we do the query with a fresh session though
-    job = jip.db.find_job_by_id(jip.db.create_session(), 1)
+    job = jip.db.get(1)
     assert job is not None
     assert job.state == jip.db.STATE_DONE
 
@@ -101,7 +101,7 @@ def test_single_job_master_termination(tmpdir):
 
     # and we should have one job in Failed state in our database
     # we do the query with a fresh session though
-    job = jip.db.find_job_by_id(jip.db.create_session(), 1)
+    job = jip.db.get(1)
     # print the log files
     print ">>>STD ERR LOG"
     print open(c.resolve_log(job, job.stderr)).read()
@@ -138,15 +138,15 @@ def test_job_cancelation(tmpdir):
     time.sleep(0.1)
 
     # cancel the job
-    job = jip.db.find_job_by_id(jip.db.create_session(), 1)
-    jip.jobs.cancel(job, cluster=c, session=True)
+    job = jip.db.get(1)
+    jip.jobs.cancel(job, cluster=c, save=True)
 
     c.wait()
 
     # and we should have one job in Failed state in our database
     # we do the query with a fresh session though
-    job_1 = jip.db.find_job_by_id(jip.db.create_session(), 1)
-    job_2 = jip.db.find_job_by_id(jip.db.create_session(), 2)
+    job_1 = jip.db.get(1)
+    job_2 = jip.db.get(2)
     # print the log files
     print ">>>JOB 1 STD ERR LOG"
     print open(c.resolve_log(job, job_1.stderr)).read()
@@ -201,10 +201,10 @@ def test_job_hierarchy_execution(tmpdir):
     assert os.path.exists(os.path.join(tmpdir, "jip-3.err"))
     # and we should have one job in Done state in our database
     # we do the query with a fresh session though
-    find = jip.db.find_job_by_id
-    assert find(jip.db.create_session(), 1).state == jip.db.STATE_DONE
-    assert find(jip.db.create_session(), 2).state == jip.db.STATE_DONE
-    assert find(jip.db.create_session(), 3).state == jip.db.STATE_DONE
+    find = jip.db.get
+    assert find(1).state == jip.db.STATE_DONE
+    assert find(2).state == jip.db.STATE_DONE
+    assert find(3).state == jip.db.STATE_DONE
 
     # check the content of the output files
     assert open(target_file + ".1").read() == "hello world\n"

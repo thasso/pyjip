@@ -20,9 +20,11 @@ import sys
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
-from sqlalchemy import Text, Boolean, PickleType, update, bindparam
+from sqlalchemy import Text, Boolean, PickleType, bindparam, select
 from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.exc import NoResultFound
 
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
@@ -134,7 +136,7 @@ class Job(Base):
     #: Finished data of the jobs
     finish_date = Column(DateTime)
     #: Current job state. See `job states <job_states>` for more information
-    state = Column(String, default=STATE_QUEUED)
+    state = Column(String, default=STATE_HOLD)
     #: optional name of the host that executes this job. This has to be set
     #: by the cluster implementation at runtime. If the cluster implementation
     #: does not support this, the field might not be set.
@@ -581,7 +583,7 @@ def create_session(embedded=False):
 
 
 def commit_session(session):
-    """Helper class to work around the locking issues
+    """Helper to work around the locking issues
     the can happen with sqlite and session commits.
 
     This is a very naive approach and we simply try a couple of
@@ -636,36 +638,164 @@ def commit_session(session):
     return session
 
 
-def find_job_by_id(session, id):
-    """Find a job by its id. This assumes the database was
-    initialized before.
+#################################################################
+# Data base helper functions to avoid going through
+# sqlalchmeny session for some operations. All of the functions
+# are capable of handling the sqlite locking issues that
+# might happen in high concurrency situations.
+#################################################################
+def __singel_execute(i, stmt, values=None):
+    """Single execution try where operational error
+    are catched.
 
-    See :py:func:`create_session` if you need a session instance.
-
-    :param session: the database session
-    :type session: Session
-    :param id: the job id
-    :returns: the job
-    :rtype: :class:`jip.db.Job`
+    :param i: attempt number
+    :param stmt: list of statements
+    :param values: optional statement parameters
+    :return: true if successfully executed
     """
-    query = session.query(Job).filter(Job.id == id)
-    return query.one()
+    conn = engine.connect()
+    try:
+        trans = conn.begin()
+        for s in stmt:
+            if values:
+                r = conn.execute(s, values)
+            else:
+                r = conn.execute(s)
+            r.close()
+        trans.commit()
+    except OperationalError as err:
+        log.warn("Execution attempts %d failed: %s. Retrying", i, err)
+        raise
+    finally:
+        conn.close()
+
+
+def _execute(stmt, values=None, attempts=5):
+    """Try to execute teh given statement or list of
+    statements n times.
+    """
+    if not isinstance(stmt, (list, tuple)):
+        stmt = [stmt]
+    error = None
+    for i in range(attempts):
+        try:
+            __singel_execute(i, stmt, values)
+            return
+        except OperationalError as err:
+            error = err
+            import time
+            time.sleep(0.1)
+    raise error
 
 
 def update_job_states(jobs):
-    table = Job.__table__
-    up = table.update().where(
+    """Takes a list of jobs and updates the job state, remote id and
+    the jobs start/finish dates as well as the stdout and
+    stderr paths
+
+    :param jobs: list of jobs or single job
+    """
+    if not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
+    # create the update statement
+    up = Job.__table__.update().where(
         Job.id == bindparam("_id")
     ).values(
-        job_id=bindparam("_job_id")
+        state=bindparam("_state"),
+        job_id=bindparam("_job_id"),
+        start_date=bindparam("_start_date"),
+        finish_date=bindparam("_finish_date"),
+        stdout=bindparam("_stdout"),
+        stderr=bindparam("_stderr")
     )
-
+    # convert the job values
     values = [
-        {"_id": j.id, "_job_id": j.job_id} for j in jobs
+        {"_id": j.id,
+         "_state": j.state,
+         "_job_id": j.job_id,
+         "_start_date": j.start_date,
+         "_finish_date": j.finish_date,
+         "_stdout": j.stdout,
+         "_stderr": j.stderr
+         } for j in jobs
     ]
+    _execute(up, values)
 
+
+def save(jobs):
+    """Save a list of jobs
+
+    :param jobs: single job or list of jobs
+    """
+    if not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
+    session = create_session()
+    session.add_all(jobs)
+    session = commit_session(session)
+    session.close()
+
+
+def delete(jobs):
+    """Delete a job or a list of jobs. This does **NOT** resolve any
+    dependencies bu tremoves the relationships.
+
+    :param jobs: single job or list of jobs
+    """
+    if not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
+    # create delete statement for the job
+    stmt = [Job.__table__.delete().where(Job.id == bindparam("_id"))]
+    # delete entries in the relationship tables
+    for relation_table in [job_dependencies, job_pipes, job_groups]:
+        dep = relation_table.delete().where(
+            (relation_table.c.source == bindparam("_id")) |
+            (relation_table.c.target == bindparam("_id"))
+        )
+        stmt.append(dep)
+    # convert the job values
+    values = [{"_id": j.id} for j in jobs]
+    _execute(stmt, values)
+
+
+def get(job_id):
+    """Get a fresh copy of the given job by id and return None if the
+    job could not be found.
+
+    :param job_id: the job id
+    :returns: the job instance or None
+    """
+    if job_id is None:
+        return None
+    job_id = int(job_id)
+    session = create_session()
+    query = session.query(Job).filter(Job.id == job_id)
+    try:
+        return query.one()
+    except NoResultFound:
+        session.close()
+        return None
+
+
+def get_current_state(job):
+    """Returns the current state of the job, fetched from the databse.
+    Note that you usually don't need to use this method. The jobs
+    object state, expecially when just fethed from the database, is
+    most probably accurate. This method exists to check the job states
+    after job execution of long running jobs.
+
+    :param job: the job
+    :returns: the jobs state as stored in the datebase
+    """
+    t = Job.__table__
+    q = select([t.c.state]).where(t.c.id == job.id)
     conn = engine.connect()
-    r = conn.execute(up, values)
-    print str(r)
+    r = conn.execute(q)
+    state = r.fetchone()[0]
     conn.close()
+    return state
 
+
+def get_all():
+    """Returns an iterator over all jobs in the database"""
+    session = create_session()
+    return list(session.query(Job))

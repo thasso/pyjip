@@ -297,7 +297,7 @@ def _update_from_cluster_state(job):
                  exc_info=True)
 
 
-def _setup_signal_handler(job, session=None):
+def _setup_signal_handler(job, save=False):
     """Setup signal handlers that catch job termination
     when possible and set the job state to `FAILED`.
 
@@ -307,10 +307,9 @@ def _setup_signal_handler(job, session=None):
     """
     def handle_signal(signum, frame):
         log.warn("Signal %s received, going to fail state", signum)
-        set_state(job, jip.db.STATE_FAILED, session=session)
-        if session:
-            s = db.commit_session(session)
-            s.close()
+        set_state(job, jip.db.STATE_FAILED, check_state=save)
+        if save:
+            db.update_job_states([job] + job.pipe_to)
         sys.exit(1)
     log.debug("Setting up signal handler for %s", job)
     signal(SIGTERM, handle_signal)
@@ -320,7 +319,7 @@ def _setup_signal_handler(job, session=None):
 
 
 def set_state(job, new_state, update_children=True, cleanup=True,
-              session=None):
+              check_state=False):
     """Transition a job to a new state.
 
     The new job state is applied to the job and its embedded
@@ -340,17 +339,15 @@ def set_state(job, new_state, update_children=True, cleanup=True,
     ## if the new state is STATE_FAILED and we have a session
     ## get a fresh copy of the job. If it was canceled, keep
     ## the canceled state
-    if session and new_state == db.STATE_FAILED:
+    if check_state and new_state == db.STATE_FAILED:
         #fresh = db.find_job_by_id(session, job.id)
         log.debug("%s | fetched fresh copy: %s -> %s", job, job, job.state)
-        session.refresh(job, ['state'])
+        current_state = db.get_current_state(job)
         if job.state == db.STATE_CANCELED:
             log.info("%s | job was canceled, preserving CANCELED state", job)
             new_state = db.STATE_CANCELED
 
-    ## create a database session
     log.info("%s | set state [%s]=>[%s]", job, job.state, new_state)
-
     job.state = new_state
     _update_times(job)
     _update_from_cluster_state(job)
@@ -404,7 +401,7 @@ def delete(job, session, clean_logs=False, silent=True):
     log.info("Deleting job: %s-%d", str(job), job.id)
     if not silent:
         print "Deleting", job.id
-    session.delete(job)
+    db.delete(job)
 
 
 def clean(job):
@@ -430,7 +427,7 @@ def clean(job):
 
 
 def cancel(job, clean_job=False, clean_logs=False, silent=True,
-           cluster=None, session=None):
+           cluster=None, save=False):
     """Cancel the given job and make sure its no longer on the cluster.
 
     The function takes only jobs that are in active state and takes
@@ -443,8 +440,7 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True,
     :param silent: if False, the method will print status messages
     :param cluster: if not Cluster is specified and this is the parent
                     job in a group, the default cluster is loaded
-    :param session: if a database session is given, the session is committed
-                    after the state change
+    :param save: if True, save job in database after state change
     """
     if not job.state in db.STATES_ACTIVE and job.state != db.STATE_CANCELED:
         return
@@ -453,20 +449,22 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True,
         print "Canceling", job.id
     log.info("Canceling job: %s-%d", str(job), job.id)
     set_state(job, db.STATE_CANCELED, cleanup=clean_job)
-    if session:
-        session = db.create_session()
-        job = session.merge(job)
-        session = db.commit_session(session)
+    if save:
+        db.update_job_states(job)
+
+    # cancel the job on the cluster if this is a parent job
     if len(job.pipe_from) == 0:
         cluster = jip.cluster.get() if not cluster else cluster
         cluster.cancel(job)
+
     if clean_logs:
         clean(job)
+
     # cancel children
     for child in job.children:
         cancel(child, clean_job=clean_job,
                clean_logs=clean_logs, silent=silent, cluster=cluster,
-               session=session)
+               save=save)
 
 
 def hold(job, clean_job=False, clean_logs=False, silent=True):
@@ -580,46 +578,20 @@ def submit_job(job, silent=True, clean=False, force=False, save=False,
     if save:
         # save updates to job_id and dates for all_jobs
         db.update_job_states(all_jobs)
-
-
-
-    #session = None
-    #if save:
-        #session = db.create_session()
-        #job = session.merge(job)
-
-    ## recursively apply the newly assigned job id to
-    ## all embedded jobs and merge the child jobs in to the session if
-    ## the session exists
-    #def _set_id(child):
-        #child = session.merge(child) if session else child
-        #child.job_id = job.job_id
-        #for c in child.pipe_to:
-            #_set_id(c)
-    #map(_set_id, job.pipe_to)
-
-    ## save the job and its pipe_to children
-    #if session:
-        #db.commit_session(session)
-        #session.close()
     return True
 
 
-def run(job, session=None, profiler=False):
+def run(job, save=False, profiler=False):
     """Execute the given job. This method returns immediately in case the
     job has a pipe source. Otherwise the job and all its dispatch jobs are
     executed.
-
-    In contrast to most action methods, this method takes a session to
-    actively store update the database. This is important as this will store
-    the job state before and after execution.
 
     NOTE that the run method creates a signal handler that sets the given
     job state to failed in case the jobs process is terminated by a signal.
 
     :param job: the job to run. Note the jobs with pipe sources are ignored
     :type job: `jip.db.Job`
-    :param session: a database session in order to update the job state
+    :param save: if True the jobs state changes are persisted in the database
     :param profiler: if set to True, job profiling is enabled
     :returns: True if the job was executed successfully
     :rtype: boolean
@@ -627,7 +599,7 @@ def run(job, session=None, profiler=False):
     if len(job.pipe_from) > 0:
         return
     # setup signal handeling
-    _setup_signal_handler(job, session)
+    _setup_signal_handler(job, save=save)
 
     # createa the dispatcher graph
     dispatcher_nodes = jip.executils.create_dispatcher_graph(job)
@@ -636,8 +608,10 @@ def run(job, session=None, profiler=False):
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(profiler=profiler)
 
-    if session:
-        session = db.commit_session(session)
+    if save:
+        # save the update job state
+        all_jobs = [job] + job.pipe_to
+        db.update_job_states(all_jobs)
 
     success = True
     # we collect the state of all job in the dipatcher first
@@ -647,17 +621,15 @@ def run(job, session=None, profiler=False):
         success &= dispatcher_node.wait()
     # get the new state and update all jobs
     new_state = db.STATE_DONE if success else db.STATE_FAILED
-    if session:
-        session = db.create_session()
     for dispatcher_node in reversed(dispatcher_nodes):
         for job in dispatcher_node.sources:
-            if session:
-                job = session.merge(job)
             jip.jobs.set_state(job, new_state, update_children=False)
 
-    if session:
-        session = db.commit_session(session)
-        session.close()
+    if save:
+        # save the update job state at the end of the run
+        all_jobs = [job] + job.pipe_to
+        db.update_job_states(all_jobs)
+
     return success
 
 

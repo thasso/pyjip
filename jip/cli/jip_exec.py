@@ -31,8 +31,10 @@ def main():
                  args['<id>'],
                  args['--db'])
         jip.db.init(path=args['--db'])
-        session = jip.db.create_session()
-        job = jip.db.find_job_by_id(session, args['<id>'])
+        job = jip.db.get(args['<id>'])
+        if not job:
+            log.error("Requested job with id %s not found!", args['<id>'])
+            sys.exit(1)
         # for LSF implementation, I could only test on openlava, and
         # that does not seem to support the -cwd option to switch the
         # working directory. To work around this, and be sure about the
@@ -54,8 +56,7 @@ def main():
         #check prpfiling
         profiler = os.getenv("JIP_PROFILER",
                              job.env.get("JIP_PROFILER", None)) is not None
-        jip.jobs.run(job, session=session, profiler=profiler)
-        session.close()
+        jip.jobs.run(job, profiler=profiler, save=True)
     except Exception as e:
         log.error("Error executing job %s: %s",
                   args['<id>'], str(e), exc_info=True)
