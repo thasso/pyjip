@@ -21,6 +21,8 @@ def test_updating_state(tmpdir):
     assert j.finish_date is None
     assert j.job_id is None
     assert j.state == jip.db.STATE_HOLD
+    assert len(j.pipe_to) == 0
+    assert len(j.pipe_from) == 0
 
     # set new values
     date = datetime.datetime.now()
@@ -104,3 +106,13 @@ def test_delete_unknown_job(tmpdir):
     assert len(jip.db.get_all()) == 0
     jip.db.delete(job)
     assert len(jip.db.get_all()) == 0
+
+
+def test_cascaded_save(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    child.dependencies.append(parent)
+    jip.db.save([parent])
+    assert len(jip.db.get_all()) == 2

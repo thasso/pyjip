@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 import jip
+import jip.jobs
+import jip.db
+import os
 
 
 @jip.tool()
@@ -47,3 +50,333 @@ def test_job_names_after_multiplexing_with_name_template():
     assert jobs[0].name == "A"
     assert jobs[1].name == "B"
     assert jobs[2].name == "C"
+
+
+def test_resolve_jobs():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.resolve_jobs([child]) == [parent, child]
+
+
+def test_resolve_jobs_unique_set():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.resolve_jobs(
+        [parent, child, parent, child]) == [parent, child]
+
+
+def test_get_parents():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_parents([child, child]) == [parent]
+
+def test_get_parents_single_job():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_parents(child) == [parent]
+
+
+def test_get_pipe_parent_self():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_pipe_parent(parent) == parent
+
+
+def test_get_pipe_parent_dependency():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_pipe_parent(child) == child
+
+
+def test_get_pipe_parent():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    parent.pipe_to.append(child)
+    assert jip.jobs.get_pipe_parent(child) == parent
+
+
+def test_get_sub_graph_single_node():
+    parent = jip.db.Job()
+    assert jip.jobs.get_subgraph(parent) == [parent]
+
+
+def test_get_sub_graph_single_child():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_subgraph(parent) == [parent, child]
+
+
+def test_get_sub_graph_single_child_with_pipe_to():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    pipe = jip.db.Job()
+    parent.children.append(child)
+    child.children.append(pipe)
+    child.pipe_to.append(pipe)
+    assert jip.jobs.get_subgraph(pipe) == [child, pipe]
+
+
+def test_get_sub_graph_single_child_query_child():
+    parent = jip.db.Job()
+    child = jip.db.Job()
+    parent.children.append(child)
+    assert jip.jobs.get_subgraph(child) == [child]
+
+
+def test_get_sub_graph_query_tree():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    a.children.append(d)
+    b.children.append(e)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    assert jip.jobs.get_subgraph(root) == [
+        root, a, c, d, b, e
+    ]
+
+    assert jip.jobs.get_subgraph(a) == [
+        a, c, d
+    ]
+    assert jip.jobs.get_subgraph(b) == [
+        b, e
+    ]
+
+
+def test_get_group_jobs():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.pipe_to.append(a)
+    root.pipe_to.append(b)
+    a.group_to.append(c)
+    a.group_to.append(d)
+    b.pipe_to.append(e)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+    assert jip.jobs.get_group_jobs(root) == [root, a, c, d, b, e]
+    assert jip.jobs.get_group_jobs(a) == [a, c, d]
+    assert jip.jobs.get_group_jobs(d) == [d]
+
+
+def test_topological_order():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    a.children.append(d)
+    b.children.append(e)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    assert list(jip.jobs.topological_order([
+        e, a, c, d, b, root
+    ])) == [
+        root, a, c, d, b, e
+    ]
+
+
+def test_create_groups():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    c.children.append(d)
+    b.children.append(e)
+
+    a.pipe_to.append(c)
+    c.pipe_to.append(d)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    groups = jip.jobs.create_groups([root, a, b, c, d, e])
+    assert len(groups) == 4
+    assert groups[0] == [root]
+    assert groups[1] == [a, c, d]
+    assert groups[2] == [b]
+    assert groups[3] == [e]
+
+
+def test_create_groups_with_more_pipes():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    c.children.append(d)
+    b.children.append(e)
+
+    a.pipe_to.append(c)
+    c.pipe_to.append(d)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    groups = jip.jobs.create_groups([root, a, b, c, d, e])
+    assert len(groups) == 4
+    assert groups[0] == [root]
+    assert groups[1] == [a, c, d]
+    assert groups[2] == [b]
+    assert groups[3] == [e]
+
+
+def test_create_executions():
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    c.children.append(d)
+    b.children.append(e)
+
+    a.pipe_to.append(c)
+    c.pipe_to.append(d)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    execs = jip.jobs.create_executions([root, a, b, c, d, e], save=False)
+    assert len(execs) == 4
+    assert execs[0] == ("root", root, False)
+    assert execs[1] == ("a|c|d", a, False)
+    assert execs[2] == ("b", b, False)
+    assert execs[3] == ("e", e, False)
+
+
+def test_delete_job(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+
+    root = jip.db.Job()
+    a = jip.db.Job()
+    b = jip.db.Job()
+    c = jip.db.Job()
+    d = jip.db.Job()
+    e = jip.db.Job()
+    root.children.append(a)
+    root.children.append(b)
+    a.children.append(c)
+    c.children.append(d)
+    b.children.append(e)
+
+    a.pipe_to.append(c)
+    c.pipe_to.append(d)
+
+    root.name = "root"
+    a.name = "a"
+    b.name = "b"
+    c.name = "c"
+    d.name = "d"
+    e.name = "e"
+
+    jip.db.save([root, a, b, c, d, e])
+    assert len(list(jip.db.get_all())) == 6
+    jip.jobs.delete(root)
+    assert len(list(jip.db.get_all())) == 5
+
+
+def test_job_sorting_by_num_children():
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+
+    j1.children.append(j2)
+    assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]
+    assert jip.jobs.__sort_children([j2, j1]) == [j1, j2]
+
+
+def test_job_sorting_by_name():
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+    j1.name = "a"
+    j2.name = "b"
+    assert jip.jobs.__sort_children([j2, j1]) == [j1, j2]
+    assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]
+
+
+def test_job_sorting_by_same_name():
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+    j1.name = "a"
+    j2.name = "a"
+    assert jip.jobs.__sort_children([j2, j1]) == [j2, j1]
+    assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]
+
+
+def test_job_sorting_by_id():
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+    j1.id = 1
+    j2.id = 2
+    assert jip.jobs.__sort_children([j2, j1]) == [j1, j2]
+    assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]
+
+
+def test_job_sorting_nothing_set():
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+    assert jip.jobs.__sort_children([j2, j1]) == [j2, j1]
+    assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]

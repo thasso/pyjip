@@ -37,6 +37,7 @@ engine = None
 Session = None
 db_path = None
 db_in_memory = False
+global_session = None
 
 Base = declarative_base()
 
@@ -518,7 +519,7 @@ def init(path=None, in_memory=False):
     from sqlalchemy.orm import sessionmaker
     from os.path import exists, dirname, abspath
     from os import makedirs, getenv
-    global engine, Session, db_path, db_in_memory
+    global engine, Session, db_path, db_in_memory, global_session
 
     if in_memory:
         log.debug("Initialize in-memory DB")
@@ -566,6 +567,7 @@ def init(path=None, in_memory=False):
     Session = sessionmaker(autoflush=False,
                            expire_on_commit=False)
     #Session = sessionmaker(expire_on_commit=False)
+    global_session = None
     Session.configure(bind=engine)
 
 
@@ -577,9 +579,12 @@ def create_session(embedded=False):
     :param embedded: start the database in embedded mode :returns: a new
                      SQLAlchemy session
     """
+    global global_session
     if engine is None:
         init(in_memory=embedded)
-    return Session()
+    if global_session is None:
+        global_session = Session()
+    return global_session
 
 
 def commit_session(session):
@@ -595,7 +600,7 @@ def commit_session(session):
               is returned.
     :raises Exception: if retrying could not resolve the problem
     """
-    global engine
+    global engine, global_session
     last_error = None
     log.info("DB | committing session")
 
@@ -612,6 +617,7 @@ def commit_session(session):
             session.close()
             engine.dispose()
             engine = None
+            global_session = None
             last_error = err
             log.warn("Error while committing session in attempt %d: %s. "
                      "Retrying", i, err)
@@ -646,7 +652,7 @@ def commit_session(session):
 #################################################################
 def __singel_execute(i, stmt, values=None):
     """Single execution try where operational error
-    are catched.
+    are caught.
 
     :param i: attempt number
     :param stmt: list of statements
@@ -671,7 +677,7 @@ def __singel_execute(i, stmt, values=None):
 
 
 def _execute(stmt, values=None, attempts=5):
-    """Try to execute teh given statement or list of
+    """Try to execute the given statement or list of
     statements n times.
     """
     if not isinstance(stmt, (list, tuple)):
@@ -691,7 +697,13 @@ def _execute(stmt, values=None, attempts=5):
 def update_job_states(jobs):
     """Takes a list of jobs and updates the job state, remote id and
     the jobs start/finish dates as well as the stdout and
-    stderr paths
+    stderr paths.
+
+    **Note** that no searched on the jobs dependencies are performed. You
+    have to create the job list with all the jobs you want updated manually.
+    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    that are related due to grouping or piping.
 
     :param jobs: list of jobs or single job
     """
@@ -723,21 +735,27 @@ def update_job_states(jobs):
 
 
 def save(jobs):
-    """Save a list of jobs
+    """Save a list of jobs. This cascades also over all dependencies!
 
     :param jobs: single job or list of jobs
     """
     if not isinstance(jobs, (list, tuple)):
         jobs = [jobs]
+    log.info("DB | Saving jobs: %s", jobs)
     session = create_session()
     session.add_all(jobs)
-    session = commit_session(session)
-    session.close()
+    return commit_session(session)
 
 
 def delete(jobs):
     """Delete a job or a list of jobs. This does **NOT** resolve any
-    dependencies bu tremoves the relationships.
+    dependencies but removes the relationships.
+
+    **Note** that no searched on the jobs dependencies are performed. You
+    have to create the job list with all the jobs you want updated manually.
+    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    that are related due to grouping or piping.
 
     :param jobs: single job or list of jobs
     """
@@ -768,23 +786,36 @@ def get(job_id):
         return None
     job_id = int(job_id)
     session = create_session()
+
+    # we have to check the session identity map.
+    # if there is a cached instance, we try to refresh it.
+    key = session.identity_key(Job, job_id)
+    cached = session.identity_map.get(key, None)
+    if cached:
+        try:
+            session.refresh(cached)
+            return cached
+        except Exception:
+            return None
+
     query = session.query(Job).filter(Job.id == job_id)
     try:
-        return query.one()
+        r = query.one()
+        return r
     except NoResultFound:
         session.close()
         return None
 
 
 def get_current_state(job):
-    """Returns the current state of the job, fetched from the databse.
+    """Returns the current state of the job, fetched from the database.
     Note that you usually don't need to use this method. The jobs
-    object state, expecially when just fethed from the database, is
+    object state, especially when just fetched from the database, is
     most probably accurate. This method exists to check the job states
     after job execution of long running jobs.
 
     :param job: the job
-    :returns: the jobs state as stored in the datebase
+    :returns: the jobs state as stored in the database
     """
     t = Job.__table__
     q = select([t.c.state]).where(t.c.id == job.id)

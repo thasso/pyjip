@@ -26,7 +26,9 @@ log = jip.logger.getLogger("jip.jobs")
 ################################################################
 def resolve_jobs(jobs):
     """Takes a list of jobs and returns all jobs of all pipeline
-    graphs involved, sorted in topological order
+    graphs involved, sorted in topological order. In contrast to
+    :py:fun:`get_subgraph`, this first traverses *up* in the tree to
+    find all parent nodes involved.
 
     :param jobs: list of input jobs
     :returns: list of all jobs of all pipeline that are touched by the jobs
@@ -68,8 +70,8 @@ def get_pipe_parent(job):
     the does does not have any pipe targets, the job itself is returned.
 
     :param job: the job
-    :type job: `jip.db.Job`
-    :returns: parent job
+    :type job: :class:`jip.db.Job`
+    :returns: pipe source job or the job itself if no pipe parent is found
     """
     if len(job.pipe_from) > 0:
         ## walk up and add this jobs dependencies
@@ -81,7 +83,7 @@ def get_pipe_parent(job):
 
 
 def get_subgraph(job, _all_jobs=None):
-    """Returns a set of all jobs that are children
+    """Returns a list of all jobs that are children
     of the given job, plus the given job itself. In
     other words, this resolves the full subgraph of jobs that the
     given job belongs to. If the given job receives piped input, the
@@ -95,22 +97,47 @@ def get_subgraph(job, _all_jobs=None):
     if _all_jobs is None:
         if len(job.pipe_from) != 0:
             job = get_pipe_parent(job)
-        _all_jobs = set([job])
+        _all_jobs = [job]
     else:
-        _all_jobs.add(job)
+        if not job in _all_jobs:
+            _all_jobs.append(job)
 
     for child in (j for j in job.children if j not in _all_jobs):
         get_subgraph(child, _all_jobs)
-    return _all_jobs
+    return list(_all_jobs)
+
+
+def get_group_jobs(job, _all_jobs=None):
+    """Recursively collect all the jobs that are pipe_to targets
+    or in the same group as the given jobs. *NOTE* that the order
+    of the jobs is not preserved!
+
+    :param job: the job
+    :returns: list of all jobs that are pipe_to targets or in the same group
+              and the given job
+    """
+    if _all_jobs is None:
+        _all_jobs = []
+
+    if not job in _all_jobs:
+        _all_jobs.append(job)
+
+    for j in job.pipe_to:
+        get_group_jobs(j, _all_jobs)
+    for j in job.group_to:
+        get_group_jobs(j, _all_jobs)
+    return list(_all_jobs)
 
 
 def topological_order(jobs):
-    """Generator that takes a list of jobs and yields them in topological
-    order.  NOTE that you have to go through this (or something similar) when
-    you are restarting pipeline!
+    """Generator that yields the elements of the given list of jobs in
+    topological order. **NOTE** this does **NOT** resolve any dependencies and
+    only yields the jobs given as parameter
+
 
     :param jobs: list of jobs
     :type jobs: list of :class:`jip.db.Job`
+    :returns: yields given jobs in topological order
     """
     count = {}
     children = {}
@@ -118,20 +145,54 @@ def topological_order(jobs):
         count[node] = 0
 
     for node in jobs:
-        _children = set(node.children)
+        _children = __sort_children(set(node.children))
         children[node] = _children
         for successor in _children:
             count[successor] += 1
 
-    ready = [node for node in jobs if count[node] == 0]
-    sorted(ready, key=lambda j: len(list(j.children)))
+    ready = __sort_children([node for node in jobs if count[node] == 0])
     while ready:
         node = ready.pop(-1)
         yield node
+        to_append = []
         for successor in children[node]:
             count[successor] -= 1
             if count[successor] == 0:
-                ready.append(successor)
+                to_append.append(successor)
+        # we extend with the reverse list to preserve the sorting order
+        # as we pop from the back of the list
+        ready.extend(reversed(to_append))
+
+
+def __sort_children(jobs):
+    """Takes a list of jobs and sorts them by:
+
+        1. number of children (prefer > number of children)
+        2. the job name
+        3. job id
+
+    :param children: the list of jobs
+    :returns: sorted list of jobs
+    """
+    def _cmp(a, b):
+        la = len(a.children)
+        lb = len(b.children)
+        if la < lb:
+            return 1
+        elif la > lb:
+            return -1
+        else:
+            if a.name and b.name:
+                if a.name < b.name:
+                    return -1
+                elif a.name > b.name:
+                    return 1
+                return 0
+            if a.id and b.id:
+                return a.id - b.id
+        return 0
+
+    return sorted(jobs, cmp=_cmp)
 
 
 def create_groups(jobs):
@@ -164,7 +225,7 @@ def create_groups(jobs):
     return groups
 
 
-def create_executions(jobs, check_outputs=True, save=True):
+def create_executions(jobs, check_outputs=True, save=False):
     """Return a list of named tuples that reference jobs that can be executed
     in the right order. The named tuples yield by this generator have the
     following properties:
@@ -226,33 +287,6 @@ def create_executions(jobs, check_outputs=True, save=True):
     return runnables
 
 
-def submit_pipeline(job, silent=False, clean=False, force=False, session=None):
-    """Checks the pipeline rooted at the given job and resubmits all
-    jobs in the pipeline that are not in DONE state. Jobs that are
-    in active state (queued, running) are skipped if `force` is not
-    specified.
-
-    If job submission is forced and a job is in active state, the job
-    is canceled first to ensure there is only a single instance of the
-    job on the cluster.
-
-    :param job: the job to be deleted
-    :param clean: if True, the job log files will be deleted
-    :param silent: if False, the method will print status messages
-    :returns: set of all jobs that where checked for submission
-    """
-    jobs = list(topological_order(get_subgraph(job)))
-    send = set([])
-    #for j in jobs:
-        #log.info("Validating %s", j)
-        #j.validate()
-    for g in create_groups(jobs):
-        j = g[0]
-        submit(j, silent=silent, clean=clean, force=force, session=session)
-        map(send.add, g)
-    return send
-
-
 ################################################################
 # Common actions on single jobs
 ################################################################
@@ -280,7 +314,7 @@ def _update_times(job):
 def _update_from_cluster_state(job):
     """This exclusively works only for running jobs and
     applies any runtime properties from the cluster to the job. For example,
-    a comman thing that is set is the list of hosts that execute
+    a common thing that is set is the list of hosts that execute
     a job.
 
     :param job: the job
@@ -302,7 +336,7 @@ def _setup_signal_handler(job, save=False):
     when possible and set the job state to `FAILED`.
 
     :param job: the job
-    :type job: jip.db.Job
+    :type job: :class:`jip.db.Job`
     :param session: optional database session
     """
     def handle_signal(signum, frame):
@@ -332,18 +366,23 @@ def set_state(job, new_state, update_children=True, cleanup=True,
 
     :param new_state: the new job state
     :param id_or_job: the job instance or a job id
-    :param update_children: if set to False, child jobs are not updated
+    :param update_children: if set to False, pipe_to jobs are not updated
     :param cleanup: if True the tool cleanup is performed for canceled or
                     failed
+    :param check_state: if True, the current jobs state is loaded from the
+                        database, and if the new state is ``FAILED`` and
+                        the current db state is ``CANCELED``, the new state
+                        becomes ``CANCELED``. This is used to prevent jobs
+                        that are ``CANCELED`` to get set to ``FAILED`` when
+                        removed from a compute cluster
     """
     ## if the new state is STATE_FAILED and we have a session
     ## get a fresh copy of the job. If it was canceled, keep
     ## the canceled state
     if check_state and new_state == db.STATE_FAILED:
-        #fresh = db.find_job_by_id(session, job.id)
-        log.debug("%s | fetched fresh copy: %s -> %s", job, job, job.state)
         current_state = db.get_current_state(job)
-        if job.state == db.STATE_CANCELED:
+        log.debug("%s | fetched fresh copy: %s -> %s", job, job, current_state)
+        if current_state == db.STATE_CANCELED:
             log.info("%s | job was canceled, preserving CANCELED state", job)
             new_state = db.STATE_CANCELED
 
@@ -352,7 +391,7 @@ def set_state(job, new_state, update_children=True, cleanup=True,
     _update_times(job)
     _update_from_cluster_state(job)
     # if we are in finish state but not DONE,
-    # performe a cleanup
+    # perform a cleanup
     if cleanup and job.state in [db.STATE_CANCELED, db.STATE_HOLD,
                                  db.STATE_FAILED]:
         log.info("Terminating job %s with state %s", job, job.state)
@@ -362,16 +401,13 @@ def set_state(job, new_state, update_children=True, cleanup=True,
             log.error("Job termination raised an exception", exc_info=True)
         if not job.keep_on_fail and job.tool:
             log.info("Cleaning job %s after failure", str(job))
-            # restore teh tools original configuration, resetting any pipe
+            # restore the tools original configuration, resetting any pipe
             # targets. These files must also be passed to the tool and
-            # the only way to do so is by restoring the original configuraiton
+            # the only way to do so is by restoring the original configuration
             job.restore_configuration()
             job.tool.cleanup()
         else:
             log.info("Skipped job cleanup for %s", job)
-    else:
-        log.debug("Skipped job cleanup! Cleanup: %s, state %s",
-                  cleanup, job.state)
 
     # check embedded children of this job
     if update_children:
@@ -379,40 +415,46 @@ def set_state(job, new_state, update_children=True, cleanup=True,
             set_state(child, new_state, cleanup=cleanup)
 
 
-def delete(job, session, clean_logs=False, silent=True):
+def delete(job, clean_logs=False, cluster=None):
     """Delete the given job from the database and make sure its
-    no longer on the cluster.
+    no longer on the cluster. If the jobs' state is an active state,
+    the job is canceled on the cluster. Job cancellation is only performed
+    on jobs that are no pipe_to targets. Please note also that this method
+    does **NOT** delete any dependencies, it operates *ONLY* on the given
+    job instance.
 
     :param job: the job to be deleted
     :type job: `jip.db.Job`
-    :param session: the database session
     :param clean: if True, the job log files will be deleted
     :type clean: boolean
-    :param silent: if False, the method will print status messages
-    :type: boolean
+    :param cluster: the cluster instance used to cancel jobs. If not
+                    specified, the cluster is loaded from the configuration
     """
     # Check if the jobs on the cluster and
     # cancel it if thats the case
     if len(job.pipe_from) == 0:
         if job.state in db.STATES_ACTIVE:
-            cancel(job, session)
+            cancel(job, save=False, cluster=cluster)
         if clean_logs:
-            clean(job)
+            clean(job, cluster=cluster)
     log.info("Deleting job: %s-%d", str(job), job.id)
-    if not silent:
-        print "Deleting", job.id
     db.delete(job)
 
 
-def clean(job):
+def clean(job, cluster=None):
     """Remove job log files.
 
     :param job: the job to be cleaned
     :type job: `jip.db.Job`
+    :param cluster: the cluster instance used to resolve logs. If not
+                    specified, the cluster instance is loaded from the
+                    configuration
     """
     if len(job.pipe_from) != 0:
         return
-    cluster = jip.cluster.get()
+    if not cluster:
+        cluster = jip.cluster.get()
+
     with utils.ignored(Exception):
         stderr = cluster.resolve_log(job, job.stderr)
         if os.path.exists(stderr):
@@ -488,6 +530,7 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
         cluster.cancel(job)
 
     set_state(job, db.STATE_HOLD, cleanup=clean_job)
+    db.update_job_states(get_group_jobs(job))
     if clean_logs:
         clean(job)
     # cancel children
@@ -535,15 +578,12 @@ def submit_job(job, silent=True, clean=False, force=False, save=False,
     if len(job.pipe_from) != 0:
         return False
 
+    cluster = cluster if cluster else jip.cluster.get()
     # cancel or clean the job
     if job.state in db.STATES_ACTIVE:
-        cancel(job, clean_logs=True)  # TODO: delegate save state to cancel ?
+        cancel(job, clean_logs=True, cluster=cluster)
     elif clean:
-        jip.jobs.clean(job)
-
-    # set state queued and submit
-    if cluster is None:
-        cluster = jip.cluster.get()
+        clean(job, cluster=cluster)
 
     # set the job state
     set_state(job, db.STATE_QUEUED)
@@ -608,14 +648,14 @@ def run(job, save=False, profiler=False):
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(profiler=profiler)
 
+    all_jobs = get_group_jobs(job)
     if save:
         # save the update job state
-        all_jobs = [job] + job.pipe_to
         db.update_job_states(all_jobs)
 
     success = True
-    # we collect the state of all job in the dipatcher first
-    # a single failuer will caise ALL nodes/jobs in that dipatcher
+    # we collect the state of all job in the dispatcher first
+    # a single failure will case ALL nodes/jobs in that dispatcher
     # to be marked as failed
     for dispatcher_node in reversed(dispatcher_nodes):
         success &= dispatcher_node.wait()
@@ -627,7 +667,6 @@ def run(job, save=False, profiler=False):
 
     if save:
         # save the update job state at the end of the run
-        all_jobs = [job] + job.pipe_to
         db.update_job_states(all_jobs)
 
     return success
@@ -959,6 +998,8 @@ def check_output_files(jobs):
     """
     outputs = set([])
     for job in jobs:
+        if not job.tool:
+            continue
         for of in job.tool.get_output_files():
             if of in outputs:
                 raise jip.tools.ValidationError(
