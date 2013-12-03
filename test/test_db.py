@@ -43,6 +43,29 @@ def test_updating_state(tmpdir):
     assert fresh.state == jip.db.STATE_DONE
 
 
+def test_update_archived_single(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    j = jip.db.Job()
+    jip.db.save(j)
+    assert not jip.db.get(j.id).archived
+    jip.db.update_archived(j, True)
+    assert jip.db.get(j.id).archived
+
+
+def test_update_archived_multiple(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    j1 = jip.db.Job()
+    j2 = jip.db.Job()
+    jip.db.save([j1, j2])
+    assert not jip.db.get(j1.id).archived
+    assert not jip.db.get(j2.id).archived
+    jip.db.update_archived([j1, j2], True)
+    assert jip.db.get(j1.id).archived
+    assert jip.db.get(j2.id).archived
+
+
 def test_update_state_of_non_existing_job(tmpdir):
     db_file = os.path.join(str(tmpdir), "test.db")
     jip.db.init(db_file)

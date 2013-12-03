@@ -15,37 +15,19 @@ Options:
 """
 import jip.db
 import jip.jobs
-from . import query_jobs_by_ids, read_ids_from_pipe, confirm
-from . import parse_args
+from . import parse_args, parse_job_ids, confirm
 
 
 def main():
     args = parse_args(__doc__, options_first=True)
-    ####################################################################
-    # Query jobs
-    ####################################################################
-    job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
-
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-    job_ids += read_ids_from_pipe()
-
-    jip.db.init()
-    session = jip.db.create_session()
-    jobs = query_jobs_by_ids(session, job_ids=job_ids,
-                             cluster_ids=cluster_ids,
-                             archived=None, query_all=False)
+    job_ids, cluster_ids = parse_job_ids(args)
+    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                        archived=None)
     jobs = list(jobs)
     if len(jobs) == 0:
         return
-
     jobs = jip.jobs.resolve_jobs(jobs)
-
     clean = args['--clean']
-
     if confirm("Are you sure you want "
                "to archive %d jobs" % len(jobs),
                False):
@@ -53,10 +35,8 @@ def main():
             if job.state not in jip.db.STATES_ACTIVE:
                 if clean:
                     jip.jobs.clean(job)
-                job.archived = True
+                jip.db.update_archived(job, True)
                 print "%d archived" % job.id
-        session.commit()
-        session.close()
 
 
 if __name__ == "__main__":

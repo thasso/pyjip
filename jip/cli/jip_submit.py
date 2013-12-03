@@ -54,7 +54,8 @@ import sys
 
 import jip
 import jip.profiles
-from . import parse_args, show_dry, show_commands, colorize, RED, submit
+from . import parse_args, show_dry, show_commands, colorize, RED, \
+    YELLOW
 import jip.jobs
 from jip.logger import getLogger
 
@@ -93,15 +94,51 @@ def main(argv=None):
             show_commands(jobs)
         try:
             jip.jobs.check_output_files(jobs)
+            jip.jobs.check_queued_jobs(jobs)
         except Exception as err:
             print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
             print >>sys.stderr, str(err)
             sys.exit(1)
         return
 
-    submit(script, script_args, keep=args['--keep'], force=args['--force'],
-           silent=False, profile=profile, hold=args['--hold'],
-           profiler=args['--with-profiler'])
+    #####################################################
+    # prepare jobs for submission
+    #####################################################
+    force = args['--force']
+    jobs = jip.jobs.create_jobs(script, args=script_args, keep=args['--keep'],
+                                profile=profile,
+                                profiler=args['--with-profiler'])
+    if len(jobs) == 0:
+        return
+    if args['--hold']:
+        #####################################################
+        # Only save the jobs and let them stay on hold
+        #####################################################
+        jip.db.save(jobs)
+        print "Jobs stored and put on hold"
+    else:
+        try:
+            #####################################################
+            # Iterate the executions and submit
+            #####################################################
+            for exe in jip.jobs.create_executions(jobs, save=True,
+                                                  check_outputs=not force,
+                                                  check_queued=not force):
+                if exe.completed and not args['--force']:
+                    print colorize("Skipping %s" % exe.name, YELLOW)
+                else:
+                    if jip.jobs.submit_job(exe.job, force=force):
+                        print "Submitted %s with remote id %s" % (
+                            exe.job.id, exe.job.job_id
+                        )
+        except Exception as err:
+            log.debug("Submission error: %s", err, exc_info=True)
+            print >>sys.stderr, colorize("Error while submitting job:", RED), \
+                colorize(str(err), RED)
+            ##################################################
+            # delete all submitted jobs
+            ##################################################
+            jip.jobs.delete(jobs, clean_logs=True)
 
 
 if __name__ == "__main__":

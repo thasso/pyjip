@@ -16,35 +16,15 @@ import os
 import jip.db
 import jip.jobs
 import jip.cluster
-from . import query_jobs_by_ids, read_ids_from_pipe, confirm
-from . import parse_args
+from . import parse_args, parse_job_ids, confirm
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    ####################################################################
-    # Query jobs
-    ####################################################################
-    job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
-
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-    job_ids += read_ids_from_pipe()
-
-    jip.db.init()
-    session = jip.db.create_session()
-    jobs = query_jobs_by_ids(session, job_ids=job_ids,
-                             cluster_ids=cluster_ids,
-                             archived=None, query_all=False)
-    jobs = list(jobs)
-    if len(jobs) == 0:
-        return
-
+    job_ids, cluster_ids = parse_job_ids(args)
+    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                        archived=None)
     jobs = jip.jobs.resolve_jobs(jobs)
-
     if confirm("Are you sure you want "
                "to delete %d jobs" % len(jobs),
                False):
@@ -57,7 +37,6 @@ def main():
             stderr = cluster.resolve_log(job, job.stderr)
             if stderr and os.path.exists(stderr):
                 os.remove(stderr)
-    session.close()
 
 
 if __name__ == "__main__":

@@ -115,6 +115,30 @@ def parse_args(docstring, argv=None, options_first=True):
     return docopt(docstring, argv=argv, options_first=options_first)
 
 
+def parse_job_ids(args, read_stdin=True):
+    """Resolves job and clsuter ids specified in the args --job
+    and --cluster-job options. In additon, this reads job ids from
+    ``stdin``.
+
+    :param args: parsed command line options
+    :returns: tuple of job ids and cluster ids
+    """
+    ####################################################################
+    # Query jobs
+    ####################################################################
+    job_ids = args["--job"]
+    cluster_ids = args["--cluster-job"]
+
+    ####################################################################
+    # read job id's from pipe
+    ####################################################################
+    job_ids = [] if job_ids is None else resolve_job_range(job_ids)
+    cluster_ids = [] if cluster_ids is None else resolve_job_range(cluster_ids)
+    if read_stdin:
+        job_ids += read_ids_from_pipe()
+    return job_ids, cluster_ids
+
+
 def show_dry(jobs, options=None, profiles=False):
     """Print the dry-run table to stdout
 
@@ -501,48 +525,6 @@ def confirm(msg, default=True):
             sys.stdout.write(question)
 
 
-def _query_jobs(args, init_db=True, session=None, fields=None):
-    """Helper function for simpler job tools. We assume
-    that args contains the following optional keys:
-        --db           path to the database
-        --job          jobs ids
-        --cluster-job  cluster job ids
-
-    Returns a tuple of (session, result). The result is the raw
-    query result.
-
-    :param args: The command line argument array
-    :type args: list
-    :param init_db: Initialize the database from --db in args list
-    :type init_db: bool
-    :param session: existing database session that is used for the query.
-                    If no session is specified, a new session is created
-    :param fields: Optional list of Job fields the query should be limited to
-    """
-    if init_db:
-        jip.db.init(path=args["--db"] if '--db' in args else None)
-    if session is None:
-        session = jip.db.create_session()
-    ####################################################################
-    # Query jobs from both, job/cluster ids and pipe
-    ####################################################################
-    job_ids = args["--job"]
-    if not isinstance(job_ids, (list, tuple)):
-        job_ids = [job_ids]
-    cluster_ids = args["--cluster-job"] if '--cluster-job' in args else []
-
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-    job_ids += read_ids_from_pipe()
-
-    return session, query_jobs_by_ids(session, job_ids=job_ids,
-                                      cluster_ids=cluster_ids,
-                                      archived=None, query_all=False,
-                                      fields=fields)
-
-
 def query_jobs_by_ids(session, job_ids=None, cluster_ids=None, archived=False,
                       query_all=True, fields=None):
     """Query the session for jobs with the gibven job or cluster
@@ -575,194 +557,6 @@ def read_ids_from_pipe():
         # reopen stdin
         sys.stdin = open('/dev/tty', 'r')
     return job_ids
-
-
-def submit(script, script_args, keep=False, force=False, silent=False,
-           session=None, profile=None, hold=False, profiler=False):
-    """Submit the given list of jobs to the cluster. If no
-    cluster name is specified, the configuration is checked for
-    the default engine.
-    """
-    # load default cluster engine
-    cluster = jip.cluster.get()
-    log.info("Cluster engine: %s", cluster)
-
-    jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
-                                profile=profile, profiler=profiler)
-    jip.jobs.check_output_files(jobs)
-
-    # we reached final submission time. Time to
-    # save the jobs
-    _session = session
-    if session is None:
-        _session = jip.db.create_session()
-    # we have to check if there is anything we need
-    # to submit, otherwise we can skip committing the jobs
-    # We have to do this for all connected components
-    if not force:
-        parents = jip.jobs.get_parents(jobs)
-        unfinished_jobs = set([])
-
-        # create a dict for all output files
-        files = {}
-        if _session is not None:
-            query = _session.query(jip.db.Job).filter(
-                jip.db.Job.state.in_(
-                    jip.db.STATES_ACTIVE + [jip.db.STATE_HOLD]
-                )
-            )
-            for j in query:
-                for of in j.get_output_files():
-                    if not of.startswith("/"):
-                        files[os.path.join(j.working_directory, of)] = j
-                    else:
-                        files[of] = j
-        already_running = {}
-        for parent in parents:
-            log.info("Checking state for graph at %s", parent)
-            parent_jobs = jip.jobs.get_subgraph(parent)
-            for g in jip.jobs.create_groups(parent_jobs):
-                job = g[0]
-                if job.state != jip.db.STATE_DONE:
-                    if not parent in unfinished_jobs:
-                        unfinished_jobs.add(parent)
-                for gj in g:
-                    for of in gj.get_output_files():
-                        if not of.startswith("/"):
-                            of = os.path.join(gj.working_directory, of)
-                        if of in files:
-                            already_running[parent] = files[of]
-                            break
-
-        if len(unfinished_jobs) > 0:
-            # get all jobs for the parents
-            all_jobs = set([])
-            for p in unfinished_jobs:
-                if p in already_running:
-                    if not silent:
-                        other = already_running[p]
-                        print "%s %s[%s], job %s[%s] in the queue " \
-                              "creates the same output!" % (
-                                  colorize("Skipping", YELLOW),
-                                  p,
-                                  p.pipeline,
-                                  other,
-                                  str(other.id)
-                              )
-                    continue
-                for c in jip.jobs.get_subgraph(p):
-                    all_jobs.add(c)
-            jobs = list(jip.jobs.topological_order(all_jobs))
-        else:
-            # all finished
-            if not silent:
-                print colorize("Skipping all jobs, all finished!", YELLOW)
-            return
-
-    if len(jobs) == 0:
-        return
-
-    log.debug("Saving jobs")
-    map(_session.add, jobs)
-    _session.commit()
-    if hold:
-        if not silent:
-            print "%d jobs stored but not submitted" % (len(jobs))
-        return
-
-    def submission_failure():
-        """Helper to delete submitted jobs in case of a submission error"""
-        log.info("Submission error occurred, perform cleanup"
-                 " on already submitted jobs")
-        for j in jobs:
-            jip.jobs.delete(j, session=_session, clean_logs=True, silent=True)
-        _session.commit()
-        pass
-
-    try:
-        for g in jip.jobs.create_groups(jobs):
-            job = g[0]
-            name = "|".join(str(j) for j in g)
-            if job.state == jip.db.STATE_DONE and not force:
-                if not silent:
-                    print colorize("Skipping %s" % name, YELLOW)
-                log.info("Skipping completed job %s", name)
-            else:
-                log.info("Submitting %s", name)
-                jip.jobs.set_state(job, jip.db.STATE_QUEUED)
-                cluster.submit(job)
-                if not silent:
-                    print "Submitted %s with remote id %s" % (job.id,
-                                                              job.job_id)
-            if len(g) > 1:
-                for other in g[1:]:
-                    # we only submit the parent jobs but we set the job
-                    # id so dependencies are properly resolved on job
-                    # submission to the cluster
-                    other.job_id = job.job_id
-            _session.commit()
-    except:
-        submission_failure()
-        raise
-
-    _session.commit()
-    if session is None:
-        # we created the session so we close it
-        _session.close()
-
-
-def run(script, script_args, keep=False, force=False, silent=False, threads=1,
-        spec=None, profiler=False):
-    """Load and initialize the given script and execute its jobs.
-
-    :param script: this script to execute
-    :param script_args: the script arguments
-    :param keep: keep tool outputs on failure
-    :param force: force execution event if jobs are marked es completed
-    :param silent: do not print status information to ``stderr``
-    :param threads: number of threads
-    :param spec: path to job specification file
-    :param profiler: run with profiler enabled
-    """
-
-    profile = jip.profiles.Profile(threads=threads)
-    if spec:
-        profile.load_spec(spec, script.name)
-        # reset threads
-        profile.threads = threads
-
-    jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
-                                profile=profile)
-    # assign job ids
-    for i, j in enumerate(jobs):
-        j.id = i + 1
-
-    # force silent mode for single jobs
-    if len(jobs) == 1:
-        silent = True
-
-    for exe in jip.jobs.create_executions(jobs):
-        if exe.completed and not force:
-            if not silent:
-                print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
-        else:
-            if not silent:
-                sys.stderr.write(colorize("Running", YELLOW) +
-                                 " {name:30} ".format(
-                                     name=colorize(exe.name, BLUE)
-                                 ))
-                sys.stderr.flush()
-            start = datetime.now()
-            success = jip.jobs.run(exe.job, profiler=profiler)
-            end = timedelta(seconds=(datetime.now() - start).seconds)
-            if success:
-                if not silent:
-                    print >>sys.stderr, colorize(exe.job.state, GREEN),\
-                        "[%s]" % (end)
-            else:
-                if not silent:
-                    print >>sys.stderr, colorize(exe.job.state, RED)
-                sys.exit(1)
 
 
 def dry(script, script_args, dry=True, show=False):

@@ -21,6 +21,7 @@ def test_cluster_not_found():
 
 
 def test_cluster_name_none():
+    jip.config.config['cluster'] = None
     with pytest.raises(cl.ClusterImplementationError):
         cl.get(None)
 

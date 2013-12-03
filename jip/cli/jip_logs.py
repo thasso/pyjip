@@ -20,9 +20,9 @@ Options:
     -h --help                Show this help message
 """
 
-from . import colorize, GREEN, RED, BLUE, STATE_COLORS, _query_jobs
+from . import colorize, GREEN, RED, BLUE, STATE_COLORS
 import jip.cluster
-from . import parse_args
+from . import parse_args, parse_job_ids
 
 from subprocess import Popen
 from os.path import exists
@@ -30,12 +30,14 @@ from os.path import exists
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    session, jobs = _query_jobs(args)
+    job_ids, cluster_ids = parse_job_ids(args)
+    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                        archived=None, fields=['stdout', 'stderr',
+                                               'job_id', 'id', 'name',
+                                               'state'])
     for job in jobs:
-        if len(job.pipe_from) == 0:
-            cluster = jip.cluster.get()
-            show_log(job, cluster, args)
-    session.close()
+        cluster = jip.cluster.get()
+        show_log(job, cluster, args)
 
 
 def show_log(job, cluster, args):
@@ -57,7 +59,7 @@ def show_log(job, cluster, args):
 def _tail(job, file, lines=10, cmd="tail", is_error=False):
     print "==> [%s] %s [%s] -- %s <==" % \
         (colorize(str(job.id), GREEN),
-         colorize(str(job), BLUE),
+         colorize(str(job.name), BLUE),
          colorize(job.state, STATE_COLORS[job.state]),
          colorize(file, RED if is_error else GREEN))
     p = Popen([cmd, "-n", str(lines), str(file)])

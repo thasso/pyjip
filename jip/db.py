@@ -699,7 +699,7 @@ def update_job_states(jobs):
     the jobs start/finish dates as well as the stdout and
     stderr paths.
 
-    **Note** that no searched on the jobs dependencies are performed. You
+    **Note** that no search on the jobs dependencies are performed. You
     have to create the job list with all the jobs you want updated manually.
     You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
     job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
@@ -731,6 +731,30 @@ def update_job_states(jobs):
          "_stderr": j.stderr
          } for j in jobs
     ]
+    _execute(up, values)
+
+
+def update_archived(jobs, state):
+    """Takes a list of jobs and updates the job archived flag.
+
+    **Note** that no search on the jobs dependencies are performed. You
+    have to create the job list with all the jobs you want updated manually.
+    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    that are related due to grouping or piping.
+
+    :param jobs: list of jobs or single job
+    """
+    if not isinstance(jobs, (list, tuple)):
+        jobs = [jobs]
+    # create the update statement
+    up = Job.__table__.update().where(
+        Job.id == bindparam("_id")
+    ).values(
+        archived=state
+    )
+    # convert the job values
+    values = [{"_id": j.id} for j in jobs]
     _execute(up, values)
 
 
@@ -771,8 +795,9 @@ def delete(jobs):
         )
         stmt.append(dep)
     # convert the job values
-    values = [{"_id": j.id} for j in jobs]
-    _execute(stmt, values)
+    values = [{"_id": j.id} for j in jobs if j.id is not None]
+    if values:
+        _execute(stmt, values)
 
 
 def get(job_id):
@@ -826,7 +851,53 @@ def get_current_state(job):
     return state
 
 
+def get_active_jobs():
+    """Returns all jobs that are not DONE, FAILED, or CANCELED"""
+    session = create_session()
+    return session.query(Job).filter(
+        Job.state.in_(
+            STATES_ACTIVE + [STATE_HOLD]
+        )
+    )
+
+
 def get_all():
     """Returns an iterator over all jobs in the database"""
     session = create_session()
     return list(session.query(Job))
+
+
+def query(job_ids=None, cluster_ids=None, archived=False, fields=None):
+    """Query the the database for jobs.
+
+    You can limit the search to a specific set of job ids using either the
+    job ids or the remote cluster ids. If none are specified, all jobs are
+    queried.
+
+    By default the search is limited to non-archived jobs. You can set the
+    ``archived`` paramter to True to query only archived jobs or to ``None``
+    to query both.
+
+    In addition, you can use the ``fields`` paramter to limit the fields that
+    are retrieved by the query for each job. By default, all fields are
+    retrieved.
+
+    :param job_ids: iterable of job ids
+    :param cluster_ids: iterable of cluster ids
+    :param archived: set to True to query archived jobs and to None to query
+                     all jobs
+    :param fields: list of field names that should be retirieved
+    :returns: iterator over the query results
+    """
+    job_ids = [] if job_ids is None else job_ids
+    cluster_ids = [] if cluster_ids is None else cluster_ids
+    fields = [Job] if fields is None else fields
+    session = create_session()
+    jobs = session.query(*fields)
+    if archived is not None:
+        jobs = jobs.filter(Job.archived == archived)
+    if job_ids is not None and len(job_ids) > 0:
+        jobs = jobs.filter(Job.id.in_(job_ids))
+    if job_ids is not None and len(cluster_ids) > 0:
+        jobs = jobs.filter(Job.job_id.in_(cluster_ids))
+    return jobs

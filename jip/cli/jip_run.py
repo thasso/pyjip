@@ -29,10 +29,11 @@ Other Options:
 import json
 import sys
 
-from . import parse_args, run, dry
+from . import parse_args, dry, colorize, YELLOW, GREEN, RED, BLUE
 import jip
 import jip.jobs
 from jip.logger import getLogger
+from datetime import datetime, timedelta
 
 log = getLogger('jip.cli.jip_run')
 
@@ -56,11 +57,46 @@ def main(argv=None):
         with open(args['--spec']) as of:
             spec = json.load(of)
 
+    keep = args['--keep']
+    force = args['--force']
+    threads = args['--threads']
+    profiler = args['--with-profiler']
+    silent = not args['--status']
     try:
-        run(script, script_args, keep=args['--keep'],
-            silent=not args['--status'],
-            force=args['--force'], threads=args['--threads'],
-            spec=spec, profiler=args['--with-profiler'])
+        profile = jip.profiles.Profile(threads=threads)
+        if spec:
+            profile.load_spec(spec, script.name)
+            # reset threads
+            profile.threads = threads
+
+        jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
+                                    profile=profile)
+        # assign job ids
+        for i, j in enumerate(jobs):
+            j.id = i + 1
+
+        for exe in jip.jobs.create_executions(jobs):
+            if exe.completed and not force:
+                if not silent:
+                    print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
+            else:
+                if not silent:
+                    sys.stderr.write(colorize("Running", YELLOW) +
+                                     " {name:30} ".format(
+                                         name=colorize(exe.name, BLUE)
+                                     ))
+                    sys.stderr.flush()
+                start = datetime.now()
+                success = jip.jobs.run(exe.job, profiler=profiler)
+                end = timedelta(seconds=(datetime.now() - start).seconds)
+                if success:
+                    if not silent:
+                        print >>sys.stderr, colorize(exe.job.state, GREEN),\
+                            "[%s]" % (end)
+                else:
+                    if not silent:
+                        print >>sys.stderr, colorize(exe.job.state, RED)
+                    sys.exit(1)
     except jip.ValidationError as va:
         sys.stderr.write(str(va))
         sys.stderr.write("\n")

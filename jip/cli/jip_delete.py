@@ -15,45 +15,29 @@ Options:
 
 import jip.db
 import jip.jobs
-from . import query_jobs_by_ids, read_ids_from_pipe, confirm
-from . import parse_args
+from . import parse_args, parse_job_ids, confirm
+import sys
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    ####################################################################
-    # Query jobs
-    ####################################################################
-    job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
+    job_ids, cluster_ids = parse_job_ids(args)
+    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                        archived=None)
 
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-    job_ids += read_ids_from_pipe()
-
-    jip.db.init()
-    session = jip.db.create_session()
-    jobs = query_jobs_by_ids(session, job_ids=job_ids,
-                             cluster_ids=cluster_ids,
-                             archived=None, query_all=False)
     jobs = list(jobs)
     if len(jobs) == 0:
         return
 
+    # get full pipelines
     jobs = jip.jobs.resolve_jobs(jobs)
 
     if confirm("Are you sure you want "
                "to delete %d jobs" % len(jobs),
                False):
         for job in jobs:
-            jip.jobs.delete(job,
-                            session=session,
-                            clean_logs=args['--clean'],
-                            silent=False)
-        session.commit()
-        session.close()
+            print >>sys.stderr, "Deleting %s" % (job.id)
+            jip.jobs.delete(job, clean_logs=args['--clean'])
 
 
 if __name__ == "__main__":

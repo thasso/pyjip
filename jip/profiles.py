@@ -236,7 +236,7 @@ class Profile(object):
         elif self.name is not None:
             log.info("Apply pipeline name to job: %s %s", job, self.name)
             job.pipeline = self.name
-        if self.threads is not None and job.threads is None:
+        if self.threads is not None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
             else:

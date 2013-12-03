@@ -41,6 +41,7 @@ Miscellaneous other commands:
     edit      edit job commands for a given job
     clean     remove job logs
     check     check job status
+    server    start the jip grid server
 """
 import os
 import sys

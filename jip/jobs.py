@@ -225,7 +225,8 @@ def create_groups(jobs):
     return groups
 
 
-def create_executions(jobs, check_outputs=True, save=False):
+def create_executions(jobs, check_outputs=True, check_queued=False,
+                      save=False):
     """Return a list of named tuples that reference jobs that can be executed
     in the right order. The named tuples yield by this generator have the
     following properties:
@@ -235,7 +236,7 @@ def create_executions(jobs, check_outputs=True, save=False):
         job
             the :class:`~jip.db.Job` instance that can be submitted or
             executed.
-        done
+        completed
             boolean that indicates whether the job (and therefore all jobs
             in the job group) is in "Done" state and marked as completed.
 
@@ -267,23 +268,25 @@ def create_executions(jobs, check_outputs=True, save=False):
     """
     if check_outputs:
         check_output_files(jobs)
+    if check_queued:
+        check_queued_jobs(jobs)
 
     # the instance
     Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
     runnables = []
 
+    to_save = []
     # create the job groups
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
         completed = job.state == jip.db.STATE_DONE
+        if not completed:
+            to_save.extend(g)
         runnables.append(Runable(name, job, completed))
 
     if save:
-        session = db.create_session()
-        for j in jobs:
-            session.add(j)
-        db.commit_session(session).close()
+        db.save(to_save)
     return runnables
 
 
@@ -385,6 +388,9 @@ def set_state(job, new_state, update_children=True, cleanup=True,
         if current_state == db.STATE_CANCELED:
             log.info("%s | job was canceled, preserving CANCELED state", job)
             new_state = db.STATE_CANCELED
+        if current_state == db.STATE_HOLD:
+            log.info("%s | job was canceled, preserving HOLD state", job)
+            new_state = db.STATE_HOLD
 
     log.info("%s | set state [%s]=>[%s]", job, job.state, new_state)
     job.state = new_state
@@ -430,6 +436,11 @@ def delete(job, clean_logs=False, cluster=None):
     :param cluster: the cluster instance used to cancel jobs. If not
                     specified, the cluster is loaded from the configuration
     """
+    if isinstance(job, (list, tuple)):
+        for j in job:
+            delete(j, clean_logs=clean_logs, cluster=cluster)
+        return
+
     # Check if the jobs on the cluster and
     # cancel it if thats the case
     if len(job.pipe_from) == 0:
@@ -437,7 +448,7 @@ def delete(job, clean_logs=False, cluster=None):
             cancel(job, save=False, cluster=cluster)
         if clean_logs:
             clean(job, cluster=cluster)
-    log.info("Deleting job: %s-%d", str(job), job.id)
+    log.info("Deleting job: %s-%s", str(job), str(job.id))
     db.delete(job)
 
 
@@ -468,8 +479,10 @@ def clean(job, cluster=None):
             os.remove(stdout)
 
 
-def cancel(job, clean_job=False, clean_logs=False, silent=True,
-           cluster=None, save=False):
+def cancel(job, clean_job=False, clean_logs=False, cluster=None, save=False,
+           cancel_children=True
+           ):
+
     """Cancel the given job and make sure its no longer on the cluster.
 
     The function takes only jobs that are in active state and takes
@@ -479,16 +492,16 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True,
     :type job: `jip.db.Job`
     :param clean_logs: if True, the job log files will be deleted
     :param clean_job: if True, the job results will be removed
-    :param silent: if False, the method will print status messages
     :param cluster: if not Cluster is specified and this is the parent
                     job in a group, the default cluster is loaded
     :param save: if True, save job in database after state change
+    :param cancel_children: set this to False to disable canceling children of
+                            a given job
+
+    :returns: True if job was canceled
     """
     if not job.state in db.STATES_ACTIVE and job.state != db.STATE_CANCELED:
-        return
-
-    if not silent:
-        print "Canceling", job.id
+        return False
     log.info("Canceling job: %s-%d", str(job), job.id)
     set_state(job, db.STATE_CANCELED, cleanup=clean_job)
     if save:
@@ -503,13 +516,15 @@ def cancel(job, clean_job=False, clean_logs=False, silent=True,
         clean(job)
 
     # cancel children
-    for child in job.children:
-        cancel(child, clean_job=clean_job,
-               clean_logs=clean_logs, silent=silent, cluster=cluster,
-               save=save)
+    if cancel_children:
+        for child in job.children:
+            cancel(child, clean_job=clean_job,
+                   clean_logs=clean_logs, cluster=cluster, save=save,
+                   cancel_children=cancel_children)
+    return True
 
 
-def hold(job, clean_job=False, clean_logs=False, silent=True):
+def hold(job, clean_job=False, clean_logs=False, hold_children=True):
     """Hold the given job make sure its no longer on the cluster.
     The function takes only jobs that are in active state and takes
     care of the cancellation of any children.
@@ -520,26 +535,27 @@ def hold(job, clean_job=False, clean_logs=False, silent=True):
     :param silent: if False, the method will print status messages
     """
     if not job.state in db.STATES_ACTIVE:
-        return
+        return False
 
-    if not silent:
-        print "Holding", job.id
     log.info("Holding job: %s-%d", str(job), job.id)
+    set_state(job, db.STATE_HOLD, cleanup=clean_job)
+    db.update_job_states(get_group_jobs(job))
+
     if len(job.pipe_from) == 0:
         cluster = jip.cluster.get()
         cluster.cancel(job)
 
-    set_state(job, db.STATE_HOLD, cleanup=clean_job)
-    db.update_job_states(get_group_jobs(job))
     if clean_logs:
         clean(job)
-    # cancel children
-    for child in job.children:
-        hold(child, clean_job=clean_job,
-             clean_logs=clean_logs, silent=silent)
+    if hold_children:
+        # cancel children
+        for child in job.children:
+            hold(child, clean_job=clean_job,
+                 clean_logs=clean_logs, hold_children=hold_children)
+    return True
 
 
-def submit_job(job, silent=True, clean=False, force=False, save=False,
+def submit_job(job, clean=False, force=False, save=True,
                cluster=None):
     """Submit the given job to the cluster. This only submits jobs that are not
     `DONE`. The job has to be in `canceled`, `failed`, `queued`,
@@ -561,8 +577,6 @@ def submit_job(job, silent=True, clean=False, force=False, save=False,
     configured.
 
     :param job: the job to be deleted
-    :param silent: if False, the method will print status messages to
-                   ``stdout``
     :param clean: if True, the job log files will be deleted
     :param force: force job submission
     :param save: if True, jobs will be saved to the database
@@ -583,7 +597,7 @@ def submit_job(job, silent=True, clean=False, force=False, save=False,
     if job.state in db.STATES_ACTIVE:
         cancel(job, clean_logs=True, cluster=cluster)
     elif clean:
-        clean(job, cluster=cluster)
+        jip.jobs.clean(job, cluster=cluster)
 
     # set the job state
     set_state(job, db.STATE_QUEUED)
@@ -603,8 +617,6 @@ def submit_job(job, silent=True, clean=False, force=False, save=False,
 
     # submit the job to the cluster
     cluster.submit(job)
-    if not silent:
-        print "Submitted %s with remote id %s" % (job.id, job.job_id)
     all_jobs = [job]
 
     # update child ids
@@ -1014,3 +1026,33 @@ def check_output_files(jobs):
                     "output files that are created based in the input." % of
                 )
             outputs.add(of)
+
+
+def __output_files(jobs):
+    for j in jobs:
+        for of in j.get_output_files():
+            yield j, of
+
+
+def check_queued_jobs(jobs):
+    # create a dict for all output files
+    # of all currently runninng or queued jobs
+    files = {}
+    for j, of in __output_files(db.get_active_jobs()):
+        files[of] = j
+
+    for job, of in __output_files(jobs):
+        if of in files:
+            other_job = files[of]
+            raise jip.tools.ValidationError(
+                job,
+                "Output file duplication:\n\n"
+                "During validation an output file name was found\n"
+                "in another job!\n"
+                "Job %s [%s] also creates the following file:\n"
+                "\n\t%s\n\n"
+                "The job is currenty in %s state. Cancel or delete\n"
+                "the job in order to submit this run or check\n"
+                "your output files\n" % (other_job, str(other_job.id),
+                                         of, other_job.state)
+            )

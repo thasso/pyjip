@@ -79,8 +79,138 @@ class LocalCluster(jip.cluster.Cluster):
     def submit(self, job):
         if self.master_process is None:
             raise jip.cluster.SubmissionError("No Grid master found!")
+        local_job = _Job.from_job(job) if not isinstance(job, _Job) else job
+        if not self._remote_ids:
+            local_job.job_id = self._next_id()
 
-        # set log files
+        self.master_requests.put([
+            "SUBMIT", local_job,
+        ])
+        if self._remote_ids:
+            job.job_id = self.master_response.get()
+        else:
+            job.job_id = local_job.job_id
+        self.log.info("Submitted new job with id %s", job.job_id)
+        return job
+
+    def resolve_log(self, job, path):
+        if path is None:
+            return None
+        return path.replace("%J", str(job.id))
+
+    def cancel(self, job):
+        if self.master_process is None:
+            return
+        self.log.info("Send cancel request for %s", job.job_id)
+        self.master_requests.put(["CANCEL", job.job_id])
+
+
+class JIP(jip.cluster.Cluster):
+
+    def __init__(self):
+        self.log = getLogger("jip.grids.JIP")
+        cfg = jip.config.get('jip_grid', {})
+        self.host = cfg.get('host', '127.0.0.1')
+        self.port = cfg.get('port', '5556')
+        self.log = getLogger("jip.cluster.JIP")
+
+    def _connect(self):
+        import zmq
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.setsockopt(zmq.LINGER, 0)
+        socket.RCVTIMEO = 1000
+        self.log.info("Connecting to remote grid: %s:%s", self.host, self.port)
+        socket.connect("tcp://%s:%s" % (self.host, self.port))
+        return context, socket
+
+    def list(self):
+        try:
+            context, socket = self._connect()
+            socket.send_json({"cmd": "list"})
+            jobs = socket.recv_json()
+        except:
+            self.log.error("Unable to connect to grid server!")
+            raise
+        finally:
+            socket.close()
+            context.term()
+        return jobs
+
+    def submit(self, job):
+        try:
+            context, socket = self._connect()
+            local = _Job.from_job(job)
+            socket.send_json({"cmd": "submit", "job": {
+                "job_id": local.job_id,
+                "id": local.id,
+                "cmd": local.cmd,
+                "stdout": local.stdout,
+                "stderr": local.stderr,
+                "working_directory": local.working_directory,
+                "dependencies": [f for f in local.dependencies],
+                "children": [f for f in local.children]
+
+            }})
+            submitted = socket.recv_json()
+            job.job_id = submitted['job_id']
+            job.working_directory = submitted['working_directory']
+            job.stdout = submitted['stdout']
+            job.stderr = submitted['stderr']
+            return job
+        except:
+            self.log.error("Unable to connect to grid server!", exc_info=True)
+            raise jip.cluster.SubmissionError("Unable to connect to cluster")
+        finally:
+            socket.close()
+            context.term()
+        return job
+
+    def resolve_log(self, job, path):
+        if path is None:
+            return None
+        return path.replace("%J", str(job.id))
+
+    def cancel(self, job):
+        try:
+            context, socket = self._connect()
+            self.log.info("Send cancel request for %s", job.job_id)
+            socket.send_json({"cmd": "cancel", 'id': job.job_id})
+            socket.recv()
+        except:
+            self.log.error("Unable to connect to grid server!")
+            raise
+        finally:
+            socket.close()
+            context.term()
+
+
+class _Job(object):
+    """Local Job object that is send to the local grid and contains
+    all the information that is needed and supported by the local cluster
+    implementation.
+
+    This class is for internal purposes and there should be no need to
+    interact with it outside of this module.
+
+    This class is sortable and the order is defined by the number of activate
+    dependencies and the job_id.
+    """
+    def __init__(self, cmd=None, cwd=None, stdout=None, stderr=None,
+                 dependencies=None, threads=1, job_id=None):
+        self.id = job_id
+        self.job_id = job_id
+        self.dependencies = set([]) if dependencies is None else dependencies
+        self.threads = threads
+        self.cmd = cmd
+        self.working_directory = cwd
+        self.stdout = stdout
+        self.stderr = stderr
+        self.children = set([])
+        self.process = None
+
+    @classmethod
+    def from_job(cls, job):
         cwd = job.working_directory if job.working_directory is not None \
             else os.getcwd()
         if job.stderr is None:
@@ -102,54 +232,8 @@ class LocalCluster(jip.cluster.Cluster):
             dependencies=deps,
             threads=job.threads
         )
-        if not self._remote_ids:
-            local_job.job_id = self._next_id()
-
-        self.master_requests.put([
-            "SUBMIT", local_job,
-        ])
-        if self._remote_ids:
-            job.job_id = self.master_response.get()
-        else:
-            job.job_id = local_job.job_id
-        self.log.info("Submitted new job with id %s", job.job_id)
-        return job
-
-    def resolve_log(self, job, path):
-        if path is None:
-            return None
-        return path.replace("%J", str(job.job_id))
-
-    def cancel(self, job):
-        if self.master_process is None:
-            return
-        id = job.job_id
-        self.log.info("Send cancel request for %s", id)
-        self.master_requests.put(["CANCEL", id])
-
-
-class _Job(object):
-    """Local Job object that is send to the local grid and contains
-    all the information that is needed and supported by the local cluster
-    implementation.
-
-    This class is for internal purposes and there should be no need to
-    interact with it outside of this module.
-
-    This class is sortable and the order is defined by the number of activate
-    dependencies and the job_id.
-    """
-    def __init__(self, cmd=None, cwd=None, stdout=None, stderr=None,
-                 dependencies=None, threads=1, job_id=None):
-        self.job_id = job_id
-        self.dependencies = set([]) if dependencies is None else dependencies
-        self.threads = threads
-        self.cmd = cmd
-        self.working_directory = cwd
-        self.stdout = stdout
-        self.stderr = stderr
-        self.children = set([])
-        self.process = None
+        local_job.id = job.id
+        return local_job
 
     def __lt__(self, other):
         num_deps = len(self.dependencies)
@@ -339,8 +423,8 @@ class _GridMaster(object):
         create_id = job.job_id is None
         job_id = self._next_id() if create_id else job.job_id
         job.job_id = job_id
-        job.stdout = self._resolve_log(job_id, job.stdout)
-        job.stderr = self._resolve_log(job_id, job.stderr)
+        job.stdout = self._resolve_log(job.id, job.stdout)
+        job.stderr = self._resolve_log(job.id, job.stderr)
         self.queued[job_id] = job
 
         # update children
@@ -444,7 +528,11 @@ class _GridMaster(object):
         while True:
             if self.wait_mode and self._num_jobs() == 0:
                 break
-            msg = self.requests.get()
+            try:
+                msg = self.requests.get()
+            except KeyboardInterrupt as err:
+                self.log.warn("Server process canceled")
+                continue
             self.log.debug("Master | received command: %s", msg)
             try:
                 command = msg[0]
