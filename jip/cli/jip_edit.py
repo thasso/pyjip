@@ -16,27 +16,32 @@ import sys
 
 import jip.db
 from jip.tempfiles import create_temp_file
-from . import _query_jobs, parse_args
+from . import parse_args, colorize, RED, GREEN, YELLOW
 
 
 def main():
     args = parse_args(__doc__, options_first=False)
-    session, jobs = _query_jobs(args)
+    job = jip.db.get(args['--job'])
+    if not job:
+        print >>sys.stderr, colorize("No job found!", RED)
+        sys.exit(1)
     editor = os.getenv("EDITOR", 'vim')
-    for job in jobs:
-        if job.state in jip.db.STATES_ACTIVE:
-            print >>sys.stderr, "You can not edit a job that is " \
-                "currently queued or running!"
-            sys.exit(1)
-        tmp = create_temp_file()
-        tmp.write(job.command)
-        tmp.close()
-        p = subprocess.Popen([editor, tmp.name])
-        if p.wait() == 0:
-            with open(tmp.name) as f:
-                job.command = "".join(f.readlines())
-            session.commit()
-            print "Job updated"
+    if job.state in jip.db.STATES_ACTIVE:
+        print >>sys.stderr, "You can not edit a job that is " \
+            "currently queued or running!"
+        sys.exit(1)
+    tmp = create_temp_file()
+    tmp.write(job.command)
+    tmp.close()
+    p = subprocess.Popen([editor, tmp.name])
+    if p.wait() == 0:
+        with open(tmp.name) as f:
+            job.command = "".join(f.readlines())
+        jip.db.save(job)
+        print colorize("Job updated", GREEN)
+        print "You can restart the change job with:", colorize(
+            "jip restart -j %s" % (str(job.id)), YELLOW
+        )
 
 if __name__ == "__main__":
     main()

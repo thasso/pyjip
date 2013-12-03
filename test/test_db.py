@@ -5,6 +5,19 @@ import jip.db
 import datetime
 
 
+def test_command_change_save(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    j = jip.db.Job()
+    j.command = "A"
+    # save the job
+    jip.db.save(j)
+    assert jip.db.get(j.id).command == "A"
+    j.command = "B"
+    jip.db.save(j)
+    assert jip.db.get(j.id).command == "B"
+
+
 def test_updating_state(tmpdir):
     db_file = os.path.join(str(tmpdir), "test.db")
     jip.db.init(db_file)
