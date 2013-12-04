@@ -152,3 +152,111 @@ def test_cascaded_save(tmpdir):
     child.dependencies.append(parent)
     jip.db.save([parent])
     assert len(jip.db.get_all()) == 2
+
+
+def test_ouput_file_update_on_insert():
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${outfile}", outfile="A.txt")
+    jobs = jip.create_jobs(p)
+    jip.db.save(jobs)
+    assert len(jobs[0].out_files) == 1
+    assert jobs[0].out_files[0].job == jobs[0]
+    assert jip.db.create_session().query(jip.db.OutputFile).count() == 1
+
+
+def test_input_file_update_on_insert(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", input="A.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+    assert len(jobs[0].in_files) == 1
+    assert jobs[0].in_files[0].job == jobs[0]
+    assert jip.db.create_session().query(jip.db.InputFile).count() == 1
+
+
+def test_input_file_delete_on_job_delete(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", input="A.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    assert jip.db.create_session().query(jip.db.InputFile).count() == 1
+    jip.db.delete(jobs)
+    assert jip.db.create_session().query(jip.db.Job).count() == 0
+
+
+def test_output_file_delete_on_job_delete(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", outfile="A.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    assert jip.db.create_session().query(jip.db.OutputFile).count() == 1
+    jip.db.delete(jobs)
+    assert jip.db.create_session().query(jip.db.Job).count() == 0
+    assert jip.db.create_session().query(jip.db.OutputFile).count() == 0
+
+
+def test_output_file_query(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", outfile="A.txt")
+    abspath = os.path.join(os.getcwd(), "A.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    job = jip.db.query_by_output(abspath)
+    assert job.count() == 1
+    assert job.one() == jobs[0]
+
+
+def test_output_file_query_multiple_files(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", outfile=["A.txt", "B.txt"])
+    abspath_A = os.path.join(os.getcwd(), "A.txt")
+    abspath_B = os.path.join(os.getcwd(), "B.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    job = jip.db.query_by_output([abspath_A, abspath_B])
+    assert job.count() == 2
+
+
+def test_input_file_query(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", input="A.txt")
+    abspath = os.path.join(os.getcwd(), "A.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    job = jip.db.query_by_inputs(abspath)
+    assert job.count() == 1
+    assert job.one() == jobs[0]
+
+
+def test_iput_file_query_multiple_files(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", input=["A.txt", "B.txt"])
+    abspath_A = os.path.join(os.getcwd(), "A.txt")
+    abspath_B = os.path.join(os.getcwd(), "B.txt")
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 2
+    jip.db.save(jobs)
+
+    job = jip.db.query_by_inputs([abspath_A, abspath_B])
+    assert job.count() == 2
+
+

@@ -1215,7 +1215,7 @@ class Tool(object):
                        if this is set to False, only non-sticky output
                        options are yield
         :type sticky:  boolean
-        :returns: list of option values
+        :returns: list of file names
         """
         for opt in self.options.get_by_type(TYPE_OUTPUT):
             if (opt.source and opt.source != self) or \
@@ -1233,6 +1233,8 @@ class Tool(object):
         of this tool. Only TYPE_INPUT options are considered
         whose values are strings. If a source for the option
         is not None, it has to be equal to this tool.
+
+        :returns: list of file names
         """
         for opt in self.options.get_by_type(TYPE_INPUT):
             if opt.source and opt.source != self:

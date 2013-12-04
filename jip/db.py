@@ -25,6 +25,7 @@ from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.event import listen
 
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
@@ -84,6 +85,20 @@ job_groups = Table("job_groups", Base.metadata,
                           ForeignKey("jobs.id"), primary_key=True),
                    Column("target", Integer,
                           ForeignKey("jobs.id"), primary_key=True))
+
+
+class InputFile(Base):
+    __tablename__ = 'files_in'
+    id = Column(Integer, primary_key=True)
+    path = Column('path', String, index=True)
+    job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
+
+
+class OutputFile(Base):
+    __tablename__ = 'files_out'
+    id = Column(Integer, primary_key=True)
+    path = Column('path', String, index=True)
+    job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
 
 class Job(Base):
@@ -237,6 +252,10 @@ class Job(Base):
                             secondaryjoin=id == job_groups.c.target,
                             backref=backref('group_from', lazy='joined',
                                             join_depth=1))
+    #: input file references
+    in_files = relationship('InputFile', backref='job')
+    #: output file references
+    out_files = relationship('OutputFile', backref='job')
 
     def __init__(self, tool=None):
         """Create a new Job instance.
@@ -498,6 +517,23 @@ class Job(Base):
                 if isinstance(value, basestring):
                     yield value
 
+    def get_input_files(self):
+        """Yields a list of all input files for the configuration
+        of this job. Only TYPE_INPUT options are considered
+        whose values are strings. If a source for the option
+        is not None, it has to be equal to this tool.
+
+        :returns: list of input files
+        """
+        import jip.options
+        for opt in self.configuration.get_by_type(jip.options.TYPE_INPUT):
+            values = opt.raw()
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+            for value in values:
+                if isinstance(value, basestring):
+                    yield value
+
     def __repr__(self):
         if self.name is not None:
             return self.name
@@ -569,6 +605,37 @@ def init(path=None, in_memory=False):
     #Session = sessionmaker(expire_on_commit=False)
     global_session = None
     Session.configure(bind=engine)
+
+    # add listener to update input and output files on job insert
+    def update_io_files(mapper, connection, target):
+        try:
+            ff = set([])
+            for f in target.out_files:
+                ff.add(f.path)
+            for of in target.get_output_files():
+                if of not in ff:
+                    target.out_files.append(OutputFile(
+                        path=of
+                    ))
+        except Exception as err:
+            log.error("Error while updating job instance output files: %s",
+                      err, exc_info=True)
+        try:
+            ff = set([])
+            for f in target.in_files:
+                ff.add(f.path)
+            for of in target.get_input_files():
+                if of not in ff:
+                    target.in_files.append(InputFile(
+                        path=of
+                    ))
+        except Exception as err:
+            log.error("Error while updating job instance input files: %s",
+                      err, exc_info=True)
+
+    # associate the listener function with SomeClass,
+    # to execute during the "before_insert" hook
+    listen(Job, 'before_insert', update_io_files)
 
 
 def create_session(embedded=False):
@@ -794,6 +861,12 @@ def delete(jobs):
             (relation_table.c.target == bindparam("_id"))
         )
         stmt.append(dep)
+    # delete entries in file tables
+    for relation_table in [InputFile.__table__, OutputFile.__table__]:
+        dep = relation_table.delete().where(
+            relation_table.c.job_id == bindparam("_id")
+        )
+        stmt.append(dep)
     # convert the job values
     values = [{"_id": j.id} for j in jobs if j.id is not None]
     if values:
@@ -865,6 +938,38 @@ def get_all():
     """Returns an iterator over all jobs in the database"""
     session = create_session()
     return list(session.query(Job))
+
+
+def query_by_output(outputs):
+    """Query the database for jobs that reference the given output
+    file.
+
+    :param outputs: list of abolute path file names or s single file name
+    :returns: iterator over all jobs that reference one of the given files
+    """
+    if not isinstance(outputs, (list, tuple)):
+        outputs = [outputs]
+    session = create_session()
+    jobs = session.query(Job).filter(
+        Job.out_files.any(OutputFile.path.in_(outputs))
+    )
+    return jobs
+
+
+def query_by_inputs(inputs):
+    """Query the database for jobs that reference the given input
+    file.
+
+    :param outputs: list of abolute path file names or s single file name
+    :returns: iterator over all jobs that reference one of the given files
+    """
+    if not isinstance(inputs, (list, tuple)):
+        inputs = [inputs]
+    session = create_session()
+    jobs = session.query(Job).filter(
+        Job.in_files.any(InputFile.path.in_(inputs))
+    )
+    return jobs
 
 
 def query(job_ids=None, cluster_ids=None, archived=False, fields=None):

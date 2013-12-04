@@ -35,6 +35,9 @@ def main():
         if not job:
             log.error("Requested job with id %s not found!", args['<id>'])
             sys.exit(1)
+        if job.state != jip.db.STATE_QUEUED:
+            log.warn("Job does not come from queued state! Stoping execution")
+            sys.exit(0)
         # for LSF implementation, I could only test on openlava, and
         # that does not seem to support the -cwd option to switch the
         # working directory. To work around this, and be sure about the
