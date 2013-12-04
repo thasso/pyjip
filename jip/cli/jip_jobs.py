@@ -46,7 +46,7 @@ import sys
 
 import jip.cluster
 from . import render_table, colorize, STATE_COLORS, parse_args, \
-    query_jobs_by_ids, STATE_CHARS
+    STATE_CHARS, parse_job_ids
 import jip.db
 
 
@@ -280,26 +280,11 @@ def main():
             sys.exit(1)
 
     ####################################################################
-    # Init database and session
-    ####################################################################
-    jip.db.init()
-    session = jip.db.create_session()
-
-    ####################################################################
     # Query jobs
     ####################################################################
-    job_ids = args["--job"]
-    cluster_ids = args["--cluster-job"]
-
-    ####################################################################
-    # read job id's from pipe
-    ####################################################################
-    job_ids = [] if job_ids is None else job_ids
-
-    jobs = query_jobs_by_ids(session, job_ids=job_ids,
-                             cluster_ids=cluster_ids,
-                             archived=args['--show-archived'],
-                             query_all=True)
+    job_ids, cluster_ids = parse_job_ids(args)
+    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                        archived=args['--show-archived'])
     if not expand:
         if len(job_ids) > 0 or len(cluster_ids) > 0:
             all_jobs = []

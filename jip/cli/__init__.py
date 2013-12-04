@@ -6,9 +6,8 @@ interacting with the JIP API from within a command line tool.
 
 Functions in this module might have certain limitations when you want to use
 them as general API calls. Most of the output generation functions print to
-`stdout` and this can not be changed. In addition, be very careful with
-:py:func:`run` and :py:func:`dry`. Both call ``sys.exit(1)`` in case of a
-failure.
+`stdout` and this can not be changed. In addition, be very careful the
+:py:func:`dry`, it calles ``sys.exit(1)`` in case of a failure.
 
 .. warning:: Both :py:func:`run` and :py:func:`dry` call ``sys.exit(1)`` in
              case of a failure! Be very careful when you want to call them
@@ -523,28 +522,6 @@ def confirm(msg, default=True):
             sys.stdout.write("\nPlease respond with 'yes' or 'no' "
                              "(or 'y' or 'n').\n\n")
             sys.stdout.write(question)
-
-
-def query_jobs_by_ids(session, job_ids=None, cluster_ids=None, archived=False,
-                      query_all=True, fields=None):
-    """Query the session for jobs with the gibven job or cluster
-    ids. If both job and cluster ids lists are empty and query_all is False,
-    an empty list will be returned.
-    """
-    Job = jip.db.Job
-    job_ids = [] if job_ids is None else job_ids
-    cluster_ids = [] if cluster_ids is None else cluster_ids
-    if sum(map(len, [job_ids, cluster_ids])) == 0 and not query_all:
-        return []
-    fields = [Job] if fields is None else fields
-    jobs = session.query(*fields)
-    if archived is not None:
-        jobs = jobs.filter(Job.archived == archived)
-    if job_ids is not None and len(job_ids) > 0:
-        jobs = jobs.filter(Job.id.in_(resolve_job_range(job_ids)))
-    if job_ids is not None and len(cluster_ids) > 0:
-        jobs = jobs.filter(Job.job_id.in_(resolve_job_range(cluster_ids)))
-    return jobs
 
 
 def read_ids_from_pipe():
