@@ -54,7 +54,7 @@ def get_parents(jobs, _parents=None):
     """
     if _parents is None:
         _parents = set([])
-    if not isinstance(jobs, (list, tuple)):
+    if isinstance(jobs, jip.db.Job):
         jobs = [jobs]
 
     for job in jobs:
@@ -174,6 +174,13 @@ def __sort_children(jobs):
     :param children: the list of jobs
     :returns: sorted list of jobs
     """
+    def _cmp_names(a, b):
+        if a.name < b.name:
+            return -1
+        elif a.name > b.name:
+            return 1
+        return 0
+
     def _cmp(a, b):
         la = len(a.children)
         lb = len(b.children)
@@ -181,15 +188,10 @@ def __sort_children(jobs):
             return 1
         elif la > lb:
             return -1
-        else:
-            if a.name and b.name:
-                if a.name < b.name:
-                    return -1
-                elif a.name > b.name:
-                    return 1
-                return 0
-            if a.id and b.id:
-                return a.id - b.id
+        elif a.name and b.name:
+            return _cmp_names(a, b)
+        elif a.id and b.id:
+            return a.id - b.id
         return 0
 
     return sorted(jobs, cmp=_cmp)
@@ -436,7 +438,7 @@ def delete(job, clean_logs=False, cluster=None):
     :param cluster: the cluster instance used to cancel jobs. If not
                     specified, the cluster is loaded from the configuration
     """
-    if isinstance(job, (list, tuple)):
+    if not isinstance(job, jip.db.Job):
         for j in job:
             delete(j, clean_logs=clean_logs, cluster=cluster)
         return
@@ -1032,6 +1034,15 @@ def __output_files(jobs):
 
 
 def check_queued_jobs(jobs):
+    """Check if, for any of the given job, there are queued or running
+    jobs that create the same output files. If that is the case, a
+    ``ValidationError`` is raised.
+
+    :param jobs: the list of jobs to check
+    :raises ValidationError: if there is a queued or running job that creates
+                             the same output as one of the jobs in the given
+                             list of jobs
+    """
     # create a dict for all output files
     # of all currently runninng or queued jobs
     files = {}

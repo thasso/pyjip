@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import jip
+import jip.configuration
 
 
 def test_dot_access():

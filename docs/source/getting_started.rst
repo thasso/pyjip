@@ -1,6 +1,6 @@
 .. _getting_started:
 
-Getting startet
+Getting started
 ===============
 The *getting started* guide covers the basic setup and creation of *jip tools*
 as well as using the jip command line utilities to execute and submit your jobs
