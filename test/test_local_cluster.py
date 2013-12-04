@@ -56,7 +56,7 @@ def test_single_job_execution(tmpdir):
 
     # iterate the executions and pass the session so all jobs are stored
     for e in jip.create_executions(jobs, save=True):
-        jip.submit_job(e.job, save=True, cluster=c)
+        jip.submit_job(e.job, cluster=c)
 
     c.wait()
     # now the file should be there

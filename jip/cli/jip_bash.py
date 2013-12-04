@@ -77,7 +77,7 @@ import jip.cluster
 import jip.cli
 import jip.profiles
 from jip.logger import getLogger
-from . import parse_args
+from . import parse_args, colorize, YELLOW, RED
 import sys
 
 
@@ -96,6 +96,9 @@ def main():
                    for a in args['--output']]
     bash.outfile = [a for a in args['--outfile']]
     bash.cmd = args['--cmd']
+    if not args['--cmd']:
+        print >>sys.stderr, "No Command specified!"
+        sys.exit(1)
 
     if args['--dry'] or args['--show']:
         jip.cli.dry(pipeline, [],
@@ -103,20 +106,51 @@ def main():
                     show=args['--show'])
         return
 
+    profile = jip.profiles.get(name='default'
+                               if not args['--profile']
+                               else args['--profile'])
+    profile.load_args(args)
+
+    jobs = jip.jobs.create_jobs(pipeline, [], keep=args['--keep'],
+                                profile=profile,
+                                profiler=args['--with-profiler'])
+
+    force = args['--force']
     if not args["--submit"]:
-        jip.cli.run(pipeline, [], keep=args['--keep'],
-                    force=args['--force'], silent=True,
-                    threads=args['--threads'],
-                    profiler=args['--with-profiler'])
+        # assign job ids
+        for i, j in enumerate(jobs):
+            j.id = i + 1
+        for exe in jip.jobs.create_executions(jobs):
+            if exe.completed and not force:
+                print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
+            else:
+                success = jip.jobs.run(exe.job)
+                if not success:
+                    print >>sys.stderr, colorize(exe.job.state, RED)
+                    sys.exit(1)
     else:
-        profile = jip.profiles.get(name='default'
-                                   if not args['--profile']
-                                   else args['--profile'])
-        profile.load_args(args)
-        jip.cli.submit(pipeline, [], keep=args['--keep'],
-                       force=args['--force'], silent=False,
-                       profile=profile,
-                       profiler=args['--with-profiler'])
+        try:
+            #####################################################
+            # Iterate the executions and submit
+            #####################################################
+            for exe in jip.jobs.create_executions(jobs, save=True,
+                                                  check_outputs=not force,
+                                                  check_queued=not force):
+                if exe.completed and not force:
+                    print colorize("Skipping %s" % exe.name, YELLOW)
+                else:
+                    if jip.jobs.submit_job(exe.job, force=force):
+                        print "Submitted %s with remote id %s" % (
+                            exe.job.id, exe.job.job_id
+                        )
+        except Exception as err:
+            log.debug("Submission error: %s", err, exc_info=True)
+            print >>sys.stderr, colorize("Error while submitting job:", RED), \
+                colorize(str(err), RED)
+            ##################################################
+            # delete all submitted jobs
+            ##################################################
+            jip.jobs.delete(jobs, clean_logs=True)
 
 
 if __name__ == "__main__":

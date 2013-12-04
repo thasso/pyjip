@@ -124,7 +124,7 @@ def main(argv=None):
             for exe in jip.jobs.create_executions(jobs, save=True,
                                                   check_outputs=not force,
                                                   check_queued=not force):
-                if exe.completed and not args['--force']:
+                if exe.completed and not force:
                     print colorize("Skipping %s" % exe.name, YELLOW)
                 else:
                     if jip.jobs.submit_job(exe.job, force=force):

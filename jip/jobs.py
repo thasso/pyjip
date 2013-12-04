@@ -602,15 +602,12 @@ def submit_job(job, clean=False, force=False, save=True,
     # set the job state
     set_state(job, db.STATE_QUEUED)
 
-    session = None
-    if save:
-        session = db.create_session()
-
     if job.id is None:
         if not save:
             raise Exception("No ID assigned to your job! You have to enable "
                             "database save with save=True to store the "
                             "job and get an ID.")
+        session = db.create_session()
         session.add(job)
         session = db.commit_session(session)
         session.close()
