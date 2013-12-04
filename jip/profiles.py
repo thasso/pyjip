@@ -225,6 +225,14 @@ class Profile(object):
             "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
         )
 
+    def _render(self, job, name):
+        ctx = {}
+        for o in job.tool.options:
+            ctx[o.name] = o
+        return render_template(
+            "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
+        )
+
     def apply(self, job, _load_specs=True, overwrite_threads=False,
               pipeline=False):
         """Apply this profile to a given job and all its ambedded children
@@ -235,7 +243,7 @@ class Profile(object):
             job.name = self._render_job_name(job)
         elif self.name is not None:
             log.info("Apply pipeline name to job: %s %s", job, self.name)
-            job.pipeline = self._render_job_name(job)
+            job.pipeline = self._render(job, self.name)
         if self.threads is not None:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
