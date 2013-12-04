@@ -253,7 +253,7 @@ def test_get_usage_from_docopt():
 
 def test_argparse_parser_usage():
     from argparse import ArgumentParser
-    p = ArgumentParser()
+    p = ArgumentParser(prog="py.test")
     p.add_argument("-t", "--test", action="store_true")
     p.add_argument("-i", "--input", help="The input")
     p.add_argument("-o", "--output", nargs="*", help="The output",

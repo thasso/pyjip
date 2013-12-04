@@ -1510,7 +1510,8 @@ class Node(object):
                 if node is not None:
                     node._tool.options.make_absolute(node._job.working_dir)
             option.dependency = True
-            new_value = value.raw() if not append else value.value
+            #new_value = value.raw() if not append else value.value
+            new_value = value
             if allow_stream or _force_stream(option, value):
                 if option.streamable and value.streamable:
                     # switch the value to the default

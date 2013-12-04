@@ -1308,6 +1308,17 @@ class PythonTool(Tool):
         self._options_source = None
         self._add_outputs = add_outputs
 
+    def clone(self, counter=None):
+        cloned_tool = Tool.clone(self, counter=counter)
+        try:
+            if not isinstance(self.cls, types.FunctionType):
+                cloned_tool.instance = self.cls()
+            else:
+                cloned_tool.instance = self.cls
+        except:
+            cloned_tool.instance = self.cls
+        return cloned_tool
+
     @property
     def options(self):
         if self._options is not None:

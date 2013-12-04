@@ -306,9 +306,14 @@ class Option(object):
                     node = pipeline._nodes[self.source]
                 pipeline.utils._update_context(ctx, base_node=node)
 
-            values = [render_template(v, **ctx)
-                      if v and isinstance(v, basestring) else v
-                      for v in values]
+            new_values = []
+            for v in values:
+                if isinstance(v, Option):
+                    v = v.get()
+                if isinstance(v, basestring):
+                    v = render_template(v, **ctx)
+                new_values.append(v)
+            values = new_values
             self.render_context = None
             if not set_from_default:
                 self._value = values
