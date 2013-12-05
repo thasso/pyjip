@@ -202,18 +202,21 @@ def test_gemtools_t_index_inputs():
     assert outfiles[0] == os.path.join(base, "test/setup.py.junctions.gem")
     assert outfiles[1] == os.path.join(base, "test/setup.py.junctions.keys")
 
+
 @jip.tool('grape_gem_rnatool')
 class gem(object):
     """
     The GEMTools RNAseq Mapping Pipeline
 
     Usage:
-        gem -f <fastq_file>... -i <genome_index> -a <annotation> -q <quality> [-n <name>] [-o <output_dir>] [-t <threads>]
+        gem -f <fastq_file>... -i <genome_index> -a <annotation> -q <quality>
+            [-n <name>] [-o <output_dir>] [-t <threads>]
 
     Options:
         --help  Show this help message
         -q, --quality <quality>  The fastq offset quality
-        -n, --name <name>  The output prefix name [default: ${fastq.raw()[0]|name|ext|ext|re("_[12]","")}]
+        -n, --name <name>  The output prefix name
+                           [default: ${fastq.raw()[0]|name|ext|ext|re("_[12]","")}]
         -o, --output-dir <output_dir>  The output folder
         -t, --threads <threads>  The number of execution threads [default: 1]
 
@@ -224,7 +227,8 @@ class gem(object):
     """
     def validate(self):
         if len(self.fastq) == 1:
-            self.add_option('single_end', True, long="--single-end", hidden=False)
+            self.add_option('single_end', True, long="--single-end",
+                            hidden=False)
         self.add_output('map', "${output_dir}/${name}.map.gz")
         self.add_output('bam', "${output_dir}/${name}.bam")
         #self.add_output('bam', "out.bam")
@@ -263,7 +267,8 @@ class GrapePipeline(object):
     Run the default RNAseq pipeline
 
     usage:
-        rnaseq -f <fastq_file>... -q <quality> -i <genome_index> -a <annotation> [-o <output_dir>]
+        rnaseq -f <fastq_file>... -q <quality> -i <genome_index>
+               -a <annotation> [-o <output_dir>]
 
     Inputs:
         -f, --fastq <fastq_file>...   The input reference genome
@@ -271,20 +276,29 @@ class GrapePipeline(object):
         -a, --annotation <annotation  The input reference annotation
 
     Options:
-        -q, --quality <quality>  The fatq offset quality [default: 33]
-        -o, --output-dir <output_dir>  The output prefix [default: ${fastq.raw()[0]|abs|parent}]
+        -q, --quality <quality>        The fatq offset quality
+                                       [default: 33]
+        -o, --output-dir <output_dir>  The output prefix
+                                       [default: ${fastq.raw()[0]|abs|parent}]
 
     """
     def pipeline(self):
         p = jip.Pipeline()
-        gem = p.run('grape_gem_rnatool', index=self.index, annotation=self.annotation, fastq=self.fastq, quality=self.quality, output_dir=self.output_dir)
-        flux = p.run('grape_flux', input=gem.bam, annotation=self.annotation, output_dir=self.output_dir)
+        gem = p.run('grape_gem_rnatool',
+                    index=self.index, annotation=self.annotation,
+                    fastq=self.fastq, quality=self.quality,
+                    output_dir=self.output_dir
+        )
+        flux = p.run('grape_flux', input=gem.bam, annotation=self.annotation,
+                     output_dir=self.output_dir
+        )
         p.context(locals())
         return p
 
 def test_gem_name_option_delegation():
     p = jip.Pipeline()
-    p.run('grape_gem_rnapipeline', fastq='reads_1.fastq.gz', index='index.gem', annotation='gencode.gtf')
+    p.run('grape_gem_rnapipeline', fastq='reads_1.fastq.gz', index='index.gem',
+          annotation='gencode.gtf')
     jobs = jip.create_jobs(p, validate=False)
     ldir = os.getcwd()
     j = os.path.join
@@ -312,8 +326,8 @@ def test_gem_name_option_delegation():
 
 def test_gem_name_option_delegation_with_output_dir():
     p = jip.Pipeline()
-    p.run('grape_gem_rnapipeline', fastq='reads_1.fastq.gz', index='index.gem', annotation='gencode.gtf',
-          output_dir="mydir")
+    p.run('grape_gem_rnapipeline', fastq='reads_1.fastq.gz', index='index.gem',
+          annotation='gencode.gtf', output_dir="mydir")
     jobs = jip.create_jobs(p, validate=False)
     ldir = os.getcwd()
     j = os.path.join
@@ -341,6 +355,3 @@ def test_gem_name_option_delegation_with_output_dir():
 
 if __name__ == '__main__':
     unittest.main()
-
-
-#def test_bwa_initial_io_pipeline():
