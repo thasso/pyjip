@@ -423,8 +423,13 @@ class Job(Base):
                               "if you reach this message outside of a doctest "
                               "please let us now and we have to find another "
                               "workaround!")
-                    self._process = subprocess.Popen(cmd + [script_file.name],
-                                                     stdout=sout)
+                    import StringIO
+                    if isinstance(sout, StringIO.StringIO):
+                        self._process = subprocess.Popen(
+                            cmd + [script_file.name])
+                    else:
+                        self._process = subprocess.Popen(
+                            cmd + [script_file.name], stdout=sout)
                     return self._process
                 else:
                     raise

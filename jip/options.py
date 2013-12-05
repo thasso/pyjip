@@ -439,8 +439,11 @@ class Option(object):
         if self.nargs == 0:
             return False if len(self._value) == 0 else bool(self._value[0])
         if self.nargs == 1 and len(self.value) == 1:
-            return self.value[0]
-        return None if len(self._value) == 0 else self.value
+            return self.value[0] if not isinstance(self.value[0], Option) else\
+                self.value[0].raw()
+        return None if len(self._value) == 0 else [
+            v if not isinstance(v, Option) else v.raw() for v in self.value
+        ]
 
     def __resolve(self, v, converter=str):
         """Helper to resolve a single value to its string representation
