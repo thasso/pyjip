@@ -2,10 +2,11 @@
 """Manage the JIP configuration.
 
 The JIP command line tools and the JIP API load it's default configuration
-from disk. Two locations are checked by default for ``jip.json`` file. The
-folder that contains the ``jip`` executable, and the current users ``$HOME``
-directory. If exists, the configuration next to the ``jip`` executable is
-loaded first and the users configuration can extend it.
+from disk. Three locations are checked by default for ``jip.json`` file. The
+folder that contains the ``jip`` executable, the ``JIP_CONFIG`` environment
+variable, and the current users ``$HOME`` directory. If exists, the
+configuration next to the ``jip`` executable is loaded first and the users
+configuration can extend it.
 
 An instance of the loaded configuration is exposed in the ``jip`` main module::
 
@@ -23,6 +24,7 @@ import collections
 import logging
 from os import getenv
 from os.path import join, exists
+import copy
 
 
 log = logging.getLogger("jip.configuration")
@@ -63,20 +65,39 @@ class Config(object):
 
     def _init(self):
         """Loads the configuration from disk, checking next to the ``jip``
-        executable and in ``$HOME/.jip/`` for a ``jip.json`` file.
+        executable, the environment variable ``JIP_CONFIG``,
+        and in ``$HOME/.jip/`` for a ``jip.json`` file.
         """
         # load the default configuration
-        self._config = _configuration
+        self._config = copy.deepcopy(_configuration)
+        # load global
+        self._init_global()
+        # load from env
+        self._init_env()
+        # load home folder
+        self._init_home()
+
+    def _init_home(self):
+        # load configuration from user home
+        home = join(getenv("HOME"), ".jip")
+        path = join(home, "jip.json")
+        self._init_file(path)
+
+    def _init_env(self):
+        # load configuration from user home
+        self._init_file(getenv("JIP_CONFIG", None))
+
+    def _init_global(self):
         # load configuration from install_path if specified
         if install_path is not None:
             path = join(install_path, "jip.json")
-            if exists(path):
-                log.debug("Loading configuration from %s", path)
-                self._config = _update(self._config, _load(path))
+            self._init_file(path)
 
-        # load configuration from user hom
-        home = join(getenv("HOME"), ".jip")
-        path = join(home, "jip.json")
+    def _init_file(self, path):
+        if not path:
+            return
+        if self._config is None:
+            self._config = copy.deepcopy(_configuration)
         if exists(path):
             log.debug("Loading configuration from %s", path)
             self._config = _update(self._config, _load(path))
