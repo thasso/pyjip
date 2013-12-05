@@ -176,13 +176,20 @@ def test_job_hierarchy_execution_with_dispatching_fan_in(tmpdir):
     a_3 = p.job(dir=tmpdir).bash('echo "hello universe"',
                                  output=target_file + ".3")
     b = p.job(dir=tmpdir).run('merge', output=target_file)
-    a_1 | b
-    a_2 | b
-    a_3 | b
+    b.input = [a_1, a_2, a_3]
+    #a_1 > b
+    #a_2 > b
+    #a_3 > b
     p.context(locals())
     # create the jobs
     jobs = jip.create_jobs(p)
     assert len(jobs) == 4
+    assert len(jobs[0].dependencies) == 0
+    assert len(jobs[0].children) == 1
+    assert len(jobs[1].dependencies) == 0
+    assert len(jobs[1].children) == 1
+    assert len(jobs[2].dependencies) == 0
+    assert len(jobs[2].children) == 1
     assert len(jobs[3].dependencies) == 3
     print jobs[3].command
 

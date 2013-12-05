@@ -499,9 +499,20 @@ class Pipeline(object):
         def resolve_streaming_dependencies(node):
             for e in node.outgoing():
                 if e.has_streaming_link():
-                    resolved.add(e._target)
-                    group.append(e._target)
-                    resolve_streaming_dependencies(e._target)
+                    target = e._target
+                    resolved.add(target)
+                    group.append(target)
+                    resolve_streaming_dependencies(target)
+
+                    for in_edge in target.incoming():
+                        if in_edge == e:
+                            continue
+                        source = in_edge._source
+                        if source == node or source in resolved:
+                            continue
+                        if in_edge.has_streaming_link():
+                            resolved.add(source)
+                            group.append(source)
 
         for node in self.topological_order():
             if node in resolved:
@@ -509,6 +520,7 @@ class Pipeline(object):
             group.append(node)
             resolved.add(node)
             resolve_streaming_dependencies(node)
+            log.debug("Creating job group: %s", group)
             yield group
             group = []
 
