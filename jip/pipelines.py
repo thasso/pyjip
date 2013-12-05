@@ -422,8 +422,10 @@ class Pipeline(object):
 
         log.debug("Add edge: %s->%s", source_node, target_node)
         self._edges.add(edge)
-        source_node._edges.add(edge)
-        target_node._edges.add(edge)
+        if not edge in source_node._edges:
+            source_node._edges.append(edge)
+        if not edge in target_node._edges:
+            target_node._edges.append(edge)
         return edge
 
     def get_edge(self, source, target):
@@ -830,16 +832,19 @@ class Pipeline(object):
                     try:
                         n1 = self.get(n1.name)
                         n2 = self.get(n2.name)
-                        n1._edges.update(n2._edges)
+                        for n2_edge in n2._edges:
+                            if not n2_edge in n1._edges:
+                                n1._edges.append(n2_edge)
                         for e in n2._edges:
                             if e._source == n2:
                                 e._source = n1
                             else:
                                 e._target = n1
-                        n2._edges.clear()
+                        n2._edges = []
                         self.remove(n2)
                         self._apply_node_name(n1, n1._name)
-                    except:
+                    except Exception as err:
+                        log.info("Unable to merge: %s", err, exc_info=True)
                         continue
 
             # non-silent validation for pipeline node to
@@ -1065,7 +1070,7 @@ class Node(object):
         # the _node_index is an increasing counter that indicates
         # the order in which nodes were added to the pipeline graph
         self.__dict__['_node_index'] = 0
-        self.__dict__['_edges'] = set([])
+        self.__dict__['_edges'] = []
         self.__dict__['_pipeline_options'] = []
         self.__dict__['_additional_input_options'] = set([])
 
@@ -1306,7 +1311,8 @@ class Node(object):
         else:
             inp = other._tool.options.get_default_input()
             if out is not None and inp is not None:
-                other._set_option_value(inp, out, allow_stream=True)
+                other._set_option_value(inp, out, allow_stream=True,
+                                        append=inp.is_list())
             else:
                 # just add an edge
                 self._graph.add_edge(self, other)
@@ -1452,7 +1458,7 @@ class Node(object):
 
     def __setattr__(self, name, value):
         if name in ["_job", "_index", "_pipeline",
-                    "_node_index", "_name", "_graph"]:
+                    "_node_index", "_name", "_graph", "_edges"]:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

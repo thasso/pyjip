@@ -380,3 +380,48 @@ def test_job_sorting_nothing_set():
     j2 = jip.db.Job()
     assert jip.jobs.__sort_children([j2, j1]) == [j2, j1]
     assert jip.jobs.__sort_children([j1, j2]) == [j1, j2]
+
+
+def test_job_input_order():
+    @jip.tool()
+    def merge():
+        """\
+        Merge
+
+        usage:
+            merge --input <input>... [--output <output>]
+
+        Options:
+            --input <input>...    The input
+                                  [default: stdin]
+            --output <output>     The input
+                                  [default: stdout]
+        """
+        return "cat ${input|else('-')} ${output|arg('> ')}"
+
+    # create the pipeline
+    p = jip.Pipeline()
+    target_file = "out"
+    a_1 = p.job().bash('echo "hello spain"',
+                       output=target_file + ".1")
+    a_2 = p.job().bash('echo "hello world"',
+                       output=target_file + ".2")
+    a_3 = p.job().bash('echo "hello universe"',
+                       output=target_file + ".3")
+    b = p.job().run('merge', output=target_file)
+    a_1 | b
+    a_2 | b
+    a_3 | b
+    p.context(locals())
+    assert [os.path.basename(f) for f in b.input.raw()] == [
+        "out.1", "out.2", "out.3"
+    ]
+    # create the jobs
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 4
+    job = jobs[3]
+    assert len(job.dependencies) == 3
+    assert [os.path.basename(f) for f in job.configuration['input'].raw()] == [
+        "out.1", "out.2", "out.3"
+    ]
+    print job.command
