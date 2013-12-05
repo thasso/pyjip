@@ -632,7 +632,7 @@ def submit_job(job, clean=False, force=False, save=True,
     return True
 
 
-def run(job, save=False, profiler=False):
+def run_job(job, save=False, profiler=False):
     """Execute the given job. This method returns immediately in case the
     job has a pipe source. Otherwise the job and all its dispatch jobs are
     executed.
@@ -781,7 +781,7 @@ def _create_jobs_for_group(nodes, nodes2jobs):
                 # to all targets and the output file(s)
                 out_option = source_job.tool.options.get_default_output()
                 out_values = [v for v in out_option.value
-                              if not isinstance(v, file)]
+                              if isinstance(v, basestring)]
                 if len(out_values) > 0:
                     source_job.pipe_targets = out_values
                     out_option.set(sys.stdout)
@@ -855,8 +855,9 @@ def from_node(node, env=None, keep=False):
 
     try:
         from py._io.capture import DontReadFromInput, EncodedFile
+        from StringIO import StringIO
         for o in job.configuration:
-            if isinstance(o.raw(), (DontReadFromInput, EncodedFile)):
+            if isinstance(o.raw(), (DontReadFromInput, EncodedFile, StringIO)):
                 log.error("pseudo file found as option! We work around "
                           "this and reset to None! "
                           "Don't tell me, I know this is dirty and "
@@ -865,7 +866,8 @@ def from_node(node, env=None, keep=False):
                           "workaround!")
                 o._value = []
             if o.default and isinstance(o.default, (DontReadFromInput,
-                                                    EncodedFile)):
+                                                    EncodedFile,
+                                                    StringIO)):
                 log.error("pseudo file found as default! We work around "
                           "this and reset to None! "
                           "Don't tell me, I know this is dirty and "
