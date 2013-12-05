@@ -409,9 +409,7 @@ def test_job_input_order():
     a_3 = p.job().bash('echo "hello universe"',
                        output=target_file + ".3")
     b = p.job().run('merge', output=target_file)
-    a_1 | b
-    a_2 | b
-    a_3 | b
+    b.input = [a_1, a_2, a_3]
     p.context(locals())
     assert [os.path.basename(f) for f in b.input.raw()] == [
         "out.1", "out.2", "out.3"

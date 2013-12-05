@@ -201,7 +201,7 @@ class DispatcherNode(object):
                 if job.stream_in == sys.stdin and \
                     default_in and \
                     default_in.streamable and \
-                        default_in.get():
+                        default_in.get() and len(default_in._value) == 1:
                     job.stream_in = open(default_in.get())
                     log.info("Open jobs input stream on %s", default_in.get())
                 jip.jobs.set_state(job, STATE_RUNNING, update_children=False)

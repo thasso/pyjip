@@ -211,7 +211,7 @@ class Option(object):
         self.value = value
         ## we set streamable base on the default value
         if self.streamable is None:
-            if self.default is not None and not self.is_list():
+            if self.default is not None:
                 self.streamable = self._is_stream(self.default)
             else:
                 self.streamable = False
