@@ -1226,7 +1226,13 @@ class Tool(object):
                 values = [values]
             for value in values:
                 if isinstance(value, basestring):
-                    yield value
+                    import glob
+                    globbed = glob.glob(value)
+                    if globbed:
+                        for v in globbed:
+                            yield v
+                    else:
+                        yield value
 
     def get_input_files(self):
         """Yields a list of all input files for the options
