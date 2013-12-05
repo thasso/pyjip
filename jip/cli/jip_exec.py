@@ -56,10 +56,10 @@ def main():
         except:
             log.warn("unable to load tool. Failure cleanup might fail!")
 
-        #check prpfiling
+        #check profiling
         profiler = os.getenv("JIP_PROFILER",
                              job.env.get("JIP_PROFILER", None)) is not None
-        jip.jobs.run(job, profiler=profiler, save=True)
+        jip.jobs.run_job(job, profiler=profiler, save=True)
     except Exception as e:
         log.error("Error executing job %s: %s",
                   args['<id>'], str(e), exc_info=True)
