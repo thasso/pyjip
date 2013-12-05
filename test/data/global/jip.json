@@ -1,0 +1,12 @@
+{
+    "cluster": "global.cluster",
+    "profiles":{
+        "global": {
+            "threads": 2
+        },
+        "local": {
+            "queue": "global",
+            "threads": 2
+        }
+    }
+}

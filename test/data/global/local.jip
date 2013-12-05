@@ -1,0 +1,8 @@
+{
+    "cluster": "local.cluster",
+    "profiles":{
+        "local": {
+            "queue": "local"
+        }
+    }
+}
