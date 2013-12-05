@@ -87,7 +87,7 @@ def main(argv=None):
                                      ))
                     sys.stderr.flush()
                 start = datetime.now()
-                success = jip.jobs.run(exe.job, profiler=profiler)
+                success = jip.jobs.run_job(exe.job, profiler=profiler)
                 end = timedelta(seconds=(datetime.now() - start).seconds)
                 if success:
                     if not silent:
