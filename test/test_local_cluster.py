@@ -211,3 +211,107 @@ def test_job_hierarchy_execution(tmpdir):
     assert open(target_file + ".2").read().strip() == "2 %s" % \
         (target_file + ".1")
     assert open(target_file + ".3").read() == "Other\n"
+
+
+def test_job_hierarchy_execution_with_pipes_and_dispatching(tmpdir):
+    print ">>>", tmpdir
+    tmpdir = str(tmpdir)
+    target_file = os.path.join(tmpdir, 'result')
+    db_file = os.path.join(tmpdir, "test.db")
+
+    # create a JIP database and a session
+    jip.db.init(db_file)
+    session = jip.db.create_session()
+
+    # create the cluster instance
+    c = cl.LocalCluster()
+
+    # create the pipeline
+    p = jip.Pipeline()
+    a = p.job(dir=tmpdir).bash('echo "hello world"',
+                               output="${target_file}.1")
+    b = p.job(dir=tmpdir).bash('wc -w ${input}',
+                               input=a, output="${target_file}.2")
+    l = p.job(dir=tmpdir).bash('echo "Other" > ${target_file}.3')
+
+    a | b
+    p.context(locals())
+
+    # create the jobs
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 3
+
+    # iterate the executions and pass the session so all jobs are stored
+    execs = 0
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
+        execs += 1
+    assert execs == 2
+    c.wait()
+    # now the file should be there
+    assert os.path.exists(target_file + ".1")
+    assert os.path.exists(target_file + ".2")
+    assert os.path.exists(target_file + ".3")
+
+    # we should also have the log files
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.out"))
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.err"))
+    assert os.path.exists(os.path.join(tmpdir, "jip-3.out"))
+    assert os.path.exists(os.path.join(tmpdir, "jip-3.err"))
+    # and we should have one job in Done state in our database
+    # we do the query with a fresh session though
+    find = jip.db.get
+    assert find(1).state == jip.db.STATE_DONE
+    assert find(2).state == jip.db.STATE_DONE
+    assert find(3).state == jip.db.STATE_DONE
+
+    # check the content of the output files
+    assert open(target_file + ".1").read() == "hello world\n"
+    assert open(target_file + ".2").read().strip() == "2"
+    assert open(target_file + ".3").read() == "Other\n"
+
+
+def test_job_hierarchy_execution_with_pipes_no_dispatching(tmpdir):
+    tmpdir = str(tmpdir)
+    target_file = os.path.join(tmpdir, 'result')
+    db_file = os.path.join(tmpdir, "test.db")
+
+    # create a JIP database and a session
+    jip.db.init(db_file)
+    session = jip.db.create_session()
+
+    # create the cluster instance
+    c = cl.LocalCluster()
+
+    # create the pipeline
+    p = jip.Pipeline()
+    a = p.job(dir=tmpdir).bash('echo "hello world"')
+    b = p.job(dir=tmpdir).bash('wc -w') > '${target_file}'
+    a | b
+    p.context(locals())
+
+    # create the jobs
+    jobs = jip.create_jobs(p)
+    assert len(jobs[0].pipe_to) == 1
+    assert len(jobs) == 2
+
+    # iterate the executions and pass the session so all jobs are stored
+    execs = 0
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, save=True, cluster=c)
+        execs += 1
+    assert execs == 1
+    c.wait()
+    # now the file should be there
+    assert os.path.exists(target_file)
+    # we should also have the log files
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.out"))
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.err"))
+    # and we should have one job in Done state in our database
+    # we do the query with a fresh session though
+    find = jip.db.get
+    assert find(1).state == jip.db.STATE_DONE
+    assert find(2).state == jip.db.STATE_DONE
+
+    # check the content of the output files
+    assert open(target_file).read().strip() == "2"
