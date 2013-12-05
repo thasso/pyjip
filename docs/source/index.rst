@@ -52,14 +52,24 @@ For a :class:`Gridengine/SGE/OGE <jip.cluster.SGE>` cluster::
         }
     }
 
+Please note that for SGE, in order to submit multi-threaded jobs, you have to 
+specify the parallel environment that is configured for threaded jobs.
+
 For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
 
     {
         "cluster": "jip.cluster.LSF"
     }
 
-Please note that for SGE, in order to submit multi-threaded jobs, you have to 
-specify the parallel environment that is configured for threaded jobs.
+For the :class:`JIP local scheduler <jip.grids.JIP>`::
+
+    {
+        "cluster": "jip.grids.JIP"
+    }
+
+In order to use the local scheduler that ships with JIP, please check :ref:`the
+documention <cluster_config>` on how you can configure and start the JIP
+scheduler on you local machine. 
 
 Run or submit commands
 ^^^^^^^^^^^^^^^^^^^^^^

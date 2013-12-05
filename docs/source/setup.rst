@@ -104,6 +104,12 @@ is stored in two location on your system:
     the directory that contains the ``jip.json`` **before** you make any other
     calls to the jip API.
 
+`$JIP_CONFIG`:
+    You can point to a custom configuraiton using the :envvar:`JIP_CONFIG` 
+    environment variable. If the file exists, it is loaded after the global
+    configuraiton but before the configuraiton in the current users home
+    directory.
+
 `$HOME/.jip/jip.json`:
     In order to provide user-level configuration, you can create a `.jip` 
     folder in your :envvar:`$HOME` directory and put a `jip.json` configuration 
@@ -160,7 +166,10 @@ JIP API:
     `cluster`
         name of a class that implements :py:class:`jip.cluster.Cluster`.  When
         used in a cluster environment, the specified class is used to interact
-        with your grid system on the lower level. 
+        with your grid system on the lower level. See :ref:`the cluster 
+        configuration documentation <cluster_config>` and and the 
+        :py:mod:`jip.cluster` module for more information about supported 
+        cluster engines and how you can configure them.
 
     `profiles`
         list of profiles that can be used to configure jobs on a cluster 
@@ -182,3 +191,68 @@ JIP API:
 In addition, other configuration blocks can be specified, that are interpreted
 by specific module. For example, the different cluster implementations can ask
 for specific configuration blocks.
+
+.. _cluster_config:
+
+Cluster Configuration
+^^^^^^^^^^^^^^^^^^^^^
+The ``cluster`` configuration is loaded form your JIP configuration file.
+The following base configurations are available. Please refer to the 
+implementation documentation for details on configuration parameters for
+each of the grid connectors.
+
+Grid engines
+************
+JIP ships with connector implementations for the following grid systems:
+
+For a :class:`~jip.cluster.Slurm` cluster::
+
+    {
+        "cluster": "jip.cluster.Slurm"
+    }
+
+For a :class:`PBS/Torque <jip.cluster.PBS>` cluster::
+
+    {
+        "cluster": "jip.cluster.PBS"
+    }
+
+For a :class:`Gridengine/SGE/OGE <jip.cluster.SGE>` cluster::
+
+    {
+        "cluster": "jip.cluster.SGE",
+        "sge" : {
+            "threads_pe": "threads"
+        }
+    }
+
+Please note that for SGE, in order to submit multi-threaded jobs, you have to 
+specify the parallel environment that is configured for threaded jobs.
+
+For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
+
+    {
+        "cluster": "jip.cluster.LSF"
+    }
+
+Local scheduler
+***************
+If you don't have access to a compute grid or you want to use JIP and on your
+local machine to schedule jobs and run them in the background, JIP comes with
+a local scheduler implementations. For this to work, you have to configure
+JIP to connect to a server process using the :class:`JIP local scheduler 
+connector <jip.grids.JIP>` in your JIP configuration::
+
+    {
+        "cluster": "jip.grids.JIP",
+        "jip_grid": {
+            "port": 5556
+        }
+    }
+
+In addition you have to start the *JIP server* and keep it running::
+
+    $> jip server
+
+This will start a server process that will take care of accepting jobs and
+executing them in the background.
