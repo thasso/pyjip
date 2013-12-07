@@ -124,7 +124,7 @@ def main():
             if exe.completed and not force:
                 print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
             else:
-                success = jip.jobs.run(exe.job)
+                success = jip.jobs.run_job(exe.job)
                 if not success:
                     print >>sys.stderr, colorize(exe.job.state, RED)
                     sys.exit(1)
