@@ -234,7 +234,12 @@ class Option(object):
 
     def __len__(self):
         """Return the number of elements currently assigned to this option"""
-        return len(self._value) if self._value is not None else 0
+        if not self._value:
+            return 0
+        c = 0
+        for v in self._value:
+            c += len(v) if isinstance(v, Option) else 1
+        return c
 
     def is_dependency(self):
         """Returns true if this options value is coming from another tool
@@ -267,6 +272,24 @@ class Option(object):
                           self.name, path)
                 v = os.path.join(os.path.abspath(path), v)
             values.append(v)
+        self._value = values
+
+    def glob(self):
+        """Resolve wildcards used in this option.
+        """
+        values = []
+        import glob
+        for v in self._value:
+            if isinstance(v, basestring) and v and len(v) > 0 and\
+                    "${" not in v:
+                log.debug("Globbing option %s", self.name)
+                v = glob.glob(v)
+                values.extend(v)
+            elif isinstance(v, Option):
+                v.glob()
+                values.append(v)
+            else:
+                values.append(v)
         self._value = values
 
     def __add__(self, other):
@@ -777,6 +800,11 @@ class Options(object):
             except Exception as e:
                 log.info("Unable to make input option %s absolute: %s",
                          opt.name, str(e), exc_info=True)
+
+    def glob_inputs(self):
+        """Resolve file wildcards on input options."""
+        for in_opt in self.get_by_type(TYPE_INPUT):
+            in_opt.glob()
 
     def render_context(self, ctx):
         """Set the options render context to the given context
