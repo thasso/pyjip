@@ -105,6 +105,15 @@ class Pipeline(object):
         self._node_index = 0  # unique steadily increasing number
         self._utils = None
 
+    def __getstate__(self):
+        o = self.__dict__.copy()
+        o['_utils'] = None
+        o['_nodes'] = None
+        o['_edges'] = None
+        o['_job'] = None
+        o['_current_job'] = None
+        return o
+
     def __len__(self):
         return len(self._nodes)
 
