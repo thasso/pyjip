@@ -226,6 +226,8 @@ class Job(Base):
     #: Stores a set of additional input options that are used in template
     #: rendering but are not liked in the configuration of this job
     additional_options = deferred(Column(PickleType))
+    #: embedded pipelines
+    on_success = deferred(Column(PickleType))
     #: General job dependencies dependencies
     dependencies = relationship("Job",
                                 lazy="joined",

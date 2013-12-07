@@ -423,3 +423,40 @@ def test_job_input_order():
         "out.1", "out.2", "out.3"
     ]
     print job.command
+
+
+def test_embedded_pipelines():
+    @jip.tool()
+    class produce():
+        """Produce a set of files
+
+        Usage:
+            produce --prefix <prefix> --number <number>
+        """
+        def validate(self):
+            self.add_output('output', '${prefix}.*', nargs="*")
+
+        def get_command(self):
+            return """
+            for x in $(seq ${number}); do
+                echo Hello $x > ${prefix}.$x;
+            done
+            """
+
+    @jip.tool()
+    def consume():
+        """Count something
+
+        Usage:
+            consume <input>
+        """
+        return """cat ${input}"""
+
+    p = jip.Pipeline()
+    # produce n files
+    producer = p.run('produce', prefix='test', number=5)
+    # run after success dynamically
+    producer.on_success('consume', input=producer)
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 1
+    assert len(jobs[0].on_success) == 1

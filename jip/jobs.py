@@ -680,6 +680,19 @@ def run_job(job, save=False, profiler=False):
         # save the update job state at the end of the run
         db.update_job_states(all_jobs)
 
+    # handle embedded pipelines and callables
+    if job.on_success:
+        for element in job.on_success:
+            if isinstance(element, jip.pipelines.Pipeline):
+                ## run or submit embedded pipeline
+                # glob the inputs
+                for n in element.nodes():
+                    n._tool.options.glob_inputs()
+                # TODO: handle the other paramters (i.e. profile, keep)
+                # TODO: catch exception and make the job fail
+                jobs = create_jobs(element)
+                for exe in create_executions(jobs):
+                    run_job(exe.job, save=save)
     return success
 
 
@@ -903,6 +916,13 @@ def from_node(node, env=None, keep=False):
                          "a python function and you want to run the functions "
                          "instead of returning a template, decorate the "
                          "function with @pytool" % (node))
+    ######################################################################
+    # Support embedded pipelines
+    ######################################################################
+    if node._embedded:
+        job.on_success = []
+        for embedded in node._embedded:
+            job.on_success.append(embedded)
     return job
 
 

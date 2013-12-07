@@ -918,7 +918,7 @@ class Pipeline(object):
         for each option value and readd the clones
         """
         _edges = list(node._edges)
-        values = [o.value for o in options]
+        values = [o.raw() for o in options]
         log.debug("Fanout | %s with %d options %d values",
                   node, len(options), len(values[0]))
 
@@ -1085,6 +1085,7 @@ class Node(object):
         self.__dict__['_edges'] = []
         self.__dict__['_pipeline_options'] = []
         self.__dict__['_additional_input_options'] = set([])
+        self.__dict__['_embedded'] = []
 
     @property
     def job(self):
@@ -1094,6 +1095,15 @@ class Node(object):
         :type: :class:`jip.pipelines.Job`
         """
         return self._job
+
+    def on_success(self, tool, _job=None, **kwargs):
+        """Craete an embedded pipeline that will be submitted
+        or executed after this node was successfully executed
+        """
+        pipeline = Pipeline()
+        self._embedded.append(pipeline)
+        node = pipeline.run(tool, _job=_job, **kwargs)
+        return node
 
     @property
     def name(self):
