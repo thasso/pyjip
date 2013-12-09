@@ -10,7 +10,7 @@ version = '0.3'
 description = 'JIP pipeline library'
 author_email = "thasso.griebel@gmail.com"
 url = ""
-packages = ['jip', 'jip.cli', 'jip.vendor', 'jip.scripts']
+packages = ['jip', 'jip.cli', 'jip.vendor', 'jip.scripts', 'jip.dispatcher']
 try:
     with open('README.rst') as rf:
         readme = rf.read()
