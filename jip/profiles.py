@@ -323,7 +323,7 @@ class Profile(object):
     def __call__(self, name=None, threads=None, nodes=None, tasks=None,
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=False, extra=None, dir=None):
+                 profile=None, prefix=None, temp=None, extra=None, dir=None):
         return self.__class__(
             name=name if name is not None else self._name,
             threads=threads if threads is not None else self.threads,

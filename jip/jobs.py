@@ -693,6 +693,9 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
                 # TODO: handle the other paramters (i.e. profile, keep)
                 # TODO: catch exception and make the job fail
                 jobs = create_jobs(element)
+                # add dependency to this job
+                for j in jobs:
+                    j.dependencies.append(job)
                 for exe in create_executions(jobs):
                     if not submit_embedded:
                         success &= run_job(exe.job, save=save)
@@ -1064,6 +1067,9 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
                 for n in element.nodes():
                     n._tool.options.glob_inputs()
                 embedded_jobs = create_jobs(element)
+                # add dependencies
+                for j in embedded_jobs:
+                    j.dependencies.append(job)
                 jobs.extend(embedded_jobs)
     return jobs
 

@@ -28,7 +28,7 @@ class consume():
         consume <input>
     """
     def validate(self):
-        self.add_output('output', '${input|name}.consumed')
+        self.add_output('output', 'consumed_${input|name}')
 
     def get_command(self):
         return """cat ${input} > ${output}"""
@@ -54,6 +54,7 @@ def embedded():
     # run after success dynamically
     embedded, consumer = producer.on_success('consume', input=producer)
     consumer.job.name = "Consume-${input|name}"
+    consumer.job.temp = True
     merge = embedded.run('merger', input=consumer, output='result.txt')
     merge.job.name = "Merger"
     return p

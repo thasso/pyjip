@@ -1084,7 +1084,7 @@ class Tool(object):
         try:
             self.options.validate()
         except Exception, e:
-            log.info("Validation error: %s", str(e), exc_info=True)
+            log.info("Validation error: %s", str(e).strip())
             raise ValidationError(self, str(e))
 
         for opt in self.options.get_by_type(TYPE_INPUT):

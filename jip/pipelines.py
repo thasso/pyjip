@@ -28,8 +28,8 @@ class Job(Profile):
 
     def __getstate__(self):
         data = self.__dict__.copy()
-        del data['_pipeline']
-        del data['_node']
+        data['_pipeline'] = None
+        data['_node'] = None
         return data
 
     # override the name setter in order to delegate switching names to
@@ -131,6 +131,9 @@ class Pipeline(object):
         self.__dict__['_current_job'] = data['_current_job']
         self.__dict__['_name'] = data['_name']
         self.__dict__['_node_index'] = data['_node_index']
+
+        self.__dict__['_job']._pipeline = self
+        self.__dict__['_current_job']._pipeline = self
 
         ###############################################
         # update nodes
@@ -742,10 +745,7 @@ class Pipeline(object):
                         log.debug("Expand | add group dependency %s->%s",
                                   parent, first)
                         self.add_edge(parent, first)
-        temp_nodes = set([])
         for node in self.topological_order():
-            if node._job.temp:
-                temp_nodes.add(node)
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
                 log.debug("Expand | No fanout options found for %s", node)
@@ -767,27 +767,37 @@ class Pipeline(object):
         # if we have targets, create a cleanup job, add
         # all the temp job's output files and
         # make it dependant on the temp nodes targets
-        log.debug("Expand | Check temporary jobs")
+        temp_nodes = set([])
         targets = set([])
         temp_outputs = set([])
-        for temp_node in temp_nodes:
-            for outfile in temp_node._tool.get_output_files():
-                temp_outputs.add(outfile)
-            for child in temp_node.children():
-                if not child._job.temp:
-                    targets.add(child)
-
+        for node in self.topological_order():
+            if node._job.temp:
+                temp_nodes.add(node)
+        if temp_nodes:
+            log.info("Expand | Check temporary outputs for %d job(s)",
+                     len(temp_nodes))
+            for temp_node in temp_nodes:
+                for outfile in temp_node._tool.get_output_files():
+                    temp_outputs.add(outfile)
+                for child in temp_node.children():
+                    if not child._job.temp:
+                        targets.add(child)
+            log.info("Expand | found %d temporary outputs and %d targets",
+                     len(temp_outputs), len(targets))
         if len(targets) > 0:
             log.info("Expand | Create cleanup node for temp jobs: %s",
                      str(temp_nodes))
             log.info("Expand | Cleanup node files: %s", str(temp_outputs))
-            cleanup_node = self.job('cleanup', threads=1, temp=True).run(
+            cleanup_node = self.run(
                 'cleanup',
                 files=list(temp_outputs)
             )
+            cleanup_node.job.threads = 1
+            cleanup_node.job.temp = True
             cleanup_node.files.dependency = True
             log.info("Expand | Cleanup node dependencies: %s", str(targets))
-            for target in (list(targets) + list(temp_nodes)):
+            #for target in (list(targets) + list(temp_nodes)):
+            for target in list(targets):
                 cleanup_node.depends_on(target)
             self._cleanup_nodes.append(cleanup_node)
 
@@ -1144,6 +1154,9 @@ class Node(object):
         tool = jip.find(data['_tool'])
         self.__dict__['_tool'] = tool
         tool._options = opts
+        tool._options.source = tool
+        for o in tool._options:
+            o.source = tool
 
     @property
     def job(self):
