@@ -632,7 +632,7 @@ def submit_job(job, clean=False, force=False, save=True,
     return True
 
 
-def run_job(job, save=False, profiler=False):
+def run_job(job, save=False, profiler=False, submit_embedded=False):
     """Execute the given job. This method returns immediately in case the
     job has a pipe source. Otherwise the job and all its dispatch jobs are
     executed.
@@ -644,6 +644,8 @@ def run_job(job, save=False, profiler=False):
     :type job: `jip.db.Job`
     :param save: if True the jobs state changes are persisted in the database
     :param profiler: if set to True, job profiling is enabled
+    :param submit_embedded: if True, embedded pipelines will be submitted and
+                            not executed directly
     :returns: True if the job was executed successfully
     :rtype: boolean
     """
@@ -681,7 +683,7 @@ def run_job(job, save=False, profiler=False):
         db.update_job_states(all_jobs)
 
     # handle embedded pipelines and callables
-    if job.on_success:
+    if job.on_success and success:
         for element in job.on_success:
             if isinstance(element, jip.pipelines.Pipeline):
                 ## run or submit embedded pipeline
@@ -692,7 +694,10 @@ def run_job(job, save=False, profiler=False):
                 # TODO: catch exception and make the job fail
                 jobs = create_jobs(element)
                 for exe in create_executions(jobs):
-                    run_job(exe.job, save=save)
+                    if not submit_embedded:
+                        success &= run_job(exe.job, save=save)
+                    else:
+                        submit_job(exe.job)
     return success
 
 
@@ -917,6 +922,34 @@ def from_node(node, env=None, keep=False):
                          "instead of returning a template, decorate the "
                          "function with @pytool" % (node))
     ######################################################################
+    # Add input and output files
+    ######################################################################
+    try:
+        ff = set([])
+        for f in job.out_files:
+            ff.add(f.path)
+        for of in job.get_output_files():
+            if of not in ff:
+                job.out_files.append(db.OutputFile(
+                    path=of
+                ))
+    except Exception as err:
+        log.error("Error while updating job instance output files: %s",
+                  err, exc_info=True)
+    try:
+        ff = set([])
+        for f in job.in_files:
+            ff.add(f.path)
+        for of in job.get_input_files():
+            if of not in ff:
+                job.in_files.append(db.InputFile(
+                    path=of
+                ))
+    except Exception as err:
+        log.error("Error while updating job instance input files: %s",
+                  err, exc_info=True)
+
+    ######################################################################
     # Support embedded pipelines
     ######################################################################
     if node._embedded:
@@ -1019,6 +1052,19 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
         job.tool._job = job
         if profile is not None:
             profile.apply(job, pipeline=True)
+
+    # evaluate embedded pipeline for all DONE jobs
+    for job in [j for j in jobs if j.state == db.STATE_DONE]:
+        if not job.on_success:
+            continue
+        for element in job.on_success:
+            if isinstance(element, jip.pipelines.Pipeline):
+                ## run or submit embedded pipeline
+                # glob the inputs
+                for n in element.nodes():
+                    n._tool.options.glob_inputs()
+                embedded_jobs = create_jobs(element)
+                jobs.extend(embedded_jobs)
     return jobs
 
 

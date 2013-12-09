@@ -21,13 +21,28 @@ class produce():
 
 
 @tool()
-def consume():
+class consume():
     """Count something
 
     Usage:
         consume <input>
     """
-    return """cat ${input}"""
+    def validate(self):
+        self.add_output('output', '${input|name}.consumed')
+
+    def get_command(self):
+        return """cat ${input} > ${output}"""
+
+
+@tool()
+class merger():
+    """Merge consumer output
+
+    Usage:
+        merger --input <input>... --output <output>
+    """
+    def get_command(self):
+        return "cat ${input} > ${output}"
 
 
 @pipeline()
@@ -37,5 +52,8 @@ def embedded():
     # produce n files
     producer = p.run('produce', prefix='test', number=5)
     # run after success dynamically
-    consumer = producer.on_success('consume', input=producer)
+    embedded, consumer = producer.on_success('consume', input=producer)
+    consumer.job.name = "Consume-${input|name}"
+    merge = embedded.run('merger', input=consumer, output='result.txt')
+    merge.job.name = "Merger"
     return p

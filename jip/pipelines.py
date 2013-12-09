@@ -26,6 +26,12 @@ class Job(Profile):
         self._node = None
         self._in_pipeline_name = None
 
+    def __getstate__(self):
+        data = self.__dict__.copy()
+        del data['_pipeline']
+        del data['_node']
+        return data
+
     # override the name setter in order to delegate switching names to
     # the jobs node
     @Profile.name.setter
@@ -106,13 +112,39 @@ class Pipeline(object):
         self._utils = None
 
     def __getstate__(self):
-        o = self.__dict__.copy()
-        o['_utils'] = None
-        o['_nodes'] = None
-        o['_edges'] = None
-        o['_job'] = None
-        o['_current_job'] = None
-        return o
+        data = {}
+        data['_job'] = self._job
+        data['_current_job'] = self._current_job
+        data['_name'] = self._name
+        data['_node_index'] = self._node_index
+        data['_nodes'] = list(self._nodes.values())
+        return data
+
+    def __setstate__(self, data):
+        ## update dict
+        self.__dict__['_edges'] = set([])
+        self.__dict__['_component_index'] = {}
+        self.__dict__['_cleanup_nodes'] = []
+        self.__dict__['excludes'] = []
+        self.__dict__['_utils'] = None
+        self.__dict__['_job'] = data['_job']
+        self.__dict__['_current_job'] = data['_current_job']
+        self.__dict__['_name'] = data['_name']
+        self.__dict__['_node_index'] = data['_node_index']
+
+        ###############################################
+        # update nodes
+        ###############################################
+        nodes = {}
+        for node in data['_nodes']:
+            node._graph = self
+            node._job._pipeline = self
+            node._job._node = node
+            tool = node._tool
+            nodes[tool] = node
+            for e in node._edges:
+                self._edges.add(e)
+        self.__dict__['_nodes'] = nodes
 
     def __len__(self):
         return len(self._nodes)
@@ -1096,6 +1128,23 @@ class Node(object):
         self.__dict__['_additional_input_options'] = set([])
         self.__dict__['_embedded'] = []
 
+    def __getstate__(self):
+        data = self.__dict__.copy()
+        del data['_graph']
+        data['_tool'] = self._tool.name
+        data['_options'] = self._tool.options
+        for opt in self._pipeline_options:
+            opt['source'] = None
+        return data
+
+    def __setstate__(self, data):
+        opts = data['_options']
+        del data['_options']
+        self.__dict__.update(data)
+        tool = jip.find(data['_tool'])
+        self.__dict__['_tool'] = tool
+        tool._options = opts
+
     @property
     def job(self):
         """The nodes job profile
@@ -1106,13 +1155,20 @@ class Node(object):
         return self._job
 
     def on_success(self, tool, _job=None, **kwargs):
-        """Craete an embedded pipeline that will be submitted
-        or executed after this node was successfully executed
+        """Create an embedded pipeline that will be submitted
+        or executed after this node was successfully executed. The
+        function returns a tuple: (pipeline, node)
+
+        :param tool: the tool to run
+        :param kwargs: option arguments for the tool
+        :returns: tuple of (pipeline, node)
         """
         pipeline = Pipeline()
+        pipeline._job = self._graph.job()
+        pipeline._current_job = self._graph.job()
         self._embedded.append(pipeline)
         node = pipeline.run(tool, _job=_job, **kwargs)
-        return node
+        return (pipeline, node,)
 
     @property
     def name(self):
@@ -1489,7 +1545,7 @@ class Node(object):
 
     def __setattr__(self, name, value):
         if name in ["_job", "_index", "_pipeline",
-                    "_node_index", "_name", "_graph", "_edges"]:
+                    "_node_index", "_name", "_graph", "_edges", '_tool']:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

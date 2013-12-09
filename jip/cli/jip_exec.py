@@ -46,6 +46,12 @@ def main():
             log.debug("Switching working directory to: %s",
                       job.working_directory)
             os.chdir(job.working_directory)
+        # load job environment
+        env = job.env
+        if env is not None:
+            for k, v in env.iteritems():
+                log.info("Loading job environment %s:%s", k, v)
+                os.environ[k] = str(v)
 
         # load the tool here to have it cached just in case
         # there is a problem at least on PBS where the tool
@@ -59,7 +65,8 @@ def main():
         #check profiling
         profiler = os.getenv("JIP_PROFILER",
                              job.env.get("JIP_PROFILER", None)) is not None
-        jip.jobs.run_job(job, profiler=profiler, save=True)
+        jip.jobs.run_job(job, profiler=profiler, save=True,
+                         submit_embedded=True)
     except Exception as e:
         log.error("Error executing job %s: %s",
                   args['<id>'], str(e), exc_info=True)

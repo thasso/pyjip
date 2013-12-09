@@ -25,7 +25,6 @@ from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.event import listen
 
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
@@ -613,37 +612,6 @@ def init(path=None, in_memory=False):
     #Session = sessionmaker(expire_on_commit=False)
     global_session = None
     Session.configure(bind=engine)
-
-    # add listener to update input and output files on job insert
-    def update_io_files(mapper, connection, target):
-        try:
-            ff = set([])
-            for f in target.out_files:
-                ff.add(f.path)
-            for of in target.get_output_files():
-                if of not in ff:
-                    target.out_files.append(OutputFile(
-                        path=of
-                    ))
-        except Exception as err:
-            log.error("Error while updating job instance output files: %s",
-                      err, exc_info=True)
-        try:
-            ff = set([])
-            for f in target.in_files:
-                ff.add(f.path)
-            for of in target.get_input_files():
-                if of not in ff:
-                    target.in_files.append(InputFile(
-                        path=of
-                    ))
-        except Exception as err:
-            log.error("Error while updating job instance input files: %s",
-                      err, exc_info=True)
-
-    # associate the listener function with SomeClass,
-    # to execute during the "before_insert" hook
-    listen(Job, 'before_insert', update_io_files)
 
 
 def create_session(embedded=False):

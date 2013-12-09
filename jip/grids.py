@@ -430,9 +430,9 @@ class _GridMaster(object):
         # update children
         for d in job.dependencies:
             if d in self.queued:
-                self.queued[d].children.add(job_id)
+                self.queued[d].children.append(job_id)
             if d in self.running:
-                self.running[d].children.add(job_id)
+                self.running[d].children.append(job_id)
         self.log.info("Master | Queue new job %s", job_id)
         if create_id:
             self.response.put(job_id)
