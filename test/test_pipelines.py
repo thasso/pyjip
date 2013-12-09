@@ -825,10 +825,3 @@ def test_pipeline_with_local_context():
     b = p.get('bash')
     assert b is not None
     assert b.cmd.get() == 'wc -l Makefile'
-
-
-def test_one_node_pipeline_pickle():
-    p = jip.Pipeline()
-    p.job().bash("ls")
-    pickled = pickle.dumps(p)
-    assert pickled is not None
