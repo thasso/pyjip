@@ -200,13 +200,13 @@ class _Job(object):
                  dependencies=None, threads=1, job_id=None):
         self.id = job_id
         self.job_id = job_id
-        self.dependencies = set([]) if dependencies is None else dependencies
+        self.dependencies = [] if dependencies is None else dependencies
         self.threads = threads
         self.cmd = cmd
         self.working_directory = cwd
         self.stdout = stdout
         self.stderr = stderr
-        self.children = set([])
+        self.children = []
         self.process = None
 
     @classmethod
