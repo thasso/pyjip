@@ -2,6 +2,7 @@
 """The JIP Pipeline module contains the classs and functions
 used to create pipeline graphs
 """
+from contextlib import contextmanager
 from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
@@ -37,6 +38,8 @@ class Job(Profile):
     @Profile.name.setter
     def name(self, name):
         self._name = name
+        if self._in_pipeline_name is None:
+            self._in_pipeline_name = name
         if self._node is not None and self._pipeline is not None:
             self._pipeline._apply_node_name(self._node, name)
 
@@ -63,7 +66,6 @@ class Job(Profile):
         clone = Profile.__call__(self, *args, **kwargs)
         clone._pipeline = self._pipeline
         clone._in_pipeline_name = self._in_pipeline_name
-        self._pipeline._current_job = clone
         if clone._in_pipeline_name is None:
             clone._in_pipeline_name = clone.name
         return clone
@@ -151,6 +153,12 @@ class Pipeline(object):
 
     def __len__(self):
         return len(self._nodes)
+
+    def __exit__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
 
     @property
     def utils(self):
@@ -794,6 +802,8 @@ class Pipeline(object):
             )
             cleanup_node.job.threads = 1
             cleanup_node.job.temp = True
+            cleanup_node.job.name = "cleanup"
+            cleanup_node._name = "cleanup"
             cleanup_node.files.dependency = True
             log.info("Expand | Cleanup node dependencies: %s", str(targets))
             #for target in (list(targets) + list(temp_nodes)):
@@ -1167,7 +1177,7 @@ class Node(object):
         """
         return self._job
 
-    def on_success(self, tool, _job=None, **kwargs):
+    def on_success(self, tool=None, **kwargs):
         """Create an embedded pipeline that will be submitted
         or executed after this node was successfully executed. The
         function returns a tuple: (pipeline, node)
@@ -1177,11 +1187,20 @@ class Node(object):
         :returns: tuple of (pipeline, node)
         """
         pipeline = Pipeline()
-        pipeline._job = self._graph.job()
-        pipeline._current_job = self._graph.job()
+        job = self._graph.job()
+        job._node = None
+        job._pipeline = pipeline
+        job._in_pipeline_name = None
+
+        pipeline._job = job
+        pipeline._current_job = job
         self._embedded.append(pipeline)
-        node = pipeline.run(tool, _job=_job, **kwargs)
-        return (pipeline, node,)
+
+        if tool:
+            node = pipeline.run(tool, **kwargs)
+            return pipeline, node
+        else:
+            return pipeline
 
     @property
     def name(self):

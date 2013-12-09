@@ -51,10 +51,20 @@ def embedded():
     p = Pipeline()
     # produce n files
     producer = p.run('produce', prefix='test', number=5)
+
     # run after success dynamically
-    embedded, consumer = producer.on_success('consume', input=producer)
-    consumer.job.name = "Consume-${input|name}"
-    consumer.job.temp = True
-    merge = embedded.run('merger', input=consumer, output='result.txt')
-    merge.job.name = "Merger"
+    #embedded, consumer = producer.on_success('consume', input=producer)
+    #consumer.job.name = "Consume-${input|name}"
+    #consumer.job.temp = True
+    #merge = embedded.run('merger', input=consumer, output='result.txt')
+    #merge.job.name = "Merger"
+
+    with producer.on_success() as embedded:
+        consumers = embedded.job('${input|name}', temp=True).run(
+            'consume', input=producer
+        )
+        embedded.job("Merge").run(
+            'merger', input=consumers, output="result.txt"
+        )
+
     return p
