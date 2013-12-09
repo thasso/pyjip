@@ -14,8 +14,9 @@ The module provides access to two classes:
 The options are typically used to represent tool and pipeline inputs, outputs,
 and options. Because the JIP system needs to be able to identify which files
 are consumed and which files are created by a given tool, this information is
-encoded in the ``Option`` instance in their :attr:`~jip.options.Option.option_type`
-attribute. The following types are supported:
+encoded in the ``Option`` instance in their
+:attr:`~jip.options.Option.option_type` attribute. The following types are
+supported:
 
 .. attribute:: TYPE_INPUT
 
@@ -95,6 +96,12 @@ from StringIO import StringIO
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
 TYPE_OUTPUT = "output"
+
+# replacements to serialize the standart streams
+# and deserialize them back when pickeling is used
+_SYS_STDIN = "<<<STDIN>>>"
+_SYS_STDOUT = "<<<STDOUT>>>"
+_SYS_STDERR = "<<<STDERR>>>"
 
 #: check that required options are set on access
 # this can be disable so that for example pipeline can be
@@ -216,16 +223,73 @@ class Option(object):
             else:
                 self.streamable = False
 
+    def copy(self):
+        """Create a clone of this option instance
+
+        :returns: clone of this option
+        :rtype: :class:`Option`
+        """
+        clone = Option(self.name)
+        clone.short = self.short
+        clone.long = self.long
+        clone.type = self.type
+        clone.option_type = self.option_type
+        clone.nargs = self.nargs
+        clone.default = self.default
+        clone.required = self.required
+        clone.hidden = self.hidden
+        clone.join = self.join
+        clone.nargs = self.nargs
+        clone.source = self.source
+        clone.streamable = self.streamable
+        clone.render_context = self.render_context
+        clone.dependency = self.dependency
+        clone.user_specified = self.user_specified
+        clone.const = self.const
+        clone.sticky = self.sticky
+        clone.streamable = self.streamable
+        clone.value = self.value
+        return clone
+
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['source']
         del state['render_context']
+        # update the default value to deal with streams
+        if self.default and self._is_stream(self.default):
+            state['default'] = self._pickle_stream(self.default)
+        # update the values
+        values = [v if not self._is_stream(v) else self._pickle_stream(v)
+                  for v in self._value]
+        state['_value'] = values
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.source = ""
         self.render_context = None
+        self.default = self._unpickle_stream(self.default)
+        self._value = [self._unpickle_stream(v) for v in self._value]
+
+    def _pickle_stream(self, v):
+        if v == sys.stdout:
+            return _SYS_STDOUT
+        if v == sys.stdin:
+            return _SYS_STDIN
+        if v == sys.stderr:
+            return _SYS_STDERR
+        if self.option_type == TYPE_INPUT:
+            return _SYS_STDIN
+        return _SYS_STDOUT
+
+    def _unpickle_stream(self, v):
+        if v == _SYS_STDIN:
+            return sys.stdin
+        if v == _SYS_STDERR:
+            return sys.stderr
+        if v == _SYS_STDOUT:
+            return sys.stdout
+        return v
 
     def __repr__(self):
         return "{%s(%s)::%s}" % (self.name, str(self.source) if self.source
@@ -488,8 +552,16 @@ class Option(object):
 
     def _is_stream(self, v):
         """Returns true if v is a stream or stream like"""
-        if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno')):
+        if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno'))\
+           or hasattr(v, 'write') or hasattr(v, 'read'):
             return True
+        try:
+            from py._io.capture import EncodedFile
+            from py._io.capture import DontReadFromInput
+            if isinstance(v, (EncodedFile, DontReadFromInput)):
+                return True
+        except:
+            pass
         return False
 
     def validate(self):
@@ -631,6 +703,15 @@ class Options(object):
         self._usage = ""
         self._help = ""
         self.source = source
+
+    def copy(self):
+        clone = Options()
+        clone._usage = self._usage
+        clone._help = self._help
+        clone.source = self.source
+        for o in self.options:
+            clone.options.append(o.copy())
+        return clone
 
     def __getstate__(self):
         state = self.__dict__.copy()
