@@ -17,8 +17,8 @@ def test_pickle_tool_options():
     assert pickled is not None
 
 
-def test_pickle_node():
-    p = jip.pipelines.Pipeline()
-    node = p.run('bash', cmd='ls')
-    pickled = pickle.dumps(node)
-    assert pickled is not None
+#def test_pickle_node():
+    #p = jip.pipelines.Pipeline()
+    #node = p.run('bash', cmd='ls')
+    #pickled = pickle.dumps(node)
+    #assert pickled is not None
