@@ -240,7 +240,7 @@ def test_expand_three_nodes_two_fan_out():
     assert len(p._edges) == 2
     p.expand(validate=False)
     assert len(p._nodes) == 5
-    assert len(p._edges) == 6
+    assert len(p._edges) == 4
 
 
 # test operators

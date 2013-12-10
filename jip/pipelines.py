@@ -788,8 +788,6 @@ class Pipeline(object):
                 for opt in temp_node._tool.options.get_by_type(
                         jip.options.TYPE_OUTPUT):
                     temp_outputs.add(opt)
-                #for outfile in temp_node._tool.get_output_files():
-                    #temp_outputs.add(outfile)
                 for child in temp_node.children():
                     if not child._job.temp:
                         targets.add(child)
@@ -962,6 +960,26 @@ class Pipeline(object):
                 self._apply_node_name(node, node._tool._job_name)
 
             node._tool.options.make_absolute(node._job.working_dir)
+
+        ##########################################################
+        # transitive reduction of dependencies
+        #
+        # Currently quiet inefficient implementation of transitive
+        # reduction to remove edges that are redudant in the
+        # graph.
+        ##########################################################
+        def transitive_reduction(vertex, child, done):
+            if child in done:
+                return
+            for outedge in child.outgoing():
+                vertex._remove_edge_to(outedge._target)
+                transitive_reduction(vertex, outedge._target, done)
+            done.add(child)
+
+        for j in self.nodes():
+            done = set([])
+            for child in j.outgoing():
+                transitive_reduction(j, child._target, done)
 
     def validate(self):
         """Validate all nodes in the graph"""
@@ -1417,6 +1435,27 @@ class Node(object):
         e = self._graph.add_edge(self, other)
         e._group = True
         return other
+
+    def _remove_edge_to(self, child):
+        edge = None
+        for e in self._edges:
+            if e._target == child:
+                edge = e
+                break
+        if edge:
+            self._edges.remove(edge)
+            edge._target._remove_edge_from(self)
+            self._graph._edges.remove(edge)
+
+    def _remove_edge_from(self, parent):
+        edge = None
+        for e in self._edges:
+            if e._source == parent:
+                edge = e
+                break
+        if edge:
+            self._edges.remove(edge)
+            #self._graph._edges.remove(edge)
 
     ####################################################################
     # Operators

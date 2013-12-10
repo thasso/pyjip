@@ -247,12 +247,12 @@ def test_job_hierarchy_job_group(tmpdir):
     jobs = jip.create_jobs(p)
     assert len(jobs) == 4
     assert len(jobs[0].dependencies) == 0
-    assert len(jobs[0].children) == 2
+    assert len(jobs[0].children) == 1
     assert len(jobs[1].dependencies) == 1
-    assert len(jobs[1].children) == 2
+    assert len(jobs[1].children) == 1
     assert len(jobs[2].dependencies) == 1
     assert len(jobs[2].children) == 1
-    assert len(jobs[3].dependencies) == 3
+    assert len(jobs[3].dependencies) == 1
     print jobs[3].command
 
     # iterate the executions and pass the session so all jobs are stored
