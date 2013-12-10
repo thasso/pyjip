@@ -518,11 +518,23 @@ class Job(Base):
                 values = [values]
             for value in values:
                 if isinstance(value, basestring):
-                    yield value
+                    import glob
+                    globbed = glob.glob(value)
+                    if globbed:
+                        for v in globbed:
+                            yield v
+                    else:
+                        yield value
         if self.pipe_targets:
             for value in self.pipe_targets:
                 if isinstance(value, basestring):
-                    yield value
+                    import glob
+                    globbed = glob.glob(value)
+                    if globbed:
+                        for v in globbed:
+                            yield v
+                    else:
+                        yield value
 
     def get_input_files(self):
         """Yields a list of all input files for the configuration
@@ -761,7 +773,8 @@ def update_job_states(jobs):
         start_date=bindparam("_start_date"),
         finish_date=bindparam("_finish_date"),
         stdout=bindparam("_stdout"),
-        stderr=bindparam("_stderr")
+        stderr=bindparam("_stderr"),
+        hosts=bindparam("_hosts")
     )
     # convert the job values
     values = [
@@ -771,7 +784,8 @@ def update_job_states(jobs):
          "_start_date": j.start_date,
          "_finish_date": j.finish_date,
          "_stdout": j.stdout,
-         "_stderr": j.stderr
+         "_stderr": j.stderr,
+         "_hosts": j.hosts
          } for j in jobs
     ]
     _execute(up, values)
