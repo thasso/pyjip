@@ -413,8 +413,10 @@ class Scanner():
             ## and add it to the cache
             tool = ScriptTool.from_file(tool, is_pipeline=is_pipeline)
             self.instances[name] = tool
+        log.debug("Scanner | Cloning tool %s [%s]", tool, tool.__hash__())
         clone = tool.clone()
         if args:
+            log.debug("Scanner | Parsing arguments passed through tool name")
             clone.parse_args(args)
         return clone
 
@@ -1270,15 +1272,17 @@ class Tool(object):
         updated using .counter as a suffix.
         """
         cloned_tool = copy.copy(self)
-        cloned_tool._options = copy.deepcopy(self._options)
+        cloned_tool._options = copy.deepcopy(self.options)
         if cloned_tool.name and counter is not None:
             cloned_tool.name = "%s.%d" % (cloned_tool.name, str(counter))
-        cloned_tool.options._help = self.options._help
-        cloned_tool.options._usage = self.options._usage
+        cloned_tool._options._help = self.options._help
+        cloned_tool._options._usage = self.options._usage
         # update the options source
-        cloned_tool.options.source = cloned_tool
-        for o in cloned_tool.options:
+        cloned_tool._options.source = cloned_tool
+        for o in cloned_tool._options:
             o.source = cloned_tool
+        log.debug("Tool | cloned instance %s [%s->%s]",
+                  self, self.__hash__(), cloned_tool.__hash__())
         return cloned_tool
 
 

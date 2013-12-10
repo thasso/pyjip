@@ -787,7 +787,8 @@ class Pipeline(object):
             for temp_node in temp_nodes:
                 for opt in temp_node._tool.options.get_by_type(
                         jip.options.TYPE_OUTPUT):
-                    temp_outputs.add(opt)
+                    if not opt.is_stream():
+                        temp_outputs.add(opt)
                 for child in temp_node.children():
                     if not child._job.temp:
                         targets.add(child)
