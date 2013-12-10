@@ -1221,7 +1221,7 @@ class Tool(object):
             if (opt.source and opt.source != self) or \
                (not sticky and opt.sticky):
                 continue
-            values = opt.raw()
+            values = opt.value
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:

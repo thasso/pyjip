@@ -785,8 +785,11 @@ class Pipeline(object):
             log.info("Expand | Check temporary outputs for %d job(s)",
                      len(temp_nodes))
             for temp_node in temp_nodes:
-                for outfile in temp_node._tool.get_output_files():
-                    temp_outputs.add(outfile)
+                for opt in temp_node._tool.options.get_by_type(
+                        jip.options.TYPE_OUTPUT):
+                    temp_outputs.add(opt)
+                #for outfile in temp_node._tool.get_output_files():
+                    #temp_outputs.add(outfile)
                 for child in temp_node.children():
                     if not child._job.temp:
                         targets.add(child)
@@ -1064,7 +1067,7 @@ class Pipeline(object):
             log.debug("Fanout | check for children to update values")
             # update all children
             for child in cloned_node.children():
-                child.update_options()
+                child.update_options(_ignore_errors=True)
                 log.debug("Fanout | update child values %s : %s",
                           child, child._tool.options)
         self.remove(node)
@@ -1668,7 +1671,7 @@ class Node(object):
             else:
                 option.append(value)
 
-    def update_options(self):
+    def update_options(self, _ignore_errors=False):
         """Update the option values resolving new values from the incoming
         edges source links
         """
@@ -1690,7 +1693,12 @@ class Node(object):
                     s.render_context = {}
                     for o in s.source.options:
                         s.render_context[o.name] = o
-                v = s.value
+                try:
+                    v = s.value
+                except:
+                    if not _ignore_errors:
+                        raise
+                    v = s._value
                 if isinstance(v, (list, tuple)):
                     new_value.extend(v)
                 else:
@@ -1704,7 +1712,11 @@ class Node(object):
             if not o in updated:
                 if o.render_context is None:
                     o.render_context = ctx
-                o.value = o.value
+                try:
+                    o.value = o.value
+                except:
+                    if not _ignore_errors:
+                        raise
 
 
 class _NodeProxy(object):
@@ -1804,7 +1816,10 @@ class Edge(object):
         """
         for link in self._links:
             target_option = link[1]
-            value = link[0].value
+            try:
+                value = link[0].value
+            except:
+                value = link[0]._value
             if not isinstance(value, (list, tuple)):
                 value = [value]
             for v in value:

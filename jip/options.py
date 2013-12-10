@@ -393,10 +393,15 @@ class Option(object):
                     node = pipeline._nodes[self.source]
                 pipeline.utils._update_context(ctx, base_node=node)
 
-            new_values = []
+            # resolve embedded option values
+            resolved = []
             for v in values:
                 if isinstance(v, Option):
-                    v = v.get()
+                    resolved.extend(v.value)
+                else:
+                    resolved.append(v)
+            new_values = []
+            for v in resolved:
                 if isinstance(v, basestring):
                     v = render_template(v, **ctx)
                 new_values.append(v)
