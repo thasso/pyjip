@@ -267,9 +267,9 @@ class Profile(object):
         if self.mem is not None:
             job.max_memory = self.mem
         if self.log is not None:
-            job.err = self.log
+            job.stderr = self.log
         if self.out is not None:
-            job.out = self.out
+            job.stdout = self.out
         if self.account is not None:
             job.account = self.account
         if self.temp is not None:
@@ -365,6 +365,33 @@ class Profile(object):
                 self.__setattr__(k, v)
             if tool is not None and 'jobs' in spec[tool]:
                 self.job_specs = spec[tool]['jobs']
+
+    @classmethod
+    def from_job(cls, job):
+        """Create a profile based on a given job. All properties
+        are set according to the given job, except the jobs temp state,
+        which will be kept unmodified.
+
+        :param job: the job
+        :returns: new profile generated from the job
+        """
+        profile = cls()
+        profile.threads = job.threads
+        profile.nodes = job.nodes
+        profile.tasks = job.tasks
+        profile.tasts_per_node = job.tasks_per_node
+        profile.environment = job.environment
+        profile.queue = job.queue
+        profile.priority = job.priority
+        profile.time = job.max_time
+        profile.mem = job.max_memory
+        profile.log = job.stderr
+        profile.out = job.stdout
+        profile.account = job.account
+        profile.extra = job.extra
+        profile.working_dir = job.working_directory
+        profile.env = job.env
+        return profile
 
 
 def get(name='default', tool=None):

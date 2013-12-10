@@ -687,16 +687,19 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
         for element in job.on_success:
             if isinstance(element, jip.pipelines.Pipeline):
                 ## run or submit embedded pipeline
+                # Create a base profile for the embedded job
+                # that is based on the current jobs profile
+                profile = jip.profiles.Profile.from_job(job)
                 # glob the inputs
                 for n in element.nodes():
                     n._tool.options.glob_inputs()
                 # TODO: handle the other paramters (i.e. profile, keep)
                 # TODO: catch exception and make the job fail
-                jobs = create_jobs(element)
+                jobs = create_jobs(element, profile=profile)
                 # add dependency to this job
                 for j in jobs:
                     j.dependencies.append(job)
-                for exe in create_executions(jobs):
+                for exe in create_executions(jobs, save=submit_embedded):
                     if not submit_embedded:
                         success &= run_job(exe.job, save=save)
                     else:
