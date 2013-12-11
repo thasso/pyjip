@@ -393,6 +393,7 @@ class Pipeline(object):
             >>> p.run('bash', cmd='ls')
             bash
             >>> p.expand()
+            False
             >>> assert p.get("bash") is not None
 
         :param name: node name
@@ -710,7 +711,8 @@ class Pipeline(object):
         if context:
             self.utils._update_global_env(context)
 
-    def expand(self, context=None, validate=True, _find_dup=True):
+    def expand(self, context=None, validate=True, _find_dup=True,
+               _check_fanout=True):
         """This modifies the current graph state and applies fan_out
         operations on nodes with singleton options that are populated with
         list.
@@ -728,6 +730,7 @@ class Pipeline(object):
             >>> p.bash('wc -l ${a}')
             bash
             >>> p.expand(locals())
+            False
             >>> assert p.get("bash").cmd.get() == 'wc -l myinput.txt'
 
         :param validate: disable validation by setting this to false
@@ -745,7 +748,7 @@ class Pipeline(object):
         self._expand_add_group_dependencies()
 
         # check nodes for fanout
-        self._expand_fanout()
+        fanout_done = self._expand_fanout(_check_fanout)
 
         # for all temp jobs, find a final non-temp target
         # if we have targets, create a cleanup job, add
@@ -765,14 +768,15 @@ class Pipeline(object):
 
         # apply all _job_names of nodes that might have been
         # applied and perform the final validation on all nodes
-        log.info("Expand | Validating nodes")
-        for node in self.nodes():
-            self._validate_node(node, silent=not validate)
-            node.update_options()
-            if node._tool._job_name is not None:
-                self._apply_node_name(node, node._tool._job_name)
+        if _find_dup:
+            log.info("Expand | Validating nodes")
+            for node in self.nodes():
+                self._validate_node(node, silent=not validate)
+                node.update_options()
+                if node._tool._job_name is not None:
+                    self._apply_node_name(node, node._tool._job_name)
 
-            node._tool.options.make_absolute(node._job.working_dir)
+                node._tool.options.make_absolute(node._job.working_dir)
 
         ##########################################################
         # transitive reduction of dependencies
@@ -794,6 +798,7 @@ class Pipeline(object):
             #for child in j.outgoing():
                 #transitive_reduction(j, child._target, done)
         log.info("Expand | Expansion finished. Nodes: %d", len(self))
+        return fanout_done
 
     def _expand_add_group_dependencies(self):
         """Add dependency edges between groups
@@ -812,10 +817,18 @@ class Pipeline(object):
                                   parent, first)
                         self.add_edge(parent, first)
 
-    def _expand_fanout(self):
+    def _expand_fanout(self, fanout):
         """Check all nodes in topological order if they need to
         be fanned out and perform the fanout if neccessary.
         """
+        if not fanout:
+            log.info("Expand | Fanout disabled, updating options")
+            for node in self.nodes():
+                _update_node_options(node, self)
+            return False
+
+        log.info("Expand | Checking for fanout in %d nodes", len(self))
+        fanout_done = False
         for node in self.topological_order():
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
@@ -833,6 +846,8 @@ class Pipeline(object):
                                  "options used for fan out differers: %s" %
                                  (node, ", ".join(option_names)))
             self._fan_out(node, fanout_options)
+            fanout_done = True
+        return fanout_done
 
     def _expand_add_cleanup_jobs(self):
         """For all temp jobs, find a final non-temp target
@@ -840,6 +855,7 @@ class Pipeline(object):
         all the temp job's output files and
         make it dependant on the temp nodes targets
         """
+        log.info("Expand | Checking for temporary jobs")
         temp_nodes = set([])
         targets = set([])
         temp_outputs = set([])
@@ -877,6 +893,7 @@ class Pipeline(object):
     def _expand_sub_pipelines(self, validate=True):
         """Saerch for sub-pipeline nodes and expand them"""
         log.info("Expand | Checking nodes for sub-pipelines")
+        check_fanout = True
         for node in self.topological_order():
             log.debug("Expand | Checking %s for sub-pipeline", node)
             sub_pipe = node._tool.pipeline()
@@ -888,7 +905,8 @@ class Pipeline(object):
             log.info("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
-            sub_pipe.expand(validate=validate, _find_dup=False)
+            check_fanout = sub_pipe.expand(validate=validate, _find_dup=False,
+                                           _check_fanout=check_fanout)
             # find all nodes in the sub_pipeline
             # with no incoming edges and connect
             # them to the current nodes incoming nodes
@@ -919,7 +937,7 @@ class Pipeline(object):
                     self.add_edge(source, outedge._target)
 
             # establish links between resolved nodes and the current pipeline
-            # where before, the nodes was linked against a pipeline options.
+            # where before, the node was linked against a pipeline option.
             #
             # we look for both incoming and outgoing edges of the old node
             # and check their links. If we find a link where source/target
@@ -952,22 +970,6 @@ class Pipeline(object):
                                     sub_node._tool.options[po['option'].name],
                                     stream
                                 )
-
-            # non-silent validation for pipeline node to
-            # make sure the node WAS valid, otherwise the node
-            # and its validation capabilities will be lost
-            #
-            # if validation is disable, exceptions are caught and not raised
-            # here
-            log.info("Expand | Validating sub-pipe node")
-            try:
-                node._tool.validate()
-            except Exception as err:
-                if validate:
-                    raise
-                else:
-                    log.debug("Node validation failed, but validation is "
-                              "disabled: %s", err)
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 

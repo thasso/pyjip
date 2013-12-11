@@ -402,7 +402,7 @@ class Option(object):
                     resolved.append(v)
             new_values = []
             for v in resolved:
-                if isinstance(v, basestring):
+                if isinstance(v, basestring) and "${" in v:
                     v = render_template(v, **ctx)
                 new_values.append(v)
             values = new_values
