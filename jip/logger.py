@@ -6,7 +6,7 @@ from os import getenv
 import logging
 
 
-DEFAULT_FMT = "[%(levelname)6s][%(asctime)s][%(name)s]: %(message)s"
+DEFAULT_FMT = "[%(levelname)6s][%(asctime)s][%(name)15s]: %(message)s"
 DEBUG_FMT = "[%(levelname)6s][%(asctime)s][%(name)s]"\
             "[%(module)s.%(funcName)s:%(lineno)d]: %(message)s"
 

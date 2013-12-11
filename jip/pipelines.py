@@ -2,7 +2,6 @@
 """The JIP Pipeline module contains the classs and functions
 used to create pipeline graphs
 """
-from contextlib import contextmanager
 from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
@@ -184,6 +183,8 @@ class Pipeline(object):
         :param name: the name of the pipeline
         :type name: string
         """
+        if name is None:
+            return
         self._name = name
         for n in self.nodes():
             n._pipeline = name
@@ -244,7 +245,7 @@ class Pipeline(object):
         try:
             tool.validate()
         except Exception:
-            log.debug("Validation error for %s", node, exc_info=True)
+            log.debug("Validation error for %s", node)
         return node
 
     def bash(self, command, **kwargs):
@@ -343,8 +344,6 @@ class Pipeline(object):
             # there is more than one node with the same name.
             # make sure the _index is set
             for i, nn in enumerate(nodes_with_same_name):
-                log.debug("Apply node name | Update identical %s %s %s [%s]",
-                          name, i, nn._node_index, nn._tool.options)
                 nn._index = i
 
         if old_name and old_name != name:
@@ -358,8 +357,6 @@ class Pipeline(object):
                 # update the nodes _index, same strategy as above
                 old_nodes = sorted(old_nodes, key=lambda x: x._node_index)
                 for i, nn in enumerate(old_nodes):
-                    log.debug("Apply node name | Update old %s %s %s [%s]",
-                              name, i, nn._node_index, nn._tool.options)
                     nn._index = i
 
     def get(self, name):
@@ -738,7 +735,7 @@ class Pipeline(object):
         if context is not None:
             self.context(context)
 
-        log.debug("Expand Graph on %s", self)
+        log.info("Expand | Expand Graph with %d nodes", len(self))
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
         # outside of the group, add the edge also to any predecessor
@@ -761,8 +758,8 @@ class Pipeline(object):
                 continue
             # check that all fanout options have the same length
             num_values = len(fanout_options[0])
-            log.debug("Expand | Prepare fanout for %s with %d values",
-                      node, num_values)
+            log.info("Expand | Prepare fanout for %s with %d values",
+                     node, num_values)
             if not all(num_values == len(i) for i in fanout_options):
                 option_names = ["%s(%d)" % (o.name, len(o))
                                 for o in fanout_options]
@@ -792,12 +789,9 @@ class Pipeline(object):
                 for child in temp_node.children():
                     if not child._job.temp:
                         targets.add(child)
-            log.info("Expand | found %d temporary outputs and %d targets",
+            log.info("Expand | Found %d temporary outputs and %d targets",
                      len(temp_outputs), len(targets))
         if len(targets) > 0:
-            log.info("Expand | Create cleanup node for temp jobs: %s",
-                     str(temp_nodes))
-            log.info("Expand | Cleanup node files: %s", str(temp_outputs))
             cleanup_node = self.run(
                 'cleanup',
                 files=list(temp_outputs)
@@ -807,23 +801,22 @@ class Pipeline(object):
             cleanup_node.job.name = "cleanup"
             cleanup_node._name = "cleanup"
             cleanup_node.files.dependency = True
-            log.info("Expand | Cleanup node dependencies: %s", str(targets))
             #for target in (list(targets) + list(temp_nodes)):
             for target in list(targets):
                 cleanup_node.depends_on(target)
             self._cleanup_nodes.append(cleanup_node)
 
         # iterate again to expand on pipeline of pipelines
+        log.info("Expand | Checking nodes for sub-pipelines")
         for node in self.topological_order():
-            log.debug("Expand | Checking %s for sub-pipeline [%s]", node,
-                      node._tool.options)
+            log.debug("Expand | Checking %s for sub-pipeline", node)
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
             # check and set this pipelines name
             if self._name is None:
                 self.name(node._tool._job_name)
-            log.debug("Expand | Expanding sub-pipeline from node %s", node)
+            log.info("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
             sub_pipe.expand(validate=validate)
@@ -835,6 +828,8 @@ class Pipeline(object):
             no_outgoing = [n for n in sub_pipe.nodes()
                            if len(list(n.outgoing())) == 0]
             # add the sub_pipe
+            log.info("Expand | Adding %d nodes from sub-pipeline",
+                     len(sub_pipe))
             for sub_node in sub_pipe.topological_order():
                 log.debug("Expand | Adding sub-pipeline node %s", sub_node)
                 self.add(sub_node)
@@ -890,6 +885,8 @@ class Pipeline(object):
                                 )
 
             # detect duplicates and try to merge them
+            log.info("Expand | Searching for duplicates in %d nodes %d edges",
+                     len(self), len(self._edges))
             dup_candidates = []
             sorted_nodes = sorted(self.nodes(), key=lambda x: x._node_index)
             for n1 in sorted_nodes:
@@ -898,10 +895,22 @@ class Pipeline(object):
                         # same tool
                         # compare options
                         if n1._tool.options == n2._tool.options:
+                            # make sure the options are not streaming
+                            # options!
+                            if n1.has_incoming_stream() or \
+                                    n2.has_incoming_stream():
+                                continue
+                            for o in n1._tool.options:
+                                if o.is_stream():
+                                    continue
+                            for o in n2._tool.options:
+                                if o.is_stream():
+                                    continue
+
                             dup_candidates.append((n1, n2))
             if dup_candidates:
-                log.debug("Expand | Found duplicated nodes: %s",
-                          dup_candidates)
+                log.info("Expand | Merging duplicated nodes: %s",
+                         dup_candidates)
                 for n1, n2 in dup_candidates:
                     log.debug("Expand | Merging nodes: %s %s", n1, n2)
                     try:
@@ -928,6 +937,7 @@ class Pipeline(object):
             #
             # if validation is disable, exceptions are caught and not raised
             # here
+            log.info("Expand | Validating sub-pipe node")
             try:
                 node._tool.validate()
             except Exception as err:
@@ -941,12 +951,14 @@ class Pipeline(object):
 
         # apply names from global context
         if self.utils and self.utils._global_env:
+            log.info("Expand | Applying node names from context")
             for k, v in self.utils._global_env.iteritems():
                 if isinstance(v, Node):
                     if v._job.name is None:
                         v._job.name = k
         # apply all _job_names of nodes that might have been
         # applied and perform the final validation on all nodes
+        log.info("Expand | Validating nodes")
         for node in self.nodes():
             try:
                 node._tool.validate()
@@ -969,18 +981,19 @@ class Pipeline(object):
         # reduction to remove edges that are redudant in the
         # graph.
         ##########################################################
-        def transitive_reduction(vertex, child, done):
-            if child in done:
-                return
-            for outedge in child.outgoing():
-                vertex._remove_edge_to(outedge._target)
-                transitive_reduction(vertex, outedge._target, done)
-            done.add(child)
+        #def transitive_reduction(vertex, child, done):
+            #if child in done:
+                #return
+            #for outedge in child.outgoing():
+                #vertex._remove_edge_to(outedge._target)
+                #transitive_reduction(vertex, outedge._target, done)
+            #done.add(child)
 
-        for j in self.nodes():
-            done = set([])
-            for child in j.outgoing():
-                transitive_reduction(j, child._target, done)
+        #for j in self.nodes():
+            #done = set([])
+            #for child in j.outgoing():
+                #transitive_reduction(j, child._target, done)
+        log.info("Expand | Expansion finished. Nodes: %d", len(self))
 
     def validate(self):
         """Validate all nodes in the graph"""
@@ -1029,8 +1042,7 @@ class Pipeline(object):
             for j, option in enumerate(options):
                 cloned_tool.options[option.name].value = opts[j]
             cloned_node = self.add(cloned_tool, _job=node._job)
-            log.debug("Fanout | add new node: %s :: %s",
-                      cloned_node, cloned_node._tool.options)
+            log.debug("Fanout | add new node: %s", cloned_node)
             # reattach the edges and copy the links
             for e in _edges:
                 new_edge = None
@@ -1189,6 +1201,13 @@ class Node(object):
         tool._options.source = tool
         for o in tool._options:
             o.source = tool
+
+    def has_incoming_stream(self):
+        for e in self.incoming():
+            for l in e._links:
+                if l[2]:
+                    return True
+        return False
 
     @property
     def job(self):

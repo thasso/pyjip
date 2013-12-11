@@ -278,7 +278,7 @@ class tool(object):
             return r
         except Exception as err:
             if not isinstance(err, ValidationError):
-                log.info("Validation error: %s", str(err), exc_info=True)
+                log.debug("Validation error: %s", str(err).strip())
                 err = ValidationError(wrapper, str(err))
             raise err
 
@@ -1086,7 +1086,7 @@ class Tool(object):
         try:
             self.options.validate()
         except Exception, e:
-            log.info("Validation error: %s", str(e).strip())
+            log.debug("Validation error: %s", str(e).strip())
             raise ValidationError(self, str(e))
 
         for opt in self.options.get_by_type(TYPE_INPUT):

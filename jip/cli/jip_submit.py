@@ -88,16 +88,19 @@ def main(argv=None):
         # we handle --dry and --show separatly,
         # create the jobs and call the show commands
         jobs = jip.jobs.create_jobs(script, args=script_args, profile=profile)
+        error = None
+        try:
+            jip.jobs.check_output_files(jobs)
+            jobs = jip.jobs.check_queued_jobs(jobs)
+        except Exception as err:
+            error = err
         if args['--dry']:
             show_dry(jobs, options=script.options, profiles=True)
         if args['--show']:
             show_commands(jobs)
-        try:
-            jip.jobs.check_output_files(jobs)
-            jip.jobs.check_queued_jobs(jobs)
-        except Exception as err:
+        if error:
             print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-            print >>sys.stderr, str(err)
+            print >>sys.stderr, str(error)
             sys.exit(1)
         return
 

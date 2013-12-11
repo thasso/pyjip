@@ -271,7 +271,7 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
     if check_outputs:
         check_output_files(jobs)
     if check_queued:
-        check_queued_jobs(jobs)
+        jobs = check_queued_jobs(jobs)
 
     # the instance
     Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
@@ -282,7 +282,7 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
-        completed = job.state == jip.db.STATE_DONE
+        completed = job.state != jip.db.STATE_HOLD
         if not completed:
             to_save.extend(g)
         runnables.append(Runable(name, job, completed))
@@ -902,15 +902,6 @@ def from_node(node, env=None, keep=False):
     except:
         pass
 
-    # check for special options
-    if node._tool.options['threads'] is not None:
-        try:
-            options_threads = int(node._tool.options['threads'].raw())
-            threads = max(options_threads, job.threads)
-            job.threads = threads
-        except:
-            pass
-
     cmds = node._tool.get_command()
     interpreter = "bash"
     command = None
@@ -997,20 +988,19 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
     :raises: `jip.tools.ValueError` if a job is invalid
     """
     if args and isinstance(source, jip.tools.Tool):
-        log.info("Parse tool argument")
+        log.info("Jobs | Parse tool argument")
         source.parse_args(args)
 
     pipeline = source
     if not isinstance(source, jip.pipelines.Pipeline):
-        log.info("Wrapping tool in pipeline: %s", source)
+        log.info("Jobs | Wrapping tool in pipeline: %s", source)
         p = jip.pipelines.Pipeline(cwd=profile.working_dir
                                    if profile else None)
         p.run(source)
         pipeline = p
-
-    log.info("Expanding pipeline with %d nodes", len(pipeline))
+    log.info("Jobs | Expanding pipeline with %d nodes", len(pipeline))
     pipeline.expand(validate=validate)
-    log.info("Expanded pipeline has %d nodes", len(pipeline))
+    log.info("Jobs | Expanded pipeline has %d nodes", len(pipeline))
     if pipeline.excludes:
         if not excludes:
             excludes = []
@@ -1037,7 +1027,6 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
         ## first create jobs
         job = from_node(node, env=env, keep=keep)
         log.debug("Created job %s", job)
-        log.debug("Created job %s config: %s", job, job.configuration)
         jobs.append(job)
         nodes2jobs[node] = job
 
@@ -1125,19 +1114,24 @@ def check_queued_jobs(jobs):
     files = {}
     for j, of in __output_files(db.get_active_jobs()):
         files[of] = j
-
+    checked = []
     for job, of in __output_files(jobs):
         if of in files:
             other_job = files[of]
-            raise jip.tools.ValidationError(
-                job,
-                "Output file duplication:\n\n"
-                "During validation an output file name was found\n"
-                "in another job!\n"
-                "Job %s [%s] also creates the following file:\n"
-                "\n\t%s\n\n"
-                "The job is currenty in %s state. Cancel or delete\n"
-                "the job in order to submit this run or check\n"
-                "your output files\n" % (other_job, str(other_job.id),
-                                         of, other_job.state)
-            )
+            job.state = other_job.state
+            checked.append(other_job)
+        else:
+            checked.append(job)
+    return checked
+            #raise jip.tools.ValidationError(
+                #job,
+                #"Output file duplication:\n\n"
+                #"During validation an output file name was found\n"
+                #"in another job!\n"
+                #"Job %s [%s] also creates the following file:\n"
+                #"\n\t%s\n\n"
+                #"The job is currenty in %s state. Cancel or delete\n"
+                #"the job in order to submit this run or check\n"
+                #"your output files\n" % (other_job, str(other_job.id),
+                                         #of, other_job.state)
+            #)
