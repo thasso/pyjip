@@ -267,6 +267,7 @@ class Job(Base):
         self._process = None
         self.stream_in = sys.stdin
         self.stream_out = sys.stdout
+        self.state = STATE_HOLD
 
     @orm.reconstructor
     def __reinit__(self):
