@@ -740,16 +740,7 @@ class Pipeline(object):
         # when a node in a group has an incoming edge from a parent
         # outside of the group, add the edge also to any predecessor
         # of the node within the group
-        for group in self.groups():
-            gs = set(group)
-            first = group[0]
-            for node in group:
-                for parent in node.parents():
-                    if parent not in gs:
-                        ## add an edge to the first of the group
-                        log.debug("Expand | add group dependency %s->%s",
-                                  parent, first)
-                        self.add_edge(parent, first)
+        self._expand_add_group_dependencies()
         for node in self.topological_order():
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
@@ -995,6 +986,23 @@ class Pipeline(object):
             #for child in j.outgoing():
                 #transitive_reduction(j, child._target, done)
         log.info("Expand | Expansion finished. Nodes: %d", len(self))
+
+    def _expand_add_group_dependencies(self):
+        """Add dependency edges between groups
+        when a node in a group has an incoming edge from a parent
+        outside of the group, add the edge also to any predecessor
+        of the node within the group
+        """
+        for group in self.groups():
+            gs = set(group)
+            first = group[0]
+            for node in group:
+                for parent in node.parents():
+                    if parent not in gs:
+                        ## add an edge to the first of the group
+                        log.debug("Expand | add group dependency %s->%s",
+                                  parent, first)
+                        self.add_edge(parent, first)
 
     def validate(self):
         """Validate all nodes in the graph"""
