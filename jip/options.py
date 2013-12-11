@@ -753,6 +753,15 @@ class Options(object):
                 False
         return True
 
+    def _get_value_set(self):
+        """Returns a hashable set of the falues of this options instance
+        """
+        sets = []
+        for opt in self:
+            sets.append(frozenset([v if not opt._is_stream(v) else sys.stdin
+                                   for v in opt.value]))
+        return frozenset(sets)
+
     def add_input(self, name, value=None, nargs=None, hidden=True, **kwargs):
         """Add additional, hidden, input option. The default
         value for this option is None, but you can pass a value

@@ -2,6 +2,8 @@
 """The JIP Pipeline module contains the classs and functions
 used to create pipeline graphs
 """
+import collections
+
 from jip.options import Option
 from jip.tools import Tool
 from jip.profiles import Profile
@@ -708,7 +710,7 @@ class Pipeline(object):
         if context:
             self.utils._update_global_env(context)
 
-    def expand(self, context=None, validate=True):
+    def expand(self, context=None, validate=True, _find_dup=True):
         """This modifies the current graph state and applies fan_out
         operations on nodes with singleton options that are populated with
         list.
@@ -732,15 +734,88 @@ class Pipeline(object):
         :param context: specify a local context that is taken into account
                         in template and option rendering
         """
+        log.info("Expand | Expand Graph with %d nodes", len(self))
         if context is not None:
             self.context(context)
 
-        log.info("Expand | Expand Graph with %d nodes", len(self))
         # add dependency edges between groups
         # when a node in a group has an incoming edge from a parent
         # outside of the group, add the edge also to any predecessor
         # of the node within the group
         self._expand_add_group_dependencies()
+
+        # check nodes for fanout
+        self._expand_fanout()
+
+        # for all temp jobs, find a final non-temp target
+        # if we have targets, create a cleanup job, add
+        # all the temp job's output files and
+        # make it dependant on the temp nodes targets
+        self._expand_add_cleanup_jobs()
+
+        # iterate again to expand on pipeline of pipelines
+        self._expand_sub_pipelines(validate=validate)
+
+        if _find_dup:
+            # detect duplicates and try to merge them
+            self._expand_merge_duplicates()
+
+        # apply names from global context
+        self._expand_name_jobs_by_context()
+
+        # apply all _job_names of nodes that might have been
+        # applied and perform the final validation on all nodes
+        log.info("Expand | Validating nodes")
+        for node in self.nodes():
+            self._validate_node(node, silent=not validate)
+            node.update_options()
+            if node._tool._job_name is not None:
+                self._apply_node_name(node, node._tool._job_name)
+
+            node._tool.options.make_absolute(node._job.working_dir)
+
+        ##########################################################
+        # transitive reduction of dependencies
+        #
+        # Currently quiet inefficient implementation of transitive
+        # reduction to remove edges that are redudant in the
+        # graph.
+        ##########################################################
+        #def transitive_reduction(vertex, child, done):
+            #if child in done:
+                #return
+            #for outedge in child.outgoing():
+                #vertex._remove_edge_to(outedge._target)
+                #transitive_reduction(vertex, outedge._target, done)
+            #done.add(child)
+
+        #for j in self.nodes():
+            #done = set([])
+            #for child in j.outgoing():
+                #transitive_reduction(j, child._target, done)
+        log.info("Expand | Expansion finished. Nodes: %d", len(self))
+
+    def _expand_add_group_dependencies(self):
+        """Add dependency edges between groups
+        when a node in a group has an incoming edge from a parent
+        outside of the group, add the edge also to any predecessor
+        of the node within the group
+        """
+        for group in self.groups():
+            gs = set(group)
+            first = group[0]
+            for node in group:
+                for parent in node.parents():
+                    if parent not in gs:
+                        ## add an edge to the first of the group
+                        log.debug("Expand | add group dependency %s->%s",
+                                  parent, first)
+                        self.add_edge(parent, first)
+
+    def _expand_fanout(self):
+        """Check all nodes in topological order if they need to
+        be fanned out and perform the fanout if neccessary.
+        """
         for node in self.topological_order():
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
@@ -759,14 +834,16 @@ class Pipeline(object):
                                  (node, ", ".join(option_names)))
             self._fan_out(node, fanout_options)
 
-        # for all temp jobs, find a final non-temp target
-        # if we have targets, create a cleanup job, add
-        # all the temp job's output files and
-        # make it dependant on the temp nodes targets
+    def _expand_add_cleanup_jobs(self):
+        """For all temp jobs, find a final non-temp target
+        if we have targets, create a cleanup job, add
+        all the temp job's output files and
+        make it dependant on the temp nodes targets
+        """
         temp_nodes = set([])
         targets = set([])
         temp_outputs = set([])
-        for node in self.topological_order():
+        for node in self.nodes():
             if node._job.temp:
                 temp_nodes.add(node)
         if temp_nodes:
@@ -797,7 +874,8 @@ class Pipeline(object):
                 cleanup_node.depends_on(target)
             self._cleanup_nodes.append(cleanup_node)
 
-        # iterate again to expand on pipeline of pipelines
+    def _expand_sub_pipelines(self, validate=True):
+        """Saerch for sub-pipeline nodes and expand them"""
         log.info("Expand | Checking nodes for sub-pipelines")
         for node in self.topological_order():
             log.debug("Expand | Checking %s for sub-pipeline", node)
@@ -810,7 +888,7 @@ class Pipeline(object):
             log.info("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
-            sub_pipe.expand(validate=validate)
+            sub_pipe.expand(validate=validate, _find_dup=False)
             # find all nodes in the sub_pipeline
             # with no incoming edges and connect
             # them to the current nodes incoming nodes
@@ -875,54 +953,6 @@ class Pipeline(object):
                                     stream
                                 )
 
-            # detect duplicates and try to merge them
-            log.info("Expand | Searching for duplicates in %d nodes %d edges",
-                     len(self), len(self._edges))
-            dup_candidates = []
-            sorted_nodes = sorted(self.nodes(), key=lambda x: x._node_index)
-            for n1 in sorted_nodes:
-                for n2 in sorted_nodes:
-                    if n1 != n2 and n1._tool._name == n2._tool._name:
-                        # same tool
-                        # compare options
-                        if n1._tool.options == n2._tool.options:
-                            # make sure the options are not streaming
-                            # options!
-                            if n1.has_incoming_stream() or \
-                                    n2.has_incoming_stream():
-                                continue
-                            for o in n1._tool.options:
-                                if o.is_stream():
-                                    continue
-                            for o in n2._tool.options:
-                                if o.is_stream():
-                                    continue
-
-                            dup_candidates.append((n1, n2))
-            if dup_candidates:
-                log.info("Expand | Merging %d duplicated", len(dup_candidates))
-                log.debug("Expand | Merging duplicated nodes: %s",
-                          dup_candidates)
-                for n1, n2 in dup_candidates:
-                    log.debug("Expand | Merging nodes: %s %s", n1, n2)
-                    try:
-                        n1 = self.get(n1.name)
-                        n2 = self.get(n2.name)
-                        for n2_edge in n2._edges:
-                            if not n2_edge in n1._edges:
-                                n1._edges.append(n2_edge)
-                        for e in n2._edges:
-                            if e._source == n2:
-                                e._source = n1
-                            else:
-                                e._target = n1
-                        n2._edges = []
-                        self.remove(n2)
-                        self._apply_node_name(n1, n1._name)
-                    except Exception as err:
-                        log.debug("Unable to merge: %s", err)
-                        continue
-
             # non-silent validation for pipeline node to
             # make sure the node WAS valid, otherwise the node
             # and its validation capabilities will be lost
@@ -941,68 +971,91 @@ class Pipeline(object):
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
-        # apply names from global context
+    def _expand_name_jobs_by_context(self):
+        """If utils and a global context are available, apply variable
+        names to all nodes without names
+        """
         if self.utils and self.utils._global_env:
             log.info("Expand | Applying node names from context")
             for k, v in self.utils._global_env.iteritems():
                 if isinstance(v, Node):
                     if v._job.name is None:
                         v._job.name = k
-        # apply all _job_names of nodes that might have been
-        # applied and perform the final validation on all nodes
-        log.info("Expand | Validating nodes")
-        for node in self.nodes():
-            try:
-                node._tool.validate()
-            except Exception as err:
-                if validate:
-                    raise
-                else:
-                    log.debug("Node validation failed, but validation is "
-                              "disabled: %s", err)
-            node.update_options()
-            if node._tool._job_name is not None:
-                self._apply_node_name(node, node._tool._job_name)
 
-            node._tool.options.make_absolute(node._job.working_dir)
+    def _expand_merge_duplicates(self):
+        """Find nodes that reference the same tool and are configured
+        in the same way and merge them.
 
-        ##########################################################
-        # transitive reduction of dependencies
-        #
-        # Currently quiet inefficient implementation of transitive
-        # reduction to remove edges that are redudant in the
-        # graph.
-        ##########################################################
-        #def transitive_reduction(vertex, child, done):
-            #if child in done:
-                #return
-            #for outedge in child.outgoing():
-                #vertex._remove_edge_to(outedge._target)
-                #transitive_reduction(vertex, outedge._target, done)
-            #done.add(child)
-
-        #for j in self.nodes():
-            #done = set([])
-            #for child in j.outgoing():
-                #transitive_reduction(j, child._target, done)
-        log.info("Expand | Expansion finished. Nodes: %d", len(self))
-
-    def _expand_add_group_dependencies(self):
-        """Add dependency edges between groups
-        when a node in a group has an incoming edge from a parent
-        outside of the group, add the edge also to any predecessor
-        of the node within the group
+        :returns: list of tuples with the duplicated nodes
         """
-        for group in self.groups():
-            gs = set(group)
-            first = group[0]
-            for node in group:
-                for parent in node.parents():
-                    if parent not in gs:
-                        ## add an edge to the first of the group
-                        log.debug("Expand | add group dependency %s->%s",
-                                  parent, first)
-                        self.add_edge(parent, first)
+        log.info("Expand | Searching for duplicates in %d nodes %d edges",
+                 len(self), len(self._edges))
+        # Filter for nodes with no incoming sream and store them in
+        # a cache where we can retriev all nodes that reference
+        # the same tool quickly.
+        #
+        # To avoid complex comparisons between the options instances
+        # between the nodes, we cache a options hash value for eadh node
+        # here and use that one later for the comparison between
+        # possible merge candidates
+        node_hashes = {}
+        tools_2_nodes = collections.defaultdict(set)
+        for n in self.nodes():
+            if not n.has_incoming_stream():
+                node_hashes[n] = hash(n._tool.options._get_value_set())
+                tools_2_nodes[n._tool._name].add(n)
+        ## index all nodes without an incoming stream by their tool name
+        merged = 0
+        for nodes in [n for k, n in tools_2_nodes.iteritems()
+                      if len(n) > 1]:
+            # the nodes set contains all nodes that reference the
+            # same tool
+            # Group them by checking that their options are the same
+            # hence its the same tool with the same configuration
+            log.info("Expand | Merging tool set with %d nodes", len(nodes))
+            while nodes:
+                n = nodes.pop()
+                group = set([n] + [m for m in nodes if m != n and
+                                   node_hashes[n] == node_hashes[m]])
+                # remove the group from the node set
+                # and add it to tue option groups that will be merged
+                nodes = nodes - group
+                size = len(group)
+                if size > 1:
+                    log.info("Expand | Merging node group with %d nodes", size)
+                    merged += size
+                    self._merge_all(group)
+        log.info("Expand | Merged %d nodes", merged)
+
+    def _merge_all(self, nodes):
+        """Merge all nodes in the given node list"""
+        n1 = nodes.pop()
+        for n2 in nodes:
+            for n2_edge in n2._edges:
+                if not n2_edge in n1._edges:
+                    n1._edges.append(n2_edge)
+            for e in n2._edges:
+                if e._source == n2:
+                    e._source = n1
+                else:
+                    e._target = n1
+            n2._edges = []
+            self.remove(n2)
+        self._apply_node_name(n1, n1._name)
+        return n1
+
+    def _validate_node(self, node, silent=False):
+        """Validate the node and only raise an exaption
+        if silent is False
+        """
+        try:
+            node._tool.validate()
+        except Exception as err:
+            if not silent:
+                raise
+            else:
+                log.debug("Node validation failed, but validation is "
+                          "disabled: %s", err)
 
     def validate(self):
         """Validate all nodes in the graph"""

@@ -125,7 +125,7 @@ def test_job_cancelation(tmpdir):
     # create the pipeline
     p = jip.Pipeline()
     first = p.job(dir=tmpdir).bash('sleep 10')
-    p.job(dir=tmpdir).bash('sleep 10').depends_on(first)
+    p.job(dir=tmpdir).bash('sleep 5').depends_on(first)
     p.context(locals())
 
     # create the jobs
@@ -138,6 +138,7 @@ def test_job_cancelation(tmpdir):
     time.sleep(0.1)
 
     # cancel the job
+    print jobs, jobs[0].id
     job = jip.db.get(1)
     jip.jobs.cancel(job, cluster=c, save=True)
 
