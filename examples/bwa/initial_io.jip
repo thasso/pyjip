@@ -1,4 +1,4 @@
-#!/usr/bin/env jip -p
+#!/usr/bin/env jip
 #
 # BWA/Samtools pileup
 #
@@ -11,6 +11,7 @@
 # Outputs:
 #     -o, --output <output>        The .bcf output file
 
+#%begin pipeline
 out = r("${output|ext}")
 
 ref = bash('bwa index ${reference}', outfile='${reference}.bwt')

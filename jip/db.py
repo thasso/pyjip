@@ -165,7 +165,7 @@ class Job(Base):
     #: Account information assigned to the job
     account = Column(String(256))
     #: Number of threads assigned to a job. Defaults to 1
-    threads = Column(Integer, default=1)
+    threads = Column(Integer, default=0)
     #: Number of tasks assigned to a job. Defaults to 0
     tasks = Column(Integer, default=0)
     #: Number of nodes assigned to a job.

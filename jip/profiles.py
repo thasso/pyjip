@@ -244,7 +244,7 @@ class Profile(object):
         elif self.name is not None:
             log.info("Apply pipeline name to job: %s %s", job, self.name)
             job.pipeline = self._render(job, self.name)
-        if self.threads is not None:
+        if self.threads is not None and job.threads < 1:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
             else:
@@ -376,7 +376,7 @@ class Profile(object):
         :returns: new profile generated from the job
         """
         profile = cls()
-        profile.threads = job.threads
+        profile.threads = job.threads if job.threads > 0 else None
         profile.nodes = job.nodes
         profile.tasks = job.tasks
         profile.tasts_per_node = job.tasks_per_node
