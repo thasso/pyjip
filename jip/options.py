@@ -334,7 +334,7 @@ class Option(object):
                     not v.startswith('/') and "${" not in v:
                 log.debug("Make option %s absolute to %s",
                           self.name, path)
-                v = os.path.join(os.path.abspath(path), v)
+                v = os.path.normpath(os.path.join(os.path.abspath(path), v))
             values.append(v)
         self._value = values
 

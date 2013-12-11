@@ -43,11 +43,10 @@ def main():
         return
 
     # get full pipelines
-    #jobs = jip.jobs.resolve_jobs(jobs)
+    jobs = jip.jobs.resolve_jobs(jobs)
     if confirm("Are you sure you want "
                "to restart %d jobs" % len(jobs),
                False):
-        updated = 0
         profile = Profile(profile=args['--profile'])
         profile.load_args(args)
         ###############################################################
@@ -66,36 +65,26 @@ def main():
                     os.getenv("JIP_PATH", ""),
                     env.get('JIP_PATH', "")
                 )
-            p = jip.jobs.get_pipe_parent(j)
-            for t in jip.jobs.create_groups([p]):
-                updated += len(t)
-                map(profile.apply, t)
+
+        # apply the profile to all non-done jobs
+        map(profile.apply,
+            filter(lambda n: n.state != jip.db.STATE_DONE, jobs))
 
         ################################################################
         # Get the pipeline graphs and resubmit them
         ################################################################
-        send = set([])
-        for job in jobs:
-            if job in send:
+        for exe in jip.jobs.create_executions(jobs,
+                                              check_outputs=False,
+                                              save=True):
+            if exe.job.state in [jip.db.STATE_DONE] and \
+               not args['--force']:
+                print >>sys.stderr, colorize("Skipped", YELLOW), exe.job
                 continue
-            pipeline = list(jip.jobs.topological_order(
-                jip.jobs.get_subgraph(job))
-            )
-            map(profile.apply, filter(lambda n: n.state != jip.db.STATE_DONE,
-                                      pipeline))
-            for exe in jip.jobs.create_executions(pipeline,
-                                                  check_outputs=False,
-                                                  save=True):
-                if exe.job.state in [jip.db.STATE_DONE] and \
-                   not args['--force']:
-                    print >>sys.stderr, colorize("Skipped", YELLOW), exe.job
-                    continue
-                if jip.jobs.submit_job(exe.job,
-                                       clean=not args['--no-clean'],
-                                       force=args['--force']):
-                    print "Submitted %s with remote id %s" % (exe.job.id,
-                                                              exe.job.job_id)
-                send.add(exe.job)
+            if jip.jobs.submit_job(exe.job,
+                                   clean=not args['--no-clean'],
+                                   force=args['--force']):
+                print "Submitted %s with remote id %s" % (exe.job.id,
+                                                          exe.job.job_id)
 
 
 if __name__ == "__main__":

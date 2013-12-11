@@ -270,8 +270,8 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
     """
     if check_outputs:
         check_output_files(jobs)
-    if check_queued:
-        jobs = check_queued_jobs(jobs)
+    #if check_queued:
+        #jobs = check_queued_jobs(jobs)
 
     # the instance
     Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
