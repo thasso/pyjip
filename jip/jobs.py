@@ -282,7 +282,7 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
         name = "|".join(str(j) for j in g)
-        completed = job.state != jip.db.STATE_HOLD
+        completed = (job.state is not None and job.state != jip.db.STATE_HOLD)
         if not completed:
             to_save.extend(g)
         runnables.append(Runable(name, job, completed))
@@ -602,7 +602,7 @@ def submit_job(job, clean=False, force=False, save=True,
         jip.jobs.clean(job, cluster=cluster)
 
     # set the job state
-    set_state(job, db.STATE_QUEUED)
+    set_state(job, db.STATE_QUEUED, update_children=True)
 
     if job.id is None:
         if not save:
