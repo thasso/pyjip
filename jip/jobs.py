@@ -27,7 +27,7 @@ log = jip.logger.getLogger("jip.jobs")
 def resolve_jobs(jobs):
     """Takes a list of jobs and returns all jobs of all pipeline
     graphs involved, sorted in topological order. In contrast to
-    :py:fun:`get_subgraph`, this first traverses *up* in the tree to
+    :py:func:`get_subgraph`, this first traverses *up* in the tree to
     find all parent nodes involved.
 
     :param jobs: list of input jobs
@@ -243,7 +243,7 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
             in the job group) is in "Done" state and marked as completed.
 
     If you need to execute a pipeline, you can use this in conjunction with
-    :py:fun:`create_jobs` to yield a list of jobs that you might want to
+    :py:func:`create_jobs` to yield a list of jobs that you might want to
     execute or submit::
 
         >>> p = jip.Pipeline()

@@ -30,9 +30,11 @@ to ensure that no output file is created by multiple jobs.
 
 .. autofunction:: jip.jobs.from_node
 
-.. autofunction:: jip.jobs.create
+.. autofunction:: jip.jobs.create_jobs
 
 .. autofunction:: jip.jobs.check_output_files
+
+.. autofunction:: jip.jobs.check_queued_jobs
 
 Job actions
 -----------
@@ -59,18 +61,18 @@ If it is set to False, the methods will print status information to stdout.
 Jip jobs that are send to a cluster are stored in a database. The database
 stores the job runtime information and calling any of the action methods might
 effect the database state of a job. Please note that, except for
-:py:func:`~jip.jobs.delete` and :py:func:`~jip.jobs.run`, none of the action
+:py:func:`~jip.jobs.delete` and :py:func:`~jip.jobs.run_job`, none of the action
 methods interact with the database or a database session directly. It the
 callers responsibility to commit changed to the database after an action method
 is called. 
 
 As mentioned above, the only exception to this rule are the
-:py:func:`~jip.jobs.delete` and :py:func:`~jip.utils.run` methods, which take
+:py:func:`~jip.jobs.delete` and :py:func:`~jip.utils.run_job` methods, which take
 a database `session`. 
 
-.. autofunction:: jip.jobs.submit
+.. autofunction:: jip.jobs.submit_job
 
-.. autofunction:: jip.jobs.run
+.. autofunction:: jip.jobs.run_job
 
 .. autofunction:: jip.jobs.hold
 
@@ -90,15 +92,13 @@ the system handles jobs specifically with respect to submission:
 
 .. autofunction:: jip.jobs.resolve_jobs
 
-.. autofunction:: jip.jobs.submit_pipeline
-
 
 Job iteration and sorting
 -------------------------
 We mentioned earlier that some of the action methods that can be called with 
 a job depend on the order of jobs. This is important in particular for any
 method that relies on job dependencies. For example, the 
-:py:func:`~jip.jobs.submit` method assumed that any dependencies of a given job
+:py:func:`~jip.jobs.submit_job` method assumed that any dependencies of a given job
 are already submitted. The `jip.jobs` module provides a set of helper functions
 that allow you to sort a list of jobs or extract certain sub-sets from a graph
 of jobs.
@@ -111,4 +111,4 @@ of jobs.
 
 .. autofunction:: jip.jobs.get_subgraph
 
-.. autofunction:: jip.jobs.group
+.. autofunction:: jip.jobs.create_groups

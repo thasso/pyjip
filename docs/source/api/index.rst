@@ -70,7 +70,7 @@ Running jobs locally
 Pipeline instances represent the execution graph and its properties, but they
 are not ment to be executed directly. We have to convert the pipeline nodes 
 into :class:`jobs <jip.db.Job>` that can be executed wither locally or send 
-to a remote cluster. The first step here is to :py:fun:`create 
+to a remote cluster. The first step here is to :py:func:`create 
 <jip.jobs.create>` the job instances::
 
     >>> jobs = create_jobs(p)

@@ -756,8 +756,8 @@ def update_job_states(jobs):
 
     **Note** that no search on the jobs dependencies are performed. You
     have to create the job list with all the jobs you want updated manually.
-    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
-    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    You can use :py:func:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:func:`jip.jobs.get_group_jobs` to create a list of all jobs
     that are related due to grouping or piping.
 
     :param jobs: list of jobs or single job
@@ -796,8 +796,8 @@ def update_archived(jobs, state):
 
     **Note** that no search on the jobs dependencies are performed. You
     have to create the job list with all the jobs you want updated manually.
-    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
-    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    You can use :py:func:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:func:`jip.jobs.get_group_jobs` to create a list of all jobs
     that are related due to grouping or piping.
 
     :param jobs: list of jobs or single job
@@ -834,8 +834,8 @@ def delete(jobs):
 
     **Note** that no searched on the jobs dependencies are performed. You
     have to create the job list with all the jobs you want updated manually.
-    You can use :py:fun:`jip.jobs.get_subgraph` to get a full subgraph of a
-    job, or :py:fun:`jip.jobs.get_group_jobs` to create a list of all jobs
+    You can use :py:func:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:func:`jip.jobs.get_group_jobs` to create a list of all jobs
     that are related due to grouping or piping.
 
     :param jobs: single job or list of jobs
@@ -930,7 +930,7 @@ def get_all():
     return list(session.query(Job))
 
 
-def query_by_output(outputs):
+def query_by_outputs(outputs):
     """Query the database for jobs that reference the given output
     file.
 

@@ -3,13 +3,39 @@ jip.db
 
 .. automodule:: jip.db
 
+Database access
+---------------
+.. autofunction:: jip.db.init
+
+.. autofunction:: jip.db.get
+
+.. autofunction:: jip.db.query
+
+.. autofunction:: jip.db.query_by_outputs
+
+.. autofunction:: jip.db.query_by_inputs
+
+.. autofunction:: jip.db.get_all
+
+.. autofunction:: jip.db.save
+
+.. autofunction:: jip.db.delete
+
+
 Module Methods
 --------------
 .. autofunction:: jip.db.create_session
 
-.. autofunction:: jip.db.init
+.. autofunction:: jip.db.commit_session
 
-.. autofunction:: jip.db.find_job_by_id
+.. autofunction:: jip.db.update_job_states
+
+.. autofunction:: jip.db.get_current_state
+
+.. autofunction:: jip.db.get_active_jobs
+
+.. autofunction:: jip.db.update_archived
+
 
 Persisted properties
 --------------------
