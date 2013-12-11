@@ -238,7 +238,7 @@ class Profile(object):
         """Apply this profile to a given job and all its ambedded children
         All non-None values are applied to the given job.
         """
-        log.info("Applying job profile to %s", job)
+        log.debug("Applying job profile to %s", job)
         if not pipeline:
             job.name = self._render_job_name(job)
         elif self.name is not None:

@@ -1006,27 +1006,27 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
             excludes = []
         excludes.extend(pipeline.excludes)
     if excludes is not None:
-        log.info("Excluding jobs: %s", excludes)
+        log.info("Jobs | Excluding jobs: %s", excludes)
         pipeline.exclude(excludes)
-        log.info("Pipeline has %d nodes after exclusion", len(pipeline))
+        log.info("Jobs | Pipeline has %d nodes after exclusion", len(pipeline))
 
     if skip is not None:
-        log.info("Skipping jobs: %s", skip)
+        log.info("Jobs | Skipping jobs: %s", skip)
         pipeline.skip(skip)
-        log.info("Pipeline has %d nodes after skipping", len(pipeline))
+        log.info("Jobs | Pipeline has %d nodes after skipping", len(pipeline))
 
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
-    log.debug("Creating job environment for %d nodes", len(pipeline))
+    log.debug("Jobs | Creating job environment for %d nodes", len(pipeline))
     env = create_job_env(profiler=profiler)
     nodes2jobs = {}
     jobs = []
     num_nodes = len(pipeline)
     for i, node in enumerate(pipeline.topological_order()):
-        log.debug("Creating job for %s (%d/%d)", node, i + 1, num_nodes)
+        log.debug("Jobs | Creating job for %s (%d/%d)", node, i + 1, num_nodes)
         ## first create jobs
         job = from_node(node, env=env, keep=keep)
-        log.debug("Created job %s", job)
+        log.debug("Jobs | Created job %s", job)
         jobs.append(job)
         nodes2jobs[node] = job
 
@@ -1041,8 +1041,8 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
     # now run the validation on all final jobs and
     # in addition collect output files. An Exception is raised if
     # an output file occurs twice
+    log.info("Jobs | Validating %d jobs", len(jobs))
     for job in jobs:
-        log.info("Validate %s", job)
         job.tool._pipeline = pipeline
         job.tool._job = job
         if profile is not None:

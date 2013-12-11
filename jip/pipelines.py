@@ -909,8 +909,9 @@ class Pipeline(object):
 
                             dup_candidates.append((n1, n2))
             if dup_candidates:
-                log.info("Expand | Merging duplicated nodes: %s",
-                         dup_candidates)
+                log.info("Expand | Merging %d duplicated", len(dup_candidates))
+                log.debug("Expand | Merging duplicated nodes: %s",
+                          dup_candidates)
                 for n1, n2 in dup_candidates:
                     log.debug("Expand | Merging nodes: %s %s", n1, n2)
                     try:
@@ -928,7 +929,7 @@ class Pipeline(object):
                         self.remove(n2)
                         self._apply_node_name(n1, n1._name)
                     except Exception as err:
-                        log.info("Unable to merge: %s", err, exc_info=True)
+                        log.debug("Unable to merge: %s", err)
                         continue
 
             # non-silent validation for pipeline node to
