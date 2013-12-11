@@ -395,6 +395,14 @@ def show_job_tree(jobs, title="Job hierarchy"):
         if len(job.dependencies) == 0:
             draw_node(job, levels=[], parents=set([]), level=0)
     print "#" * 20
+    print "| Tasks: {j:>17}  |".format(j=colorize(len(jobs), BLUE))
+    print "| Jobs: {g:>18}  |".format(
+        g=colorize(len(jip.jobs.create_groups(jobs)), BLUE)
+    )
+    print "| Groups: {g:>16}  |".format(
+        g=colorize(len(set(map(lambda x: x.pipeline, jobs))), BLUE)
+    )
+    print "#" * 20
 
 
 def _clean_value(v):

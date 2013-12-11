@@ -1014,7 +1014,6 @@ class Pipeline(object):
             # same tool
             # Group them by checking that their options are the same
             # hence its the same tool with the same configuration
-            log.info("Expand | Merging tool set with %d nodes", len(nodes))
             while nodes:
                 n = nodes.pop()
                 group = set([n] + [m for m in nodes if m != n and
