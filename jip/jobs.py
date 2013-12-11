@@ -1095,8 +1095,12 @@ def check_output_files(jobs):
 
 def __output_files(jobs):
     for j in jobs:
-        for of in j.get_output_files():
-            yield j, of
+        ofs = list(j.get_output_files())
+        if not ofs:
+            yield j, []
+        else:
+            for of in ofs:
+                yield j, of
 
 
 def check_queued_jobs(jobs):
@@ -1113,10 +1117,11 @@ def check_queued_jobs(jobs):
     # of all currently runninng or queued jobs
     files = {}
     for j, of in __output_files(db.get_active_jobs()):
-        files[of] = j
+        if of:
+            files[of] = j
     checked = []
     for job, of in __output_files(jobs):
-        if of in files:
+        if of and of in files:
             other_job = files[of]
             job.state = other_job.state
             checked.append(other_job)

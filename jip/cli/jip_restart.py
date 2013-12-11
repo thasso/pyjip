@@ -81,17 +81,20 @@ def main():
             pipeline = list(jip.jobs.topological_order(
                 jip.jobs.get_subgraph(job))
             )
+            map(profile.apply, filter(lambda n: n.state != jip.db.STATE_DONE,
+                                      pipeline))
             for exe in jip.jobs.create_executions(pipeline,
                                                   check_outputs=False,
                                                   save=True):
-                if exe.completed and not args['--force']:
+                if exe.job.state in [jip.db.STATE_DONE] and \
+                   not args['--force']:
                     print >>sys.stderr, colorize("Skipped", YELLOW), exe.job
                     continue
-                jip.jobs.submit_job(exe.job,
-                                    clean=not args['--no-clean'],
-                                    force=args['--force'])
-                print "Submitted %s with remote id %s" % (exe.job.id,
-                                                          exe.job.job_id)
+                if jip.jobs.submit_job(exe.job,
+                                       clean=not args['--no-clean'],
+                                       force=args['--force']):
+                    print "Submitted %s with remote id %s" % (exe.job.id,
+                                                              exe.job.job_id)
                 send.add(exe.job)
 
 
