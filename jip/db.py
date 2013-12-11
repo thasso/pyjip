@@ -20,7 +20,7 @@ import sys
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
-from sqlalchemy import Text, Boolean, PickleType, bindparam, select
+from sqlalchemy import Text, Boolean, PickleType, bindparam, select, or_
 from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
@@ -930,35 +930,41 @@ def get_all():
     return list(session.query(Job))
 
 
-def query_by_outputs(outputs):
-    """Query the database for jobs that reference the given output
-    file.
+def query_by_files(inputs=None, outputs=None):
+    """Query the database for jobs that reference the given input or output
+    file. **NOTE** that the queries are permormed ONLY against absolute
+    paths!
 
+    :param inputs: list of abolute path file names or s single file name
     :param outputs: list of abolute path file names or s single file name
     :returns: iterator over all jobs that reference one of the given files
     """
-    if not isinstance(outputs, (list, tuple)):
+    if not inputs and not outputs:
+        raise ValueError("Nor inputs or outputs specified.")
+    if outputs and not isinstance(outputs, (list, tuple)):
         outputs = [outputs]
-    session = create_session()
-    jobs = session.query(Job).filter(
-        Job.out_files.any(OutputFile.path.in_(outputs))
-    )
-    return jobs
-
-
-def query_by_inputs(inputs):
-    """Query the database for jobs that reference the given input
-    file.
-
-    :param outputs: list of abolute path file names or s single file name
-    :returns: iterator over all jobs that reference one of the given files
-    """
-    if not isinstance(inputs, (list, tuple)):
+    if inputs and not isinstance(inputs, (list, tuple)):
         inputs = [inputs]
+    outputs = [os.path.abspath(o) for o in outputs] if outputs else []
+    inputs = [os.path.abspath(o) for o in inputs] if inputs else []
+
+    log.info("DB | query for jobs by files :: %s %s", inputs, outputs)
     session = create_session()
-    jobs = session.query(Job).filter(
-        Job.in_files.any(InputFile.path.in_(inputs))
-    )
+    if inputs and outputs:
+        jobs = session.query(Job).filter(
+            or_(
+                Job.out_files.any(OutputFile.path.in_(outputs)),
+                Job.in_files.any(InputFile.path.in_(inputs))
+            )
+        )
+    elif inputs:
+        jobs = session.query(Job).filter(
+            Job.in_files.any(InputFile.path.in_(inputs))
+        )
+    else:
+        jobs = session.query(Job).filter(
+            Job.out_files.any(OutputFile.path.in_(outputs)),
+        )
     return jobs
 
 

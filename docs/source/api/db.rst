@@ -11,9 +11,7 @@ Database access
 
 .. autofunction:: jip.db.query
 
-.. autofunction:: jip.db.query_by_outputs
-
-.. autofunction:: jip.db.query_by_inputs
+.. autofunction:: jip.db.query_by_files
 
 .. autofunction:: jip.db.get_all
 

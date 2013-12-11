@@ -212,7 +212,7 @@ def test_output_file_query(tmpdir):
     jobs = jip.create_jobs(p, validate=False)
     jip.db.save(jobs)
 
-    job = jip.db.query_by_output(abspath)
+    job = jip.db.query_by_files(outputs=abspath)
     assert job.count() == 1
     assert job.one() == jobs[0]
 
@@ -227,7 +227,7 @@ def test_output_file_query_multiple_files(tmpdir):
     jobs = jip.create_jobs(p, validate=False)
     jip.db.save(jobs)
 
-    job = jip.db.query_by_output([abspath_A, abspath_B])
+    job = jip.db.query_by_files(outputs=[abspath_A, abspath_B])
     assert job.count() == 2
 
 
@@ -240,7 +240,7 @@ def test_input_file_query(tmpdir):
     jobs = jip.create_jobs(p, validate=False)
     jip.db.save(jobs)
 
-    job = jip.db.query_by_inputs(abspath)
+    job = jip.db.query_by_files(inputs=abspath)
     assert job.count() == 1
     assert job.one() == jobs[0]
 
@@ -256,7 +256,7 @@ def test_iput_file_query_multiple_files(tmpdir):
     assert len(jobs) == 2
     jip.db.save(jobs)
 
-    job = jip.db.query_by_inputs([abspath_A, abspath_B])
+    job = jip.db.query_by_files(inputs=[abspath_A, abspath_B])
     assert job.count() == 2
 
 

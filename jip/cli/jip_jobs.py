@@ -6,19 +6,23 @@ Usage:
     jip-jobs [-s <state>...] [-o <out>...] [-e]
              [--show-archived] [-j <id>...] [-J <cid>...]
              [-N] [-q <queue>]
+    jip-jobs [-I <inputs>...] [-O <outputs>...]
     jip-jobs [--help|-h]
 
 Options:
-    --show-archived          Show archived jobs
-    -e, --expand             Do not collapse pipeline jobs
-    -o, --output <out>       Show only specified columns. See below for a list
-                             of supported columns
-    -s, --state <state>      List jobs with specified state
-    -q, --queue <queue>      List jobs with a specified queue
-    -j, --job <id>           List jobs with specified id
-    -J, --cluster-job <cid>  List jobs with specified cluster id
-    -N, --no-pager           Does not pipe the result to the pager
-    -h --help                Show this help message
+    --show-archived              Show archived jobs
+    -e, --expand                 Do not collapse pipeline jobs
+    -o, --output <out>           Show only specified columns. See below for a
+                                 list of supported columns
+    -s, --state <state>          List jobs with specified state
+    -q, --queue <queue>          List jobs with a specified queue
+    -j, --job <id>               List jobs with specified id
+    -J, --cluster-job <cid>      List jobs with specified cluster id
+    -I, --inputs <inputs>...     Query the database for jobs that take one
+                                 of teh specified files as input
+    -O, --outputs <outputs>...   Query the database for jobs that produce
+                                 one of the specified files
+    -h --help                    Show this help message
 
 Columns supported for output:
     ID          The internal job id
@@ -282,38 +286,47 @@ def main():
     ####################################################################
     # Query jobs
     ####################################################################
-    job_ids, cluster_ids = parse_job_ids(args)
-    jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
-                        archived=args['--show-archived'])
-    if not expand:
-        if len(job_ids) > 0 or len(cluster_ids) > 0:
+    inputs = args['--inputs']
+    outputs = args['--outputs']
+    job_ids = None
+    cluster_ids = None
+    if not inputs and not outputs:
+        job_ids, cluster_ids = parse_job_ids(args)
+        jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
+                            archived=args['--show-archived'])
+        if not expand:
+            if job_ids or cluster_ids:
+                all_jobs = []
+                for j in jobs:
+                    all_jobs.extend(jip.jobs.get_parents(j))
+                jobs = all_jobs
+            # reduce to pipeline main jobs
             all_jobs = []
+            stored = set([])
             for j in jobs:
-                all_jobs.extend(jip.jobs.get_parents(j))
+                if len(j.dependencies) == 0 and j not in stored:
+                    stored.add(j)
+                    all_jobs.append(j)
             jobs = all_jobs
-        # reduce to pipeline main jobs
-        all_jobs = []
-        stored = set([])
-        for j in jobs:
-            if len(j.dependencies) == 0 and j not in stored:
-                stored.add(j)
-                all_jobs.append(j)
-        jobs = all_jobs
-        #jobs = [j for j in jobs if len(j.dependencies) == 0]
+            #jobs = [j for j in jobs if len(j.dependencies) == 0]
+        else:
+            if job_ids or cluster_ids:
+                # in expand mode, we have to get all the jobs of a pipeline
+                covered = set([])
+                all_jobs = []
+                for j in jobs:
+                    parents = jip.jobs.get_parents(j)
+                    for p in parents:
+                        if not p in covered:
+                            all_for_j = jip.jobs.get_subgraph(p)
+                            all_jobs.extend(
+                                jip.jobs.topological_order(all_for_j)
+                            )
+                            for cj in all_for_j:
+                                covered.add(cj)
+                jobs = all_jobs
     else:
-        if len(job_ids) > 0 or len(cluster_ids) > 0:
-            # in expand mode, we have to get all the jobs of a pipeline
-            covered = set([])
-            all_jobs = []
-            for j in jobs:
-                parents = jip.jobs.get_parents(j)
-                for p in parents:
-                    if not p in covered:
-                        all_for_j = jip.jobs.get_subgraph(p)
-                        all_jobs.extend(jip.jobs.topological_order(all_for_j))
-                        for cj in all_for_j:
-                            covered.add(cj)
-            jobs = all_jobs
+        jobs = jip.db.query_by_files(inputs=inputs, outputs=outputs)
 
     rows = []
     state = args['--state']
