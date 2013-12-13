@@ -7,8 +7,8 @@ import logging
 
 
 DEFAULT_FMT = "[%(levelname)6s][%(asctime)s][%(name)15s]: %(message)s"
-DEBUG_FMT = "[%(levelname)6s][%(asctime)s][%(name)s]"\
-            "[%(module)s.%(funcName)s:%(lineno)d]: %(message)s"
+DEBUG_FMT = "[%(levelname)6s][%(asctime)s][%(name)15s]"\
+            "[%(module)s.%(funcName)s:%(lineno)4d]: %(message)s"
 
 
 def getLogger(name):

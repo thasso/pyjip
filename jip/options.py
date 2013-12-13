@@ -249,7 +249,7 @@ class Option(object):
         clone.const = self.const
         clone.sticky = self.sticky
         clone.streamable = self.streamable
-        clone.value = self.value
+        clone._value = list(self._value) if self._value else []
         clone._stream_cache = dict(self._stream_cache)
         return clone
 

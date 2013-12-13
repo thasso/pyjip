@@ -91,7 +91,7 @@ def main(argv=None):
         error = None
         try:
             jip.jobs.check_output_files(jobs)
-            jobs = jip.jobs.check_queued_jobs(jobs)
+            #jobs = jip.jobs.check_queued_jobs(jobs)
         except Exception as err:
             error = err
         if args['--dry']:

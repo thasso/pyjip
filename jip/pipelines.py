@@ -579,7 +579,7 @@ class Pipeline(object):
             group.append(node)
             resolved.add(node)
             resolve_streaming_dependencies(node)
-            log.debug("Creating job group: %s", group)
+            log.debug("Expand | Creating job group: %s", group)
             yield group
             group = []
 
@@ -1057,6 +1057,7 @@ class Pipeline(object):
         if silent is False
         """
         try:
+            log.info("Pipeline | Validating node %s", node)
             node._tool.validate()
         except Exception as err:
             if not silent:
@@ -1067,6 +1068,7 @@ class Pipeline(object):
 
     def validate(self):
         """Validate all nodes in the graph"""
+        log.info("Pipeline | Validating all nodes")
         for n in self.nodes():
             n._tool.validate()
 
@@ -1160,7 +1162,7 @@ class Pipeline(object):
             try:
                 log.debug("Fanout | validate cloned node")
                 _update_node_options(cloned_node, self)
-                cloned_node._tool.validate()
+                self._validate_node(cloned_node)
             except KeyboardInterrupt:
                 raise
             except Exception:
@@ -1221,7 +1223,7 @@ def _update_node_options(cloned_node, pipeline):
 
     ctx['__node__'] = cloned_node
     ctx['__pipeline__'] = pipeline
-
+    log.info("Expand | Rendering node options for : %s", cloned_node)
     cloned_node._tool.options.render_context(ctx)
     for o in cloned_node._tool.options:
         o.value = o.value

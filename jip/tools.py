@@ -1297,7 +1297,7 @@ class Tool(object):
         updated using .counter as a suffix.
         """
         cloned_tool = copy.copy(self)
-        cloned_tool._options = copy.deepcopy(self.options)
+        cloned_tool._options = self.options.copy()
         if cloned_tool.name and counter is not None:
             cloned_tool.name = "%s.%d" % (cloned_tool.name, str(counter))
         cloned_tool._options._help = self.options._help
