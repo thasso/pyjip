@@ -216,6 +216,7 @@ class Option(object):
             self.default = None
         self._value = []
         self.value = value
+        self._stream_cache = {}
         ## we set streamable base on the default value
         if self.streamable is None:
             if self.default is not None and not self.is_list():
@@ -249,6 +250,7 @@ class Option(object):
         clone.sticky = self.sticky
         clone.streamable = self.streamable
         clone.value = self.value
+        clone._stream_cache = dict(self._stream_cache)
         return clone
 
     def __getstate__(self):
@@ -262,6 +264,7 @@ class Option(object):
         values = [v if not self._is_stream(v) else self._pickle_stream(v)
                   for v in self._value]
         state['_value'] = values
+        state['_stream_cache'] = {}
         return state
 
     def __setstate__(self, state):
@@ -557,16 +560,22 @@ class Option(object):
 
     def _is_stream(self, v):
         """Returns true if v is a stream or stream like"""
+        cached = self._stream_cache.get(v, None)
+        if cached is not None:
+            return cached
         if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno'))\
            or hasattr(v, 'write') or hasattr(v, 'read'):
+            self._stream_cache[v] = True
             return True
         try:
             from py._io.capture import EncodedFile
             from py._io.capture import DontReadFromInput
             if isinstance(v, (EncodedFile, DontReadFromInput)):
+                self._stream_cache[v] = True
                 return True
         except:
             pass
+        self._stream_cache[v] = False
         return False
 
     def validate(self):
