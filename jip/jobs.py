@@ -447,7 +447,7 @@ def delete(job, clean_logs=False, cluster=None):
     # cancel it if thats the case
     if len(job.pipe_from) == 0:
         if job.state in db.STATES_ACTIVE:
-            cancel(job, save=False, cluster=cluster)
+            cancel(job, save=False, cluster=cluster, cancel_children=False)
         if clean_logs:
             clean(job, cluster=cluster)
     log.info("Deleting job: %s-%s", str(job), str(job.id))
@@ -597,7 +597,7 @@ def submit_job(job, clean=False, force=False, save=True,
     cluster = cluster if cluster else jip.cluster.get()
     # cancel or clean the job
     if job.state in db.STATES_ACTIVE:
-        cancel(job, clean_logs=True, cluster=cluster)
+        cancel(job, clean_logs=True, cluster=cluster, cancel_children=False)
     elif clean:
         jip.jobs.clean(job, cluster=cluster)
 

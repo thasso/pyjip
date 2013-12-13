@@ -36,7 +36,8 @@ def main():
                "to cancel %d jobs" % len(jobs),
                False):
         for job in jobs:
-            if jip.jobs.cancel(job, clean_logs=args['--clean'], save=True):
+            if jip.jobs.cancel(job, clean_logs=args['--clean'],
+                               save=True, cancel_children=False):
                 print >>sys.stderr, "Canceled %s" % job.id
 
 
