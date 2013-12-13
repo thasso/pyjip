@@ -143,6 +143,8 @@ class tool(object):
                         implements the tools ``get_command`` function
     :param validate: name of the function or a function reference that
                      implements the tools ``validate`` function
+    :param setup: name of the function or a function reference that
+                     implements the tools ``setup`` function
     :param run: name of the function or a function reference that
                 implements the tools ``run`` function
     :param pipeline: name of the function or a function reference that
@@ -161,6 +163,7 @@ class tool(object):
     def __init__(self, name=None, inputs=None, outputs=None,
                  argparse='register', get_command='get_command',
                  validate='validate',
+                 setup='setup',
                  run='run',
                  pipeline='pipeline',
                  is_done='is_done',
@@ -185,6 +188,7 @@ class tool(object):
         # tool delegates
         ################################################################
         self._validate = validate if validate else "validate"
+        self._setup = setup if setup else "setup"
         self._is_done = is_done if is_done else "is_done"
         self._pipeline = pipeline if pipeline else "pipeline"
         self._get_command = get_command if get_command else "get_command"
@@ -205,8 +209,11 @@ class tool(object):
         # overwrite the string representation
         if not isinstance(cls, types.FunctionType):
             cls.__repr__ = lambda x: self.name
-        Scanner.registry[self.name] = PythonTool(cls, self,
-                                                 self.add_outputs)
+        tool_instance = PythonTool(cls, self, self.add_outputs)
+        Scanner.registry[self.name] = tool_instance
+        # setup the tool
+        tool_instance.setup()
+
         log.debug("Registered tool from module: %s", self.name)
         return cls
 
@@ -281,6 +288,9 @@ class tool(object):
                 log.debug("Validation error: %s", str(err).strip())
                 err = ValidationError(wrapper, str(err))
             raise err
+
+    def setup(self, wrapper, instance):
+        return self.__call_delegate(self._setup, wrapper, instance)
 
     def is_done(self, wrapper, instance):
         return self.__call_delegate(self._is_done, wrapper, instance)
@@ -388,14 +398,16 @@ class Scanner():
             ## the passed argument is a file. Try to load it at a
             ## script and add the files directory to the search path
             tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
-            self.instances[name] = tool
+            self._register_tool(name, tool)
             self.jip_file_paths.add(dirname(name))
             return tool.clone()
 
         if not self.initialized:
             self.scan()
             self.initialized = True
+
         self.instances.update(Scanner.registry)
+
         s = name.split(" ", 1)
         args = None
         if len(s) > 1:
@@ -412,7 +424,7 @@ class Scanner():
             ## the tool is not loaded, load the script,
             ## and add it to the cache
             tool = ScriptTool.from_file(tool, is_pipeline=is_pipeline)
-            self.instances[name] = tool
+            self._register_tool(name, tool)
         log.debug("Scanner | Cloning tool %s [%s]", tool, tool.__hash__())
         clone = tool.clone()
         if args:
@@ -433,8 +445,12 @@ class Scanner():
         self.scan_files(parent=path)
         self.scan_modules()
         for n, m in Scanner.registry.iteritems():
-            self.instances[n] = m
+            self._register_tool(n, m)
         return self.instances
+
+    def _register_tool(self, name, tool):
+        self.instances[name] = tool
+        tool.setup()
 
     def scan_files(self, parent=None):
         """Scan files for jip tools. This functions detects files with
@@ -998,6 +1014,17 @@ class Tool(object):
         self._options_source = options_source
         self._job = None
 
+    def setup(self):
+        """Setup method that can be implemented to initialize the tool instance
+        and, for example, add options.
+        The setup is called once for the tool instance and the logic within
+        the setup is not allowed to rely on any values set or applied to the
+        tool.
+
+        :raises Exception: in case of a critical error
+        """
+        pass
+
     @property
     def name(self):
         return self._name
@@ -1426,6 +1453,9 @@ class PythonTool(Tool):
         Tool.validate(self)
         return r
 
+    def setup(self):
+        return self.decorator.setup(self, self.instance)
+
     def is_done(self):
         return self.decorator.is_done(self, self.instance)
 
@@ -1476,12 +1506,13 @@ class ScriptTool(Tool):
     allows the validation process to modify the tool and its arguments during
     validation.
     """
-    def __init__(self, docstring, command_block=None,
+    def __init__(self, docstring, command_block=None, setup_block=None,
                  validation_block=None, pipeline_block=None):
         Tool.__init__(self, docstring)
         self.command_block = command_block
         self.validation_block = validation_block
         self.pipeline_block = pipeline_block
+        self.setup_block = setup_block
         if self.pipeline_block:
             if self.pipeline_block.interpreter is not None and \
                     self.pipeline_block.interpreter != 'python':
@@ -1494,11 +1525,19 @@ class ScriptTool(Tool):
             )
         if self.validation_block and \
                 (self.validation_block.interpreter is None or
-                 self.validation_block .interpreter == 'python'):
+                 self.validation_block.interpreter == 'python'):
             self.validation_block = PythonBlock(
                 lineno=self.validation_block._lineno,
                 content=self.validation_block.content
             )
+        if self.setup_block and \
+                (self.setup_block.interpreter is None or
+                 self.setup_block.interpreter == 'python'):
+            self.setup_block = PythonBlock(
+                lineno=self.setup_block._lineno,
+                content=self.setup_block.content
+            )
+
         if not self.command_block and not self.pipeline_block:
             raise Exception("No executable or pipeline block found!")
 
@@ -1516,6 +1555,11 @@ class ScriptTool(Tool):
         if self.validation_block:
             self.validation_block.run(self)
         Tool.validate(self)
+
+    def setup(self):
+        if self.setup_block:
+            self.setup_block.run(self)
+        Tool.setup(self)
 
     def get_command(self):
         if self.command_block:

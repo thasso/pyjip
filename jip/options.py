@@ -562,23 +562,33 @@ class Option(object):
 
     def _is_stream(self, v):
         """Returns true if v is a stream or stream like"""
-        cached = self._stream_cache.get(v, None)
+        cached = None
+        try:
+            cached = self._stream_cache.get(v, None)
+        except:
+            pass
         if cached is not None:
             return cached
         if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno'))\
            or hasattr(v, 'write') or hasattr(v, 'read'):
-            self._stream_cache[v] = True
+            self.__add_to_stream_cache(v, True)
             return True
         try:
             from py._io.capture import EncodedFile
             from py._io.capture import DontReadFromInput
             if isinstance(v, (EncodedFile, DontReadFromInput)):
-                self._stream_cache[v] = True
+                self.__add_to_stream_cache(v, True)
                 return True
         except:
             pass
-        self._stream_cache[v] = False
+        self.__add_to_stream_cache(v, False)
         return False
+
+    def __add_to_stream_cache(self, v, s):
+        try:
+            self._stream_cache[v] = s
+        except:
+            pass
 
     def validate(self):
         """Validate the option and raise a ValueError if the option

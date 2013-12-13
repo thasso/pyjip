@@ -431,3 +431,33 @@ def test_tool_job_is_callable_in_pipeline_runs():
     p.run('MyPipeline')
     p.expand()
     assert len(called) >= 2
+
+
+def test_tool_setup_called_on_init():
+    @jip.tool()
+    class setup_tool(object):
+        def setup(self):
+            self.add_output('output')
+
+        def get_comand(self):
+            return "true"
+
+    t = jip.find('setup_tool')
+    assert t.options['output'] is not None
+
+
+@pytest.mark.parametrize("funcname", TOOL_ATTRS)
+def test_tool_script_setup_block_call(funcname):
+    script = ScriptTool.from_string(
+        """#!/bin/bash
+#Simple tool
+#
+#%%begin setup
+
+assert '%s' in locals(), "Injected function %s not found"
+
+#%%end
+echo
+""" % (funcname, funcname))
+    assert script is not None
+    script.setup()

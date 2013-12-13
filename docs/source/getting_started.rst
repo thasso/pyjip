@@ -93,6 +93,11 @@ three types of blocks available:
       execution blocks is to gain the ability to work with compute clusters and
       validate tools and pipelines before they are submitted. Please note the
       currently, `validation` blocks have to be written in *python*.  
+
+    * **setup** blocks allow you to execute customizations on the tool instance
+      itself. These blocks are called when the initial tool is created and
+      can be used, for example, to add options to the tool. Please note the
+      currently, `setup` blocks have to be written in *python*.  
       
     * **pipeline** blocks are written in *python* and allow you to compose
       pipelines of tools.

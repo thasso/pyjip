@@ -44,12 +44,22 @@ The simplest form of a tool consist of the following parts:
         other hand, an execution block can also create a *pipeline* which then
         will be incorporated into the overall execution graph.
 
+    Setup block
+        A tool instance can provide a setup block that will be called once, 
+        when the tool is loaded. Setup implementation are not allowed to 
+        act on option values, but, can be used to setup and initialize the 
+        tool instance itself. For example, to add :ref:`dynamic options` to 
+        the tool instance. Please note that the setup blocks have to be
+        implemented in `python` and there is currently no way to change the
+        interpreter for those blocks.
+
     Validation block
         In addition to the actual execution, a *tool* implementation can
         extend its default validation. By default, the system ensures the all
         specified input files exists. You can add more checks in the validation
         block and you have the chance to add :ref:`dynamic options 
-        <dynamic_options>` to the tools definition. Please note that the 
+        <dynamic_options>` to the tools definition although you might want
+        to consider using a *setup block* for that. Please note that the 
         validation blocks have to be implemented in `python` and there is
         currently no way to change the interpreter for those blocks.
 
@@ -81,7 +91,7 @@ contains the following blocks:
         contains also the option definition. We use the great `docopt 
         <http://docopt.org>`_ library to parse your option definitions. 
 
-    Blocks for validation and execution
+    Blocks for setup, validation and execution
         You can open a block in a JIP script using ``#%begin <blocktype> 
         <args>`` and close it with ``#%end``. Nested blocks are currently 
         not supported. 
@@ -203,6 +213,22 @@ All execution blocks can be explicitly opened with ``#%begin command`` or
 ``#%begin pipeline`` and can be closed by ``#%end``. If no block is opened
 explicitly, a *bash* command block is created implicitly.
 
+Setup blocks
+************
+A script or tool definition can specify a setup block in order to create 
+more options that are registered with the tool. Please note that the setup
+blocks are evaluated once, just after the tool is created. That means that
+option values are not yet set and you can not implement any logical decisions
+based on the option values. You can, however, use the setup blocks to 
+add more options to a tool. For example::
+
+    #%begin setup
+    add_output('output', '${input|name|ext}.out')
+    #%end
+
+Here we add a new output option and set its value as a template that uses the
+tools ``input`` option. This is valid as the options value will be evaluated
+later, when the input option is set.
 
 Validation blocks
 *****************
@@ -325,7 +351,10 @@ add a ``validate``  block like this::
 Within the validate block, which is implemented in `python`, you have full 
 access to `the scripts' contetx <python_context>`, for example, to use the 
 :py:meth:`~jip.tools.PythonBlockUtils.check_file` function. If you want to 
-fail your validation manually, you have to raise an :py:exc:`~jip.tools.ValidationError`. The easies way to do this is via the python contexts' :py:meth:`~jip.tools.PythonBlockUtils.validation_error` function. Specify an error message and 
+fail your validation manually, you have to raise an
+:py:exc:`~jip.tools.ValidationError`. The easies way to do this is via the
+python contexts' :py:meth:`~jip.tools.PythonBlockUtils.validation_error`
+function. Specify an error message and 
 the exaception will we raised. For example::
 
     #%begin validate
