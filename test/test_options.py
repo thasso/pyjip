@@ -348,3 +348,6 @@ def test_add_output_single_value_option_multiplw_inputs():
         o.get()
 
 
+def test_option_is_stream_empty_value():
+    o = Option('test')
+    assert not o.is_stream()

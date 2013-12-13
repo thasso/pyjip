@@ -553,6 +553,8 @@ class Option(object):
 
         :returns: True if current value is a stream
         """
+        if len(self._value) == 0:
+            return self.streamable
         s = True
         for v in self._value:
             s &= self._is_stream(v)

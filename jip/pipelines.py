@@ -236,9 +236,16 @@ class Pipeline(object):
         else:
             tool = _tool_name
         node = self.add(tool, _job=_job)
+
+        #################################################################
+        # We do two rounds of validation here. The first one needs
+        # to be done befor any attributes are set, the second one
+        # is done after attributes are applied
+        #################################################################
         try:
-            node._tool.validate()
-        except:
+            tool.validate()
+        except Exception as err:
+            log.info("Validation error for %s: %s", node, str(err).strip())
             pass
 
         for k, v in kwargs.iteritems():
