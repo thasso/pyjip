@@ -211,8 +211,6 @@ class tool(object):
             cls.__repr__ = lambda x: self.name
         tool_instance = PythonTool(cls, self, self.add_outputs)
         Scanner.registry[self.name] = tool_instance
-        # setup the tool
-        tool_instance.setup()
 
         log.debug("Registered tool from module: %s", self.name)
         return cls
@@ -427,6 +425,7 @@ class Scanner():
             self._register_tool(name, tool)
         log.debug("Scanner | Cloning tool %s [%s]", tool, tool.__hash__())
         clone = tool.clone()
+        clone.setup()
         if args:
             log.debug("Scanner | Parsing arguments passed through tool name")
             clone.parse_args(args)
@@ -450,7 +449,6 @@ class Scanner():
 
     def _register_tool(self, name, tool):
         self.instances[name] = tool
-        tool.setup()
 
     def scan_files(self, parent=None):
         """Scan files for jip tools. This functions detects files with

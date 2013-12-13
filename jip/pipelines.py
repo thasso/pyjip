@@ -245,7 +245,7 @@ class Pipeline(object):
         try:
             tool.validate()
         except Exception as err:
-            log.info("Validation error for %s: %s", node, str(err).strip())
+            log.debug("Validation error for %s: %s", node, str(err).strip())
             pass
 
         for k, v in kwargs.iteritems():
