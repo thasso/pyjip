@@ -634,7 +634,6 @@ class Pipeline(object):
                 else:
                     node = name
                 _recursive_remove(names2nodes[name])
-        map(lambda n: n.update_options(), self.nodes())
         self._update_cleanup_nodes()
 
     def skip(self, excludes):
@@ -705,8 +704,6 @@ class Pipeline(object):
                             )
 
                 self.remove(node)
-                map(lambda n: n.update_options(), parents)
-                map(lambda n: n.update_options(), children)
         self._update_cleanup_nodes()
 
     def context(self, context):
@@ -767,6 +764,20 @@ class Pipeline(object):
         self._expand_sub_pipelines(validate=validate)
 
         if _find_dup:
+            # render all ndoes
+            log.info("Expand | Render node context for %d nodes", len(self))
+            _render_nodes(self, list(self.nodes()))
+            # update node option values from links
+            # TODO add index to links and use it here
+            updated = set([])
+            for node in self.nodes():
+                for link in [l for e in node.incoming() for l in e._links]:
+                    source = link[0]
+                    target = link[1]
+                    if not target in updated:
+                        target._value = []
+                        updated.add(target)
+                    target._value.extend(source._value)
             # detect duplicates and try to merge them
             self._expand_merge_duplicates()
 
@@ -779,7 +790,6 @@ class Pipeline(object):
             log.info("Expand | Validating nodes")
             for node in self.nodes():
                 self._validate_node(node, silent=not validate)
-                node.update_options()
                 if node._tool._job_name is not None:
                     self._apply_node_name(node, node._tool._job_name)
 
@@ -830,8 +840,6 @@ class Pipeline(object):
         """
         if not fanout:
             log.info("Expand | Fanout disabled, updating options")
-            for node in self.nodes():
-                _update_node_options(node, self)
             return False
 
         log.info("Expand | Checking for fanout in %d nodes", len(self))
@@ -840,18 +848,11 @@ class Pipeline(object):
             fanout_options = self._get_fanout_options(node)
             if not fanout_options:
                 log.debug("Expand | No fanout options found for %s", node)
-                _update_node_options(node, self)
                 continue
             # check that all fanout options have the same length
-            num_values = len(fanout_options[0])
-            log.info("Expand | Prepare fanout for %s with %d values",
-                     node, num_values)
-            if not all(num_values == len(i) for i in fanout_options):
-                option_names = ["%s(%d)" % (o.name, len(o))
-                                for o in fanout_options]
-                raise ValueError("Unable to fan out node '%s'! The number of "
-                                 "options used for fan out differers: %s" %
-                                 (node, ", ".join(option_names)))
+            self._check_fanout_options(node, fanout_options)
+            # no exception was raised so we can actually do the
+            # fanout on the giben node
             self._fan_out(node, fanout_options)
             fanout_done = True
         return fanout_done
@@ -977,6 +978,10 @@ class Pipeline(object):
                                     sub_node._tool.options[po['option'].name],
                                     stream
                                 )
+            nds = {}
+            for n in self.nodes():
+                nds[n.name] = n
+            _create_render_context(self, node._tool, node, nds)
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
@@ -1083,12 +1088,15 @@ class Pipeline(object):
     def _fan_out(self, node, options):
         """Fan-out the given node using the given options
         This will remove the node from the graph, clone it once
-        for each option value and readd the clones
+        for each option value and re-add the clones
         """
+        # get all edges of the node and
+        # a list of list of values on which we fanout the
+        # node
         _edges = list(node._edges)
-        values = [o.raw() for o in options]
-        log.debug("Fanout | %s with %d options %d values",
-                  node, len(options), len(values[0]))
+        values = [o.expand() for o in options]
+        log.info("Fanout | %s with %d options %d values",
+                 node, len(options), len(values[0]))
 
         incoming_links = []
         incoming_edges = []
@@ -1106,38 +1114,20 @@ class Pipeline(object):
         log.debug("Fanout | incoming edges: %s", incoming_edges)
         log.debug("Fanout | incoming values: %s", values)
 
+        need_to_clone_edges = [e for e in _edges if not e in incoming_edges]
+
         # clone the tool
         for i, opts in enumerate(zip(*values)):
-            log.debug("Fanout clone node: %s", node)
+            log.debug("Fanout | Clone node: %s", node)
             cloned_tool = node._tool.clone()
-            ## set the new values
-            for j, option in enumerate(options):
-                cloned_tool.options[option.name].value = opts[j]
+            # Add the cloned tool to the current graph
             cloned_node = self.add(cloned_tool, _job=node._job)
-            log.debug("Fanout | add new node: %s", cloned_node)
-            # reattach the edges and copy the links
-            for e in _edges:
-                new_edge = None
-                if e._source == node:
-                    new_edge = self.add_edge(cloned_node, e._target)
-                    new_edge._group = e._group
-                    for link in e._links:
-                        link = new_edge.add_link(
-                            cloned_tool.options[link[0].name],
-                            link[1]
-                        )
-                        log.debug("Fanout | add link to edge: %s [%s]",
-                                  new_edge, link)
-                elif e._target == node and e not in incoming_edges:
-                    new_edge = self.add_edge(e._source, cloned_node)
-                    new_edge._group = e._group
-                    for link in e._links:
-                        link = new_edge.add_link(
-                            link[0],
-                            cloned_tool.options[link[1].name]
-                        )
-                        log.debug("Fanout | add link to edge: %s [%s]",
-                                  link, new_edge)
+            log.debug("Fanout | Added new node: %s", cloned_node)
+            # reattach all edge that are not part of the fanout
+            # and copy the links. We will resolve the incoming edges
+            # in the next step
+            for edge in need_to_clone_edges:
+                self._fanout_add_edge(edge, node, cloned_node)
 
             # now apply the options and create the incoming edges
             for j, option in enumerate(options):
@@ -1151,29 +1141,46 @@ class Pipeline(object):
                             cloned_tool.options[link[1].name]
                         )
                         log.debug("Fanout | add link from inedge to edge: "
-                                  "%s [%s]",
-                                  link, new_edge)
+                                  "%s [%s]", link, new_edge)
                 cloned_node.set(option.name, opts[j], set_dep=False)
                 log.debug("Fanout | apply value %s: %s=%s", cloned_node,
                           option.name, opts[j])
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
-            # silent validation of the cloned node
-            try:
-                log.debug("Fanout | validate cloned node")
-                _update_node_options(cloned_node, self)
-                self._validate_node(cloned_node)
-            except KeyboardInterrupt:
-                raise
-            except Exception:
-                pass
-            log.debug("Fanout | check for children to update values")
-            # update all children
-            for child in cloned_node.children():
-                child.update_options(_ignore_errors=True)
-                log.debug("Fanout | update child values %s : %s",
-                          child, child._tool.options)
+        # because the node might be referenced ouside, we create a render
+        # contentx
+        nds = {}
+        for n in self.nodes():
+            nds[n.name] = n
+        _create_render_context(self, node._tool, node, nds)
         self.remove(node)
+
+    def _fanout_add_edge(self, edge, node, cloned_node):
+        """Re-add edges to a cloned node."""
+        cloned_tool = cloned_node._tool
+        if edge._source == node:
+            # Outgoing edge
+            new_edge = self.add_edge(cloned_node, edge._target)
+            new_edge._group = edge._group
+            for link in edge._links:
+                link = new_edge.add_link(
+                    cloned_tool.options[link[0].name],
+                    link[1]
+                )
+                link[1]._value.append(cloned_tool.options[link[0].name])
+                log.debug("Fanout | add link to edge: %s [%s]",
+                          new_edge, link)
+        elif edge._target == node:
+            # Incoming edge
+            new_edge = self.add_edge(edge._source, cloned_node)
+            new_edge._group = edge._group
+            for link in edge._links:
+                link = new_edge.add_link(
+                    link[0],
+                    cloned_tool.options[link[1].name]
+                )
+                log.debug("Fanout | add link to edge: %s [%s]",
+                          link, new_edge)
 
     def _get_fanout_options(self, node):
         """Find a list of options in the tool that take a single value
@@ -1184,6 +1191,21 @@ class Pipeline(object):
         fan_out = filter(lambda o: not o.is_list() and len(o) > 1,
                          node._tool.options)
         return fan_out
+
+    def _check_fanout_options(self, node, fanout_options):
+        """Takes a source node and a list of fanout options and
+        raises a ValueError if the fanout options do not contain the
+        same number of elements
+        """
+        if not fanout_options:
+            return
+        num_values = len(fanout_options[0])
+        if not all(num_values == len(i) for i in fanout_options):
+            option_names = ["%s(%d)" % (o.name, len(o))
+                            for o in fanout_options]
+            raise ValueError("Unable to fan out node '%s'! The number of "
+                             "options used for fan out differers: %s" %
+                             (node, ", ".join(option_names)))
 
     def _dfs(self, node, visited=None):
         if visited is None:
@@ -1802,53 +1824,6 @@ class Node(object):
             else:
                 option.append(value)
 
-    def update_options(self, _ignore_errors=False):
-        """Update the option values resolving new values from the incoming
-        edges source links
-        """
-        # map from the target option to a list of
-        # source options
-        links = {}
-        for in_edge in self.incoming():
-            for link in in_edge._links:
-                source_opts = links.get(link[1], [])
-                source_opts.append(link[0])
-                links[link[1]] = source_opts
-        # now update the option values
-        # if the sources are more than one, we append
-        updated = set([])
-        for target, sources in links.iteritems():
-            new_value = []
-            for s in sources:
-                if s.render_context is None:
-                    s.render_context = {}
-                    for o in s.source.options:
-                        s.render_context[o.name] = o
-                try:
-                    v = s.value
-                except:
-                    if not _ignore_errors:
-                        raise
-                    v = s._value
-                if isinstance(v, (list, tuple)):
-                    new_value.extend(v)
-                else:
-                    new_value.append(v)
-            target.value = new_value
-            updated.add(target)
-        ctx = {}
-        for o in self._tool.options:
-            ctx[o.name] = o
-        for o in self._tool.options:
-            if not o in updated:
-                if o.render_context is None:
-                    o.render_context = ctx
-                try:
-                    o.value = o.value
-                except:
-                    if not _ignore_errors:
-                        raise
-
 
 class _NodeProxy(object):
     """Create groups of nodes and proxy all functions except for the
@@ -1981,3 +1956,36 @@ class Edge(object):
 
     def __repr__(self):
         return "[%s->%s]" % (str(self._source), str(self._target))
+
+
+def _create_render_context(pipeline, tool, node=None, nodes=None):
+    # add all nodes
+    if nodes:
+        ctx = dict(nodes)
+    else:
+        ctx = {}
+    # add all node options
+    for o in tool.options:
+        ctx[o.name] = o
+    # update global
+    if pipeline.utils:
+        ctx = pipeline.utils._update_context(ctx, base_node=node)
+    # store for each option
+    for o in tool.options:
+        o.render_context = ctx
+    return ctx
+
+
+def _render_nodes(pipeline, nodes):
+    nds = {}
+    for n in pipeline.nodes():
+        nds[n.name] = n
+
+    # create a context for each node and set it for each option
+    for node in nodes:
+        _create_render_context(pipeline, node._tool, node, nds)
+
+    # render out all node options
+    for node in nodes:
+        for o in node._tool.options:
+            o._value = o.value

@@ -99,6 +99,7 @@ class BWAPipelineTest(unittest.TestCase):
         assert pileup.has_incoming(index)
         assert not pileup.has_outgoing()
 
+
 @jip.tool('gem_index')
 class GemIndex(object):
     """
@@ -174,9 +175,15 @@ def test_gemtools_index_command_rendering_for_options():
     p = jip.Pipeline()
     p.run('gem_index', input="Makefile", output_dir='test')
     p.expand(validate=False)
+    print ">>>EXPNDED"
+    node = p.get('gem_index')
+    print ">>>", node
+    print node._tool.options
+    print ">>>CREATE JOBS?"
     job = jip.create_jobs(p)[0]
     infile = os.path.abspath("Makefile")
     base = os.path.dirname(infile)
+    print ">>>", job.command
     assert job.command == 'gemtools index -i %s -o %s.gem -t 1 ' % (
         infile, os.path.join(base, "test/Makefile"))
 
@@ -225,17 +232,21 @@ class gem(object):
         -i, --index <genome_index>  The GEM index file for the genome
         -a, --annotation <annotation>  The reference annotation in GTF format
     """
-    def validate(self):
-        if len(self.fastq) == 1:
-            self.add_option('single_end', True, long="--single-end",
-                            hidden=False)
+    def setup(self):
         self.add_output('map', "${output_dir}/${name}.map.gz")
         self.add_output('bam', "${output_dir}/${name}.bam")
         #self.add_output('bam', "out.bam")
         self.add_output('bai', "${output_dir}/${name}.bam.bai")
+        self.add_option('single_end', False, long="--single-end",
+                        hidden=False)
+
+    def validate(self):
+        if len(self.fastq) == 1:
+            self.options['single_end'].set(True)
 
     def get_command(self):
-        return 'bash','gemtools rna-pipeline ${options()}'
+        return 'bash', 'gemtools rna-pipeline ${options()}'
+
 
 @jip.tool('grape_flux')
 class flux(object):
@@ -253,7 +264,7 @@ class flux(object):
         -i, --input <input>  The input file with mappings
         -a, --annotation <annotation>  The reference annotation in GTF format
     """
-    def validate(self):
+    def setup(self):
         self.add_option('name',"${input|name|ext}")
         self.add_output('gtf', "${output_dir}/${name}.gtf")
 
@@ -294,6 +305,7 @@ class GrapePipeline(object):
         )
         p.context(locals())
         return p
+
 
 def test_gem_name_option_delegation():
     p = jip.Pipeline()

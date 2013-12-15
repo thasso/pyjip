@@ -302,7 +302,12 @@ class Option(object):
     def __len__(self):
         """Return the number of elements currently assigned to this option"""
         if not self._value:
-            return 0
+            if self.default is None:
+                return 0
+            else:
+                if isinstance(self.default, (list, tuple)):
+                    return len(self.default)
+                return 1
         c = 0
         for v in self._value:
             c += len(v) if isinstance(v, Option) else 1
@@ -375,43 +380,24 @@ class Option(object):
         :type: single object or list of objects
         """
         values = self._value
-        set_from_default = False
         if self.default is not None and len(self._value) == 0:
-            set_from_default = True
             values = [self.default]
         if self.render_context:
             from jip.templates import render_template
-
-            # check if there is a pipeline in the current render context
-            # if thats the case, we use it the create a more sophisticated
-            # context that can in fact manipulate the pipeline and update
-            # dependencies when nodes are accessed on option templates
-            # from other nodes
-            ctx = dict(self.render_context)
-            if "__pipeline__" in ctx:
-                # update from pipeline context
-                pipeline = ctx['__pipeline__']
-                node = None
-                if self.source:
-                    node = pipeline._nodes[self.source]
-                pipeline.utils._update_context(ctx, base_node=node)
-
-            # resolve embedded option values
-            resolved = []
-            for v in values:
-                if isinstance(v, Option):
-                    resolved.extend(v.value)
+            rendered = []
+            ctx = self.render_context
+            for value in values:
+                if isinstance(value, basestring):
+                    v = render_template(value, **ctx)
+                    rendered.append(v)
+                elif isinstance(value, Option):
+                    v = value.value
+                    rendered.extend(v)
                 else:
-                    resolved.append(v)
-            new_values = []
-            for v in resolved:
-                if isinstance(v, basestring) and "${" in v:
-                    v = render_template(v, **ctx)
-                new_values.append(v)
-            values = new_values
+                    rendered.append(value)
             self.render_context = None
-            if not set_from_default:
-                self._value = values
+            self._value = rendered
+            return rendered
         return values
 
     @value.setter
@@ -539,6 +525,28 @@ class Option(object):
         return None if len(self._value) == 0 else [
             v if not isinstance(v, Option) else v.raw() for v in self.value
         ]
+
+    def expand(self):
+        """Returns the raw values of the list but expanded to contain
+        options multiple times in case the _value contains options.
+
+        This can be used in fanout mode for pipeline nodes where you need
+        to resolve the full list of values n times.
+
+        :returns: list of expanded values
+        """
+        values = self._value if self._value else \
+            ([self.default] if self.default is not None else [])
+        if not values:
+            return []
+        vs = []
+        # expand any sub options
+        for v in values:
+            if isinstance(v, Option):
+                vs.extend([v] * len(v))
+            else:
+                vs.append(v)
+        return vs
 
     def __resolve(self, v, converter=str):
         """Helper to resolve a single value to its string representation
@@ -921,14 +929,6 @@ class Options(object):
         """Resolve file wildcards on input options."""
         for in_opt in self.get_by_type(TYPE_INPUT):
             in_opt.glob()
-
-    def render_context(self, ctx):
-        """Set the options render context to the given context
-
-        :param ctx: the options render context
-        """
-        for o in self:
-            o.render_context = ctx
 
     def __iter__(self):
         for opt in self.options:

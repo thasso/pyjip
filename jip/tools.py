@@ -605,8 +605,6 @@ class Block(object):
         ctx['__file__'] = tool.path
         ctx['args'] = tool.options.to_dict()
         ctx['options'] = tool.options.to_cmd
-        tool.options.render_context(ctx)
-
         return render_template(content, **ctx)
 
     def terminate(self):

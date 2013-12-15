@@ -868,8 +868,8 @@ def from_node(node, env=None, keep=False):
         node._job.apply(job)
 
     # store additional options
-    node._tool.options.make_absolute(job.working_directory)
     job.configuration = node._tool.options
+    job.configuration.make_absolute(job.working_directory)
     if node._additional_input_options:
         node_options = set(job.configuration.options)
         job.additional_options = set([])

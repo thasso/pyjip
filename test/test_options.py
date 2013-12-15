@@ -351,3 +351,42 @@ def test_add_output_single_value_option_multiplw_inputs():
 def test_option_is_stream_empty_value():
     o = Option('test')
     assert not o.is_stream()
+
+
+def test_option_expand_single():
+    o = Option('test')
+    o.set(1)
+    assert o.expand() == [1]
+
+
+def test_option_expand_single_default():
+    o = Option('test', default=1)
+    assert o.expand() == [1]
+
+
+def test_option_expand_list():
+    o = Option('test')
+    o.set([1, 2, 3])
+    assert o.expand() == [1, 2, 3]
+
+
+def test_option_expand_single_embedded():
+    o = Option('test')
+    p = Option('embedded', default=1)
+    o.set(p)
+    assert o.expand() == [p]
+
+
+def test_option_expand_list_embedded():
+    o = Option('test')
+    p = Option('embedded')
+    p.set([1, 2, 3])
+    o.set(p)
+    assert o.expand() == [p, p, p]
+
+
+def test_option_expand_mixed_embedded():
+    o = Option('test')
+    p = Option('embedded', default=1)
+    o.set([1, p, 2])
+    assert o.expand() == [1, p, 2]

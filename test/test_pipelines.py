@@ -735,15 +735,14 @@ class joined_pipeline(object):
         p.add_argument("--inter", default=sys.stdout)
 
     def pipeline(self):
-        args = self.options.to_dict()
         p = jip.Pipeline()
         p.name("Joined")
         test1 = p.job("Test1").run('first_pipeline',
-                                   output=args['inter'],
-                                   input=args['input'])
-        test2 = p.job("Test2").run('second_pipeline',
-                                   input=test1,
-                                   output=args['output'])
+                                   output=self.options['inter'],
+                                   input=self.options['input'])
+        p.job("Test2").run('second_pipeline',
+                           input=test1,
+                           output=self.options['output'])
         return p
 
 
@@ -761,8 +760,93 @@ def test_nested_pipes_stream_setup_stream():
     t2 = p.get("TestJob2")
     assert t1.has_outgoing(t2, ('output', 'input'), True)
 
-    print t1._tool.options
-    print t2._tool.options
+
+def test_nested_pipes_stream_setup_stream_jobs():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input="Makefile", output="out.txt")
+    jobs = jip.create_jobs(p)
+    groups = jip.create_groups(jobs)
+
+    cwd = os.getcwd()
+    join = os.path.join
+    assert len(groups) == 1
+    assert len(jobs) == 2
+    assert jobs[0].configuration['input'].get() == join(cwd, 'Makefile')
+    assert jobs[1].configuration['output'].get() == join(cwd, 'out.txt')
+
+
+def test_nested_pipes_stream_setup_stream_multiplex():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input=["Makefile", "README.rst", "setup.py"],
+          output="${input}.dat")
+    p.expand()
+
+    # 2 nodes 1 edge
+    assert len(p) == 6
+    assert len(p.edges) == 3
+    t1_0 = p.get("TestJob1.0")
+    t2_0 = p.get("TestJob2.0")
+    assert t1_0.has_outgoing(t2_0, ('output', 'input'), True)
+    t1_1 = p.get("TestJob1.1")
+    t2_1 = p.get("TestJob2.1")
+    assert t1_1.has_outgoing(t2_1, ('output', 'input'), True)
+    t1_2 = p.get("TestJob1.2")
+    t2_2 = p.get("TestJob2.2")
+    assert t1_2.has_outgoing(t2_2, ('output', 'input'), True)
+
+    # test option values
+    cwd = os.getcwd()
+    join = os.path.join
+    assert t1_0.input == join(cwd, 'Makefile')
+    assert t1_1.input == join(cwd, 'README.rst')
+    assert t1_2.input == join(cwd, 'setup.py')
+    assert t2_0.output == join(cwd, 'Makefile.dat')
+    assert t2_1.output == join(cwd, 'README.rst.dat')
+    assert t2_2.output == join(cwd, 'setup.py.dat')
+
+
+def test_nested_pipes_stream_setup_stream_intermediate_multiplex():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input=["Makefile", "README.rst", "setup.py"],
+          inter='${input}.inter',
+          output="${input}.dat")
+    p.expand()
+
+    # 2 nodes 1 edge
+    assert len(p) == 6
+    assert len(p.edges) == 3
+    t1_0 = p.get("TestJob1.0")
+    t2_0 = p.get("TestJob2.0")
+
+    assert t1_0.has_outgoing(t2_0, ('output', 'input'), False)
+    t1_1 = p.get("TestJob1.1")
+    t2_1 = p.get("TestJob2.1")
+    assert t1_1.has_outgoing(t2_1, ('output', 'input'), False)
+    t1_2 = p.get("TestJob1.2")
+    t2_2 = p.get("TestJob2.2")
+    assert t1_2.has_outgoing(t2_2, ('output', 'input'), False)
+
+    # test option values
+    cwd = os.getcwd()
+    join = os.path.join
+    assert t1_0.input == join(cwd, 'Makefile')
+    assert t1_1.input == join(cwd, 'README.rst')
+    assert t1_2.input == join(cwd, 'setup.py')
+    assert t1_0.output == join(cwd, 'Makefile.inter')
+    assert t1_1.output == join(cwd, 'README.rst.inter')
+    assert t1_2.output == join(cwd, 'setup.py.inter')
+    assert t2_0.input == join(cwd, 'Makefile.inter')
+    assert t2_1.input == join(cwd, 'README.rst.inter')
+    assert t2_2.input == join(cwd, 'setup.py.inter')
+    assert t2_0.output == join(cwd, 'Makefile.dat')
+    assert t2_1.output == join(cwd, 'README.rst.dat')
+    assert t2_2.output == join(cwd, 'setup.py.dat')
 
 
 def test_nested_pipes_stream_setup_intermediate():
@@ -777,11 +861,26 @@ def test_nested_pipes_stream_setup_intermediate():
     assert len(p.edges) == 1
     t1 = p.get("TestJob1")
     t2 = p.get("TestJob2")
-    print ">>>", list(t1.outgoing())[0]._links
     assert t1.has_outgoing(t2, ('output', 'input'), False)
 
-    print t1._tool.options
-    print t2._tool.options
+
+def test_nested_pipes_stream_setup_intermediate_jobs():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    p.run(tool, input="Makefile", output="out.txt", inter="inter.out")
+    jobs = jip.create_jobs(p)
+    groups = jip.create_groups(jobs)
+    cwd = os.getcwd()
+
+    join = os.path.join
+    assert len(groups) == 2
+    assert len(jobs) == 2
+
+    assert jobs[0].configuration['input'].get() == join(cwd, 'Makefile')
+    assert jobs[0].configuration['output'].get() == join(cwd, 'inter.out')
+    assert jobs[1].configuration['input'].get() == join(cwd, 'inter.out')
+    assert jobs[1].configuration['output'].get() == join(cwd, 'out.txt')
 
 
 def test_node_options_with_assignment():
@@ -802,8 +901,28 @@ def test_node_options_with_assignment():
     t2 = p.get("TestJob2")
     assert t1.has_outgoing(t2, ('output', 'input'), False)
 
-    print t1._tool.options
-    print t2._tool.options
+
+def test_node_options_with_assignment_jobs():
+    tool = jip.find('joined_pipeline')
+    assert tool is not None
+    p = jip.Pipeline()
+    n = p.run(tool)
+    n.input = "Makefile"
+    n.output = "out.txt"
+    n.inter = "inter.out"
+
+    jobs = jip.create_jobs(p)
+    groups = jip.create_groups(jobs)
+    cwd = os.getcwd()
+
+    join = os.path.join
+    assert len(groups) == 2
+    assert len(jobs) == 2
+
+    assert jobs[0].configuration['input'].get() == join(cwd, 'Makefile')
+    assert jobs[0].configuration['output'].get() == join(cwd, 'inter.out')
+    assert jobs[1].configuration['input'].get() == join(cwd, 'inter.out')
+    assert jobs[1].configuration['output'].get() == join(cwd, 'out.txt')
 
 
 def test_pipeline_with_local_context_in_expand():
