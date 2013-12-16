@@ -213,6 +213,8 @@ def show_options(options, title=None, excludes=None, show_defaults=False):
     rows = []
     excludes = excludes if excludes is not None else ['help']
     for o in options:
+        # disable any rendering
+        o.render_context = None
         if (show_defaults or o.raw() != o.default) and o.name not in excludes:
             rows.append([o.name, _clean_value(o.raw())])
     print render_table(["Name", "Value"], rows, widths=[30, 50],
