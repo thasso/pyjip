@@ -9,7 +9,7 @@ class produce():
     Usage:
         produce --prefix <prefix> --number <number>
     """
-    def validate(self):
+    def init(self):
         self.add_output('output', '${prefix}.*', nargs="*")
 
     def get_command(self):
@@ -27,7 +27,7 @@ class consume():
     Usage:
         consume <input>
     """
-    def validate(self):
+    def init(self):
         self.add_output('output', 'consumed_${input|name}')
 
     def get_command(self):

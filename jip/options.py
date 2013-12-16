@@ -223,6 +223,7 @@ class Option(object):
                 self.streamable = self._is_stream(self.default)
             else:
                 self.streamable = False
+        self._index = -1
 
     def copy(self):
         """Create a clone of this option instance
@@ -251,6 +252,7 @@ class Option(object):
         clone.streamable = self.streamable
         clone._value = list(self._value) if self._value else []
         clone._stream_cache = dict(self._stream_cache)
+        clone._index = self._index
         return clone
 
     def __getstate__(self):
@@ -310,7 +312,10 @@ class Option(object):
                 return 1
         c = 0
         for v in self._value:
-            c += len(v) if isinstance(v, Option) else 1
+            if self._index < 0:
+                c += len(v) if isinstance(v, Option) else 1
+            else:
+                c += 1
         return c
 
     def is_dependency(self):
@@ -390,7 +395,10 @@ class Option(object):
                     rendered.append(v)
                 elif isinstance(value, Option):
                     v = value.value
-                    rendered.extend(v)
+                    if self._index < 0:
+                        rendered.extend(v)
+                    else:
+                        rendered.append(v[self._index])
                 else:
                     rendered.append(value)
             # update default
@@ -483,26 +491,31 @@ class Option(object):
         :raises ValueError: if the option contains more elements that allowed
         :raises ParseException: if the option is required but no value is set
         """
+        value = self.value
+        size = len(value)
         if self.nargs == 0:
             return ""
+        #return self.join.join([
+            #self.__resolve(v, converter=converter) for v in value
+        #])
         if self.nargs == 1:
             ## current value is a list
-            if len(self.value) > 1:
+            if size > 1:
                 raise ValueError("Option '%s' contains more "
                                  "than one value!" % self.name)
             ## single value
-            v = None if len(self.value) == 0 else self.value[0]
+            v = None if size == 0 else value[0]
             if v is None and self.required and _check_required:
                 raise ParserException("Option '%s' is required but "
                                       "not set!\n" % (self._opt_string()))
             return self.__resolve(v, converter=converter) \
                 if (v or v == 0) else converter("")
         else:
-            if len(self.value) == 0 and self.required and _check_required:
+            if size == 0 and self.required and _check_required:
                 raise ParserException("Option '%s' is required but "
                                       "not set!\n" % (self._opt_string()))
             return self.join.join([
-                self.__resolve(v, converter=converter) for v in self.value
+                self.__resolve(v, converter=converter) for v in value
             ])
 
     def raw(self):
@@ -531,7 +544,11 @@ class Option(object):
 
         # get the values
         vs = []
-        for v in self.value:
+        try:
+            values = self.value
+        except:
+            values = self._value
+        for v in values:
             if isinstance(v, Option):
                 other = v.raw()
                 if not isinstance(other, (list, tuple)):
@@ -804,8 +821,12 @@ class Options(object):
         """
         sets = []
         for opt in self:
+            try:
+                vs = opt.value
+            except:
+                vs = opt._value
             sets.append(frozenset([v if not opt._is_stream(v) else sys.stdin
-                                   for v in opt.value]))
+                                   for v in vs]))
         return frozenset(sets)
 
     def add_input(self, name, value=None, nargs=None, hidden=True, **kwargs):

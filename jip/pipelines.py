@@ -783,7 +783,6 @@ class Pipeline(object):
                         target._value = []
                         updated.add(target)
                     target._value.extend(source._value)
-                    #target._rendered = False
             # detect duplicates and try to merge them
             self._expand_merge_duplicates()
 
@@ -910,12 +909,13 @@ class Pipeline(object):
         check_fanout = True
         for node in self.topological_order():
             log.debug("Expand | Checking %s for sub-pipeline", node)
+
             # setup and render the subpipe node. We
             # do this so that local variables used in the pipeline
             # are rendered properly and the values are set accordingly
-            node._tool.setup()
-            _render_nodes(self, [node])
-
+            if hasattr(node._tool, 'pipeline'):
+                node._tool.setup()
+                _render_nodes(self, [node])
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
@@ -1156,11 +1156,16 @@ class Pipeline(object):
                         )
                         log.debug("Fanout | add link from inedge to edge: "
                                   "%s [%s]", link, new_edge)
-                cloned_node.set(option.name, opts[j], set_dep=False)
+                # get the new value
+                o = opts[j]
+                cloned_node.set(option.name, o, set_dep=False)
+                #cloned_node._tool.options[option.name]._index = i
                 log.debug("Fanout | apply value %s: %s=%s", cloned_node,
-                          option.name, opts[j])
+                          option.name, o)
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
+                ooo._index = i
+
         node._tool.setup()
         _create_render_context(self, node._tool, node, None)
         self.remove(node)
