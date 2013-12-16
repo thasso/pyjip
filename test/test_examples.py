@@ -126,6 +126,7 @@ class GemIndex(object):
         if self.options['output_dir']:
             out = "${output_dir}/" + out
         self.add_output('output', out)
+        print ">>>INDEX VALIDATE CALL OUTPUT:", self.options['output']
 
     def get_command(self):
         return "gemtools index -i ${input} -o ${output} -t ${threads} "\
@@ -174,12 +175,9 @@ class GemTranscriptomeIndex(object):
 def test_gemtools_index_command_rendering_for_options():
     p = jip.Pipeline()
     p.run('gem_index', input="Makefile", output_dir='test')
-    p.expand(validate=False)
-    print ">>>EXPNDED"
+    p.expand(validate=True)
     node = p.get('gem_index')
-    print ">>>", node
     print node._tool.options
-    print ">>>CREATE JOBS?"
     job = jip.create_jobs(p)[0]
     infile = os.path.abspath("Makefile")
     base = os.path.dirname(infile)

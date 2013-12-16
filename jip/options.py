@@ -223,6 +223,7 @@ class Option(object):
                 self.streamable = self._is_stream(self.default)
             else:
                 self.streamable = False
+        self._rendered = False
 
     def copy(self):
         """Create a clone of this option instance
@@ -251,6 +252,7 @@ class Option(object):
         clone.streamable = self.streamable
         clone._value = list(self._value) if self._value else []
         clone._stream_cache = dict(self._stream_cache)
+        clone._rendered = self._rendered
         return clone
 
     def __getstate__(self):
@@ -395,8 +397,9 @@ class Option(object):
                     rendered.extend(v)
                 else:
                     rendered.append(value)
-            self.render_context = None
-            self._value = rendered
+            #self.render_context = None
+            #self._value = rendered
+            self._rendered = True
             return rendered
         return values
 
@@ -406,6 +409,7 @@ class Option(object):
         if value is not None:
             self._value = [value] if not isinstance(value, (list, tuple)) \
                 else value
+        self._rendered = False
 
     def __resolve_default(self, v):
         """helper function to resolve stdin, stdout and stderr default
@@ -519,7 +523,7 @@ class Option(object):
         """
         if self.nargs == 0:
             return False if len(self._value) == 0 else bool(self._value[0])
-        if self.nargs == 1 and len(self.value) == 1:
+        if self.nargs == 1 and len(self) == 1:
             return self.value[0] if not isinstance(self.value[0], Option) else\
                 self.value[0].raw()
         return None if len(self._value) == 0 else [
@@ -605,7 +609,7 @@ class Option(object):
         :raises ValueError: if the option is ``required`` but not set
         """
         if self.required:
-            if self.nargs != 0 and len(self.value) == 0:
+            if self.nargs != 0 and len(self) == 0:
                 raise ValueError("Option %s is required but not set!\n" %
                                  self._opt_string())
 

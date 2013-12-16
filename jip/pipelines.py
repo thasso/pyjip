@@ -764,11 +764,11 @@ class Pipeline(object):
         self._expand_sub_pipelines(validate=validate)
 
         if _find_dup:
+            # update node option values from links
+            # TODO add index to links and use it here
             # render all ndoes
             log.info("Expand | Render node context for %d nodes", len(self))
             _render_nodes(self, list(self.nodes()))
-            # update node option values from links
-            # TODO add index to links and use it here
             updated = set([])
             for node in self.nodes():
                 for link in [l for e in node.incoming() for l in e._links]:
@@ -778,6 +778,7 @@ class Pipeline(object):
                         target._value = []
                         updated.add(target)
                     target._value.extend(source._value)
+                    #target._rendered = False
             # detect duplicates and try to merge them
             self._expand_merge_duplicates()
 
