@@ -508,26 +508,40 @@ class Option(object):
     def raw(self):
         """Get raw value(s) wrapped by this options.
 
-        No ``require`` checks are performed, but the ``nargs`` setting of this
-        option is checked. If the option represents a boolean flag, this
-        returns True or False, depending on the first available value.
+        No ``require`` checks are performed.
 
-        If the options carries a single value (``nargs == 1``), this first
+        If the options carries a single value and ``nargs == 1``, this first
         value in the options list is returned. Otherwise the list of values
-        is returned. **Note** that the method returns ``None`` in case no
-        value is set.
+        is returned.
 
         :returns: the raw options value depending on ``nargs`` a single value
                   or a list of values
         """
+        size = len(self._value)
         if self.nargs == 0:
-            return False if len(self._value) == 0 else bool(self._value[0])
-        if self.nargs == 1 and len(self) == 1:
-            return self.value[0] if not isinstance(self.value[0], Option) else\
-                self.value[0].raw()
-        return None if len(self._value) == 0 else [
-            v if not isinstance(v, Option) else v.raw() for v in self.value
-        ]
+            ## boolean optin
+            if size == 0:
+                # see if we have a default, else its false
+                return False if self.default is None else bool(self.default)
+            # value is specified
+            if size == 1:
+                return bool(self._value[0])
+            else:
+                return [bool(v) for v in self._value]
+
+        # get the values
+        vs = []
+        for v in self.value:
+            if isinstance(v, Option):
+                other = v.raw()
+                if not isinstance(other, (list, tuple)):
+                    other = [other]
+                vs.extend(other)
+            else:
+                vs.append(v)
+        if self.nargs == 1 and len(vs) == 1:
+            return vs[0]
+        return vs if vs else None
 
     def expand(self):
         """Returns the raw values of the list but expanded to contain
