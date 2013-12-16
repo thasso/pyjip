@@ -768,7 +768,12 @@ class Pipeline(object):
             # TODO add index to links and use it here
             # render all ndoes
             log.info("Expand | Render node context for %d nodes", len(self))
+            # setup nodes
+            for n in self.nodes():
+                n._tool.setup()
+            # render values
             _render_nodes(self, list(self.nodes()))
+
             updated = set([])
             for node in self.nodes():
                 for link in [l for e in node.incoming() for l in e._links]:
@@ -790,11 +795,11 @@ class Pipeline(object):
         if _find_dup:
             log.info("Expand | Validating nodes")
             for node in self.nodes():
+                node._tool.options.make_absolute(node._job.working_dir)
                 self._validate_node(node, silent=not validate)
                 if node._tool._job_name is not None:
                     self._apply_node_name(node, node._tool._job_name)
 
-                node._tool.options.make_absolute(node._job.working_dir)
 
         ##########################################################
         # transitive reduction of dependencies
@@ -905,6 +910,12 @@ class Pipeline(object):
         check_fanout = True
         for node in self.topological_order():
             log.debug("Expand | Checking %s for sub-pipeline", node)
+            # setup and render the subpipe node. We
+            # do this so that local variables used in the pipeline
+            # are rendered properly and the values are set accordingly
+            node._tool.setup()
+            _render_nodes(self, [node])
+
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
@@ -979,10 +990,11 @@ class Pipeline(object):
                                     sub_node._tool.options[po['option'].name],
                                     stream
                                 )
-            nds = {}
-            for n in self.nodes():
-                nds[n.name] = n
-            _create_render_context(self, node._tool, node, nds)
+            # setup the node and render values before we remove the node
+            node._tool.setup()
+            _create_render_context(self, node._tool, node)
+            #_render_nodes(self, [node])
+
             self.remove(node)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
@@ -1017,7 +1029,8 @@ class Pipeline(object):
         tools_2_nodes = collections.defaultdict(set)
         for n in self.nodes():
             if not n.has_incoming_stream():
-                node_hashes[n] = hash(n._tool.options._get_value_set())
+                opt_set = n._tool.options._get_value_set()
+                node_hashes[n] = hash(opt_set)
                 tools_2_nodes[n._tool._name].add(n)
         ## index all nodes without an incoming stream by their tool name
         merged = 0
@@ -1148,12 +1161,8 @@ class Pipeline(object):
                           option.name, opts[j])
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
-        # because the node might be referenced ouside, we create a render
-        # contentx
-        nds = {}
-        for n in self.nodes():
-            nds[n.name] = n
-        _create_render_context(self, node._tool, node, nds)
+        node._tool.setup()
+        _create_render_context(self, node._tool, node, None)
         self.remove(node)
 
     def _fanout_add_edge(self, edge, node, cloned_node):
@@ -1968,6 +1977,7 @@ def _create_render_context(pipeline, tool, node=None, nodes=None):
     # add all node options
     for o in tool.options:
         ctx[o.name] = o
+
     # update global
     if pipeline.utils:
         ctx = pipeline.utils._update_context(ctx, base_node=node)
@@ -1978,6 +1988,7 @@ def _create_render_context(pipeline, tool, node=None, nodes=None):
 
 
 def _render_nodes(pipeline, nodes):
+    # create the base dict that contains all ndoes
     nds = {}
     for n in pipeline.nodes():
         nds[n.name] = n
@@ -1986,7 +1997,17 @@ def _render_nodes(pipeline, nodes):
     for node in nodes:
         _create_render_context(pipeline, node._tool, node, nds)
 
+    def _create(tool):
+        return _create_render_context(pipeline, tool, None, nds)
+
     # render out all node options
     for node in nodes:
         for o in node._tool.options:
-            o._value = o.value
+            _render_option(o, _create)
+
+
+def _render_option(option, create_fun):
+    if option.render_context is None:
+        create_fun(option.source)
+    rendered = option.value
+    return rendered

@@ -223,7 +223,6 @@ class Option(object):
                 self.streamable = self._is_stream(self.default)
             else:
                 self.streamable = False
-        self._rendered = False
 
     def copy(self):
         """Create a clone of this option instance
@@ -252,7 +251,6 @@ class Option(object):
         clone.streamable = self.streamable
         clone._value = list(self._value) if self._value else []
         clone._stream_cache = dict(self._stream_cache)
-        clone._rendered = self._rendered
         return clone
 
     def __getstate__(self):
@@ -382,8 +380,6 @@ class Option(object):
         :type: single object or list of objects
         """
         values = self._value
-        if self.default is not None and len(self._value) == 0:
-            values = [self.default]
         if self.render_context:
             from jip.templates import render_template
             rendered = []
@@ -397,10 +393,14 @@ class Option(object):
                     rendered.extend(v)
                 else:
                     rendered.append(value)
-            #self.render_context = None
-            #self._value = rendered
-            self._rendered = True
-            return rendered
+            # update default
+            if self.default is not None and\
+                    isinstance(self.default, basestring):
+                self.default = render_template(self.default, **ctx)
+            self.render_context = None
+            self._value = rendered
+        if self.default is not None and len(self._value) == 0:
+            values = [self.default]
         return values
 
     @value.setter
@@ -409,7 +409,6 @@ class Option(object):
         if value is not None:
             self._value = [value] if not isinstance(value, (list, tuple)) \
                 else value
-        self._rendered = False
 
     def __resolve_default(self, v):
         """helper function to resolve stdin, stdout and stderr default

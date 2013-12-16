@@ -12,11 +12,13 @@ from jip.tools import Block, ScriptTool
 VALIDATE_BLOCK = "validate"
 COMMAND_BLOCK = "command"
 SETUP_BLOCK = "setup"
+INIT_BLOCK = "init"
 PIPELINE_BLOCK = "pipeline"
 
 # currently supported block types as a list
 SUPPORTED_BLOCKS = [
     SETUP_BLOCK,
+    INIT_BLOCK,
     VALIDATE_BLOCK,
     COMMAND_BLOCK,
     PIPELINE_BLOCK
@@ -168,6 +170,7 @@ def load(content, script_class=None, is_pipeline=False):
     validate_block = None
     pipeline_block = None
     setup_block = None
+    init_block = None
     if sum([len(b) for b in blocks.values()]) == 0:
         raise Exception("No blocks found!")
     for block_type, blocks in blocks.iteritems():
@@ -183,6 +186,8 @@ def load(content, script_class=None, is_pipeline=False):
                 pipeline_block = blocks[0]
             elif block_type == SETUP_BLOCK:
                 setup_block = blocks[0]
+            elif block_type == init_block:
+                init_block = blocks[0]
 
     docstring = _create_docstring(header)
 
@@ -194,6 +199,7 @@ def load(content, script_class=None, is_pipeline=False):
         command_block = None
     return script_class(docstring=docstring,
                         setup_block=setup_block,
+                        init_block=init_block,
                         command_block=command_block,
                         validation_block=validate_block,
                         pipeline_block=pipeline_block)

@@ -120,13 +120,14 @@ class GemIndex(object):
     Inputs:
         -i, --input <genome>  The fasta file for the genome
     """
+    def init(self):
+        self.add_output('output', "${input|name|ext}.gem")
 
-    def validate(self):
+    def setup(self):
         out = "${input|name|ext}.gem"
         if self.options['output_dir']:
             out = "${output_dir}/" + out
-        self.add_output('output', out)
-        print ">>>INDEX VALIDATE CALL OUTPUT:", self.options['output']
+        self.options['output'].set(out)
 
     def get_command(self):
         return "gemtools index -i ${input} -o ${output} -t ${threads} "\
@@ -158,7 +159,7 @@ class GemTranscriptomeIndex(object):
         -a, --annotation <annotation>       The reference annotation in GTF
                                             format
     """
-    def validate(self):
+    def init(self):
         #if not self.options['output_dir']:
         #    self.options['output_dir'] = "."
         #if not self.options['prefix']:
@@ -199,6 +200,7 @@ def test_gemtools_t_index_inputs():
     infile = os.path.abspath("Makefile")
     annotation = os.path.abspath("setup.py")
     base = os.path.dirname(infile)
+    print ">>>", job.command
     assert job.command == 'gemtools t-index -i %s -a %s -o %s -t 1 -m 150' % (
         infile, annotation, os.path.join(base, "test/setup.py"))
 
@@ -230,15 +232,14 @@ class gem(object):
         -i, --index <genome_index>  The GEM index file for the genome
         -a, --annotation <annotation>  The reference annotation in GTF format
     """
-    def setup(self):
+    def init(self):
         self.add_output('map', "${output_dir}/${name}.map.gz")
         self.add_output('bam', "${output_dir}/${name}.bam")
-        #self.add_output('bam', "out.bam")
         self.add_output('bai', "${output_dir}/${name}.bam.bai")
         self.add_option('single_end', False, long="--single-end",
                         hidden=False)
 
-    def validate(self):
+    def setup(self):
         if len(self.fastq) == 1:
             self.options['single_end'].set(True)
 
@@ -262,8 +263,8 @@ class flux(object):
         -i, --input <input>  The input file with mappings
         -a, --annotation <annotation>  The reference annotation in GTF format
     """
-    def setup(self):
-        self.add_option('name',"${input|name|ext}")
+    def init(self):
+        self.add_option('name', "${input|name|ext}")
         self.add_output('gtf', "${output_dir}/${name}.gtf")
 
     def get_command(self):
@@ -293,13 +294,15 @@ class GrapePipeline(object):
     """
     def pipeline(self):
         p = jip.Pipeline()
-        gem = p.run('grape_gem_rnatool',
-                    index=self.index, annotation=self.annotation,
-                    fastq=self.fastq, quality=self.quality,
-                    output_dir=self.output_dir
+        gem = p.run(
+            'grape_gem_rnatool',
+            index=self.index, annotation=self.annotation,
+            fastq=self.fastq, quality=self.quality,
+            output_dir=self.output_dir
         )
-        flux = p.run('grape_flux', input=gem.bam, annotation=self.annotation,
-                     output_dir=self.output_dir
+        p.run(
+            'grape_flux', input=gem.bam, annotation=self.annotation,
+            output_dir=self.output_dir
         )
         p.context(locals())
         return p

@@ -436,7 +436,7 @@ def test_tool_job_is_callable_in_pipeline_runs():
 def test_tool_setup_called_on_init():
     @jip.tool()
     class setup_tool(object):
-        def setup(self):
+        def init(self):
             self.add_output('output')
 
         def get_comand(self):
