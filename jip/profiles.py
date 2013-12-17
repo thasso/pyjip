@@ -320,6 +320,16 @@ class Profile(object):
             for child in job.pipe_to:
                 self.apply(child)
 
+    def merge(self, master):
+        """Merge this profile with the given master profile.
+
+        Currently this merges the working directory of jobs
+
+        :param master: the master profile
+        """
+        self.working_dir = master.working_dir if master.working_dir \
+            else self.working_dir
+
     def __call__(self, name=None, threads=None, nodes=None, tasks=None,
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=None,

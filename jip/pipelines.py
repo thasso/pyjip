@@ -536,7 +536,7 @@ class Pipeline(object):
                 count[successor] += 1
 
         ready = [node for node in self.nodes() if count[node] == 0]
-        ready = sorted(ready, key=lambda j: j.name, reverse=True)
+        ready = sorted(ready, key=lambda j: j._node_index, reverse=True)
         while ready:
             node = ready.pop(-1)
             yield node
@@ -776,8 +776,9 @@ class Pipeline(object):
             _render_nodes(self, list(self.nodes()))
 
             updated = set([])
-            for node in self.nodes():
-                for link in [l for e in node.incoming() for l in e._links]:
+            for node in self.topological_order():
+                node._tool.options.make_absolute(node._job.working_dir)
+                for link in [l for e in node.outgoing() for l in e._links]:
                     source = link[0]
                     target = link[1]
                     if not target in updated:
@@ -795,7 +796,7 @@ class Pipeline(object):
         if _find_dup:
             log.info("Expand | Validating nodes")
             for node in self.nodes():
-                node._tool.options.make_absolute(node._job.working_dir)
+                #node._tool.options.make_absolute(node._job.working_dir)
                 self._validate_node(node, silent=not validate)
                 if node._tool._job_name is not None:
                     self._apply_node_name(node, node._tool._job_name)
@@ -920,6 +921,9 @@ class Pipeline(object):
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
+            # merge the nodes jobs with the sub-pipeline nodes
+            for sub_node in sub_pipe.nodes():
+                sub_node._job.merge(node._job)
             # check and set this pipelines name
             if self._name is None:
                 self.name(node._tool._job_name)
@@ -1796,16 +1800,11 @@ class Node(object):
         if isinstance(value, Node):
             # in case the other value is a node, we try to
             # get the node tools default output option
-            value._tool.options.make_absolute(value._job.working_dir)
             value = value._tool.options.get_default_output()
 
         if isinstance(value, Option):
             # the value is an options, we pass on the Options
             # value and create/update the edge
-            if value.source in self._graph._nodes:
-                node = self._graph._nodes.get(value.source, None)
-                if node is not None:
-                    node._tool.options.make_absolute(node._job.working_dir)
             option.dependency = True
             #new_value = value.raw() if not append else value.value
             new_value = value

@@ -1056,7 +1056,11 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
             if isinstance(element, jip.pipelines.Pipeline):
                 ## run or submit embedded pipeline
                 # glob the inputs
+                profile = jip.profiles.Profile.from_job(job)
+                pipeline._job.merge(profile)
+                pipeline._current_job.merge(profile)
                 for n in element.nodes():
+                    n._job.merge(profile)
                     n._tool.options.glob_inputs()
                 embedded_jobs = create_jobs(element)
                 # add dependencies

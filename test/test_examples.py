@@ -450,5 +450,58 @@ def test_multiple_pipelines_with_delegated_outputs():
     assert gem_job.configuration['index'].get().endswith('genome.gem')
 
 
+def test_embedded_pipelines_stage_one(tmpdir):
+    tmpdir = str(tmpdir)
+    # laod teh embedded example
+    jip.scanner.add_module('examples/embedded_submission/embedded.py')
+    jip.scanner.scan_modules()
+    p = jip.Pipeline()
+    p.job(dir=tmpdir).run('example_embedded')
+    jobs = jip.create_jobs(p)
+    assert jobs[0].configuration['prefix'] == 'test'
+    assert jobs[0].configuration['output'] == [
+        os.path.join(tmpdir, 'test.*')
+    ]
+    assert len(jobs) == 1
+
+
+def test_embedded_pipelines_stage_two(tmpdir):
+    tmpdir = str(tmpdir)
+    # create stage one output
+    open(os.path.join(tmpdir, 'test.1'), 'a').close()
+    open(os.path.join(tmpdir, 'test.2'), 'a').close()
+    open(os.path.join(tmpdir, 'test.3'), 'a').close()
+    open(os.path.join(tmpdir, 'test.4'), 'a').close()
+    open(os.path.join(tmpdir, 'test.5'), 'a').close()
+    # laod teh embedded example
+    jip.scanner.add_module('examples/embedded_submission/embedded.py')
+    jip.scanner.scan_modules()
+    p = jip.Pipeline()
+    p.job(dir=tmpdir).run('example_embedded')
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 8
+    assert jobs[0].configuration['prefix'] == 'test'
+    assert jobs[0].configuration['output'] == [
+        os.path.join(tmpdir, 'test.1'),
+        os.path.join(tmpdir, 'test.2'),
+        os.path.join(tmpdir, 'test.3'),
+        os.path.join(tmpdir, 'test.4'),
+        os.path.join(tmpdir, 'test.5'),
+    ]
+    assert jobs[1].configuration['input'] == os.path.join(tmpdir, 'test.1')
+    assert jobs[2].configuration['input'] == os.path.join(tmpdir, 'test.2')
+    assert jobs[3].configuration['input'] == os.path.join(tmpdir, 'test.3')
+    assert jobs[4].configuration['input'] == os.path.join(tmpdir, 'test.4')
+    assert jobs[5].configuration['input'] == os.path.join(tmpdir, 'test.5')
+    print jobs[6].configuration['input'].raw()
+    assert jobs[6].configuration['input'] == [
+        os.path.join(tmpdir, 'consumed_test.1'),
+        os.path.join(tmpdir, 'consumed_test.2'),
+        os.path.join(tmpdir, 'consumed_test.3'),
+        os.path.join(tmpdir, 'consumed_test.4'),
+        os.path.join(tmpdir, 'consumed_test.5'),
+    ]
+
+
 if __name__ == '__main__':
     unittest.main()

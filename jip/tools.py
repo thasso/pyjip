@@ -495,6 +495,15 @@ class Scanner():
                 log.debug("Found tool: %s", path)
                 yield path
 
+    def add_module(self, path):
+        """Add a module or a python file to the list of module that are
+        scanned for tools.
+
+        :param: path to the module that will be added to the search path
+        """
+        self.jip_modules.append(path)
+        self.__scanned = False
+
     def scan_modules(self):
         """Loads the python modules specified in the JIP configuration.
         This will register any functions and classes decorated with

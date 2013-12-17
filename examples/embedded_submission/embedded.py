@@ -3,7 +3,7 @@ from jip import *
 
 
 @tool()
-class produce():
+class example_embedded_produce():
     """Produce a set of files
 
     Usage:
@@ -21,7 +21,7 @@ class produce():
 
 
 @tool()
-class consume():
+class example_embedded_consume():
     """Count something
 
     Usage:
@@ -35,7 +35,7 @@ class consume():
 
 
 @tool()
-class merger():
+class example_embedded_merger():
     """Merge consumer output
 
     Usage:
@@ -46,11 +46,11 @@ class merger():
 
 
 @pipeline()
-def embedded():
+def example_embedded():
     """Produce and consume"""
     p = Pipeline()
     # produce n files
-    producer = p.run('produce', prefix='test', number=5)
+    producer = p.run('example_embedded_produce', prefix='test', number=5)
 
     # run after success dynamically
     #embedded, consumer = producer.on_success('consume', input=producer)
@@ -61,10 +61,10 @@ def embedded():
 
     with producer.on_success() as embedded:
         consumers = embedded.job('${input|name}', temp=True).run(
-            'consume', input=producer
+            'example_embedded_consume', input=producer
         )
         embedded.job("Merge").run(
-            'merger', input=consumers, output="result.txt"
+            'example_embedded_merger', input=consumers, output="result.txt"
         )
 
     return p
