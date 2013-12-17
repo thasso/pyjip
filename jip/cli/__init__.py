@@ -196,7 +196,7 @@ def show_commands(jobs):
         print colorize("###", YELLOW)
 
 
-def show_options(options, title=None, excludes=None, show_defaults=False):
+def show_options(options, title=None, excludes=None, show_defaults=True):
     """Print the options to a table
 
     :param options: the options
