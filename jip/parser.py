@@ -175,7 +175,7 @@ def load(content, script_class=None, is_pipeline=False):
         raise Exception("No blocks found!")
     for block_type, blocks in blocks.iteritems():
         if len(blocks) > 1:
-            raise Exception("Multiple blocks of type %s curerntly "
+            raise Exception("Multiple blocks of type %s currently "
                             "not supported" % (block_type))
         if len(blocks) == 1:
             if block_type == COMMAND_BLOCK:
@@ -186,7 +186,7 @@ def load(content, script_class=None, is_pipeline=False):
                 pipeline_block = blocks[0]
             elif block_type == SETUP_BLOCK:
                 setup_block = blocks[0]
-            elif block_type == init_block:
+            elif block_type == INIT_BLOCK:
                 init_block = blocks[0]
 
     docstring = _create_docstring(header)

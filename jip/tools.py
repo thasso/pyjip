@@ -1027,22 +1027,20 @@ class Tool(object):
         self._job = None
 
     def setup(self):
-        """Setup method that can be implemented to initialize the tool instance
-        and, for example, add options.
-        The setup is called once for the tool instance and the logic within
-        the setup is not allowed to rely on any values set or applied to the
-        tool.
+        """Setup method that can be implemented to manipulate tool options
+        before rendering and validation. Note that options here might still
+        contain template string. You are also allowed to set option values
+        to template strings.
 
         :raises Exception: in case of a critical error
         """
         pass
 
     def init(self):
-        """Setup method that can be implemented to initialize the tool instance
-        and, for example, add options.
-        The setup is called once for the tool instance and the logic within
-        the setup is not allowed to rely on any values set or applied to the
-        tool.
+        """Initialization method that can be implemented to initialize the tool
+        instance and, for example, add options.  ``init`` is called once for
+        the tool instance and the logic within the ``init`` is not allowed to
+        rely on any values set or applied to the tool.
 
         :raises Exception: in case of a critical error
         """
@@ -1173,7 +1171,7 @@ class Tool(object):
         list is passed on as is if the option takes list values, otherwise,
         the check function is called for each value independently.
 
-        Note also that you shoudl not use this function to check for file
+        Note also that you should not use this function to check for file
         existence. Use the `check_file()` function on the option or on the
         tool instead. `check_file` checks for incoming dependencies in
         pipelines, in which case the file does not exist _yet_ but it
@@ -1459,6 +1457,14 @@ class PythonTool(Tool):
             self.decorator.run(self, self.instance)
 
     def validate(self):
+        r = self.decorator.validate(self, self.instance)
+        Tool.validate(self)
+        return r
+
+    def setup(self):
+        return self.decorator.setup(self, self.instance)
+
+    def init(self):
         if self._add_outputs is not None:
             for arg in self._add_outputs:
                 if isinstance(arg, (list, tuple)):
@@ -1472,14 +1478,6 @@ class PythonTool(Tool):
                                       str(err), exc_info=True)
                     self.options[arg].set(value)
 
-        r = self.decorator.validate(self, self.instance)
-        Tool.validate(self)
-        return r
-
-    def setup(self):
-        return self.decorator.setup(self, self.instance)
-
-    def init(self):
         return self.decorator.init(self, self.instance)
 
     def is_done(self):
@@ -1544,7 +1542,7 @@ class ScriptTool(Tool):
             if self.pipeline_block.interpreter is not None and \
                     self.pipeline_block.interpreter != 'python':
                 raise Exception("Pipeline blocks have to be implemented in "
-                                "python! Sorry about that, but its realy a "
+                                "python! Sorry about that, but its really a "
                                 "nice language :)")
             self.pipeline_block = PythonBlock(
                 lineno=self.pipeline_block._lineno,
@@ -1557,16 +1555,12 @@ class ScriptTool(Tool):
                 lineno=self.validation_block._lineno,
                 content=self.validation_block.content
             )
-        if self.setup_block and \
-                (self.setup_block.interpreter is None or
-                 self.setup_block.interpreter == 'python'):
+        if self.setup_block:
             self.setup_block = PythonBlock(
                 lineno=self.setup_block._lineno,
                 content=self.setup_block.content
             )
-        if self.init_block and \
-                (self.init_block.interpreter is None or
-                 self.init_block.interpreter == 'python'):
+        if self.init_block:
             self.init_block = PythonBlock(
                 lineno=self.init_block._lineno,
                 content=self.init_block.content

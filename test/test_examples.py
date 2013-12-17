@@ -3,6 +3,7 @@
 import os
 import jip
 import unittest
+import jip.tools
 
 
 class BWAPipelineTest(unittest.TestCase):
@@ -501,6 +502,77 @@ def test_embedded_pipelines_stage_two(tmpdir):
         os.path.join(tmpdir, 'consumed_test.4'),
         os.path.join(tmpdir, 'consumed_test.5'),
     ]
+
+
+def test_dynamic_options():
+    script = '''#!/usr/bin/env jip
+# Touch a number of files with a common prefix
+#
+# usage:
+#   touch --prefix <prefix> --count <count>
+
+#%begin init
+add_output('output')
+#%end
+
+#%begin setup
+options['output'].set(["%s_%s" % (prefix, i) for i in range(1, count.get(int) + 1)])
+#%end
+
+#%begin command
+for x in ${output}; do
+    touch $x
+done
+    '''
+    tool = jip.tools.ScriptTool.from_string(script)
+    tool.init()
+    assert tool is not None
+    p = jip.Pipeline()
+    node = p.job('test').run(tool, prefix='test', count=5)
+    assert node is not None
+    p.expand()
+    assert len(p) == 1
+    node = p.get('test')
+    assert node.prefix == 'test'
+    cwd = os.getcwd()
+    assert node.output == [os.path.join(cwd, x) for x in
+                           ['test_1', 'test_2', 'test_3', 'test_4', 'test_5']]
+
+def test_dynamic_options_multiplex():
+    script = '''#!/usr/bin/env jip
+# Touch a number of files with a common prefix
+#
+# usage:
+#   touch --prefix <prefix> --count <count>
+
+#%begin init
+add_output('output')
+#%end
+
+#%begin setup
+options['output'].set(["%s_%s" % (prefix, i) for i in range(1, count.get(int) + 1)])
+#%end
+
+#%begin command
+for x in ${output}; do
+    touch $x
+done
+    '''
+    tool = jip.tools.ScriptTool.from_string(script)
+    tool.init()
+    assert tool is not None
+    p = jip.Pipeline()
+    node = p.job('test').run(tool, prefix='test', count=[1, 2])
+    assert node is not None
+    p.expand()
+    cwd = os.getcwd()
+
+    assert len(p) == 2
+    node_1 = p.get('test.0')
+    node_2 = p.get('test.1')
+    assert node_1.output == os.path.join(cwd, 'test_1')
+    assert node_2.output == [os.path.join(cwd, x) for x in
+                             ['test_1', 'test_2']]
 
 
 if __name__ == '__main__':

@@ -84,9 +84,7 @@ class Job(Profile):
         if len(args) > 1:
             raise ValueError("You can only pass one tool to a job run !")
         node = args[0]
-        if isinstance(node, basestring):
-            node = self._pipeline.run(node, _job=self, **kwargs)
-        return node
+        return self._pipeline.run(node, _job=self, **kwargs)
 
     def bash(self, command, **kwargs):
         """Create a new ``bash`` job.

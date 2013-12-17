@@ -106,6 +106,14 @@ def parse_time(time):
         2h30m:
             return 150 minutes
 
+    In addition, you can use a colon separated format that is either:
+
+        HH:MM
+
+        or
+
+        HH:MM:SS
+
     :param time: time string
     :type time: string
     :returns: time in minutes
@@ -119,12 +127,27 @@ def parse_time(time):
         pass
     import re
     from datetime import timedelta
-    regex = re.compile(r'((?P<days>\d+?)d)?((?P<hours>\d+?)h)'
-                       '?((?P<minutes>\d+?)m)?((?P<seconds>\d+)s)?')
-    parts = regex.match(time)
-    if not parts:
-        raise ValueError("Unable to parse time format %s" % time)
-    parts = parts.groupdict()
+    # check for 00:00:00 format where
+    # 00:00 is hh:mm
+    # 00:00:00 is hh:mm:ss
+    if ':' in time:
+        s = time.split(':')
+        hours = int(s[0])
+        minutes = int(s[1])
+        parts = {
+            'hours': hours,
+            'minutes': minutes,
+        }
+        if len(s) > 2:
+            seconds = int(s[2])
+            parts['seconds'] = int(s[2])
+    else:
+        regex = re.compile(r'((?P<days>\d+?)d)?((?P<hours>\d+?)h)'
+                           '?((?P<minutes>\d+?)m)?((?P<seconds>\d+)s)?')
+        parts = regex.match(time)
+        if not parts:
+            raise ValueError("Unable to parse time format %s" % time)
+        parts = parts.groupdict()
     time_params = {}
     for (name, param) in parts.iteritems():
         if param:

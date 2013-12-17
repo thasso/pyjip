@@ -316,3 +316,40 @@ def test_job_hierarchy_execution_with_pipes_no_dispatching(tmpdir):
 
     # check the content of the output files
     assert open(target_file).read().strip() == "2"
+
+
+def test_single_job_fail(tmpdir):
+    tmpdir = str(tmpdir)
+    target_file = os.path.join(tmpdir, 'result.txt')
+    db_file = os.path.join(tmpdir, "test.db")
+    assert not os.path.exists(target_file)
+
+    # create a JIP database and a session
+    jip.db.init(db_file)
+    # create the cluster instance
+    c = cl.LocalCluster()
+
+    # create the pipeline
+    p = jip.Pipeline()
+    p.job(dir=tmpdir).bash('touch ${input}; exit 1;', outfile=target_file)
+    p.context(locals())
+
+    # create the jobs
+    jobs = jip.create_jobs(p)
+
+    # iterate the executions and pass the session so all jobs are stored
+    for e in jip.create_executions(jobs, save=True):
+        jip.submit_job(e.job, cluster=c)
+
+    c.wait()
+    # now the file should be there
+    assert not os.path.exists(target_file)
+
+    # we should also have the log files
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.out"))
+    assert os.path.exists(os.path.join(tmpdir, "jip-1.err"))
+    # and we should have one job in Done state in our database
+    # we do the query with a fresh session though
+    job = jip.db.get(1)
+    assert job is not None
+    assert job.state == jip.db.STATE_FAILED

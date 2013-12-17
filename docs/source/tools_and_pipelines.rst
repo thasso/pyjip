@@ -13,7 +13,7 @@ the dependencies between these executions.
 Tools
 -----
 In JIP, *tools* are small executable units that carry meta information
-to describe and the actual execution and its options as well as a way to 
+to describe the actual execution and its options as well as a way to 
 validate and update the tools' state.
 
 .. figure:: _static/single_tool_def.png
@@ -44,24 +44,30 @@ The simplest form of a tool consist of the following parts:
         other hand, an execution block can also create a *pipeline* which then
         will be incorporated into the overall execution graph.
 
-    Setup block
-        A tool instance can provide a setup block that will be called once, 
-        when the tool is loaded. Setup implementation are not allowed to 
-        act on option values, but, can be used to setup and initialize the 
-        tool instance itself. For example, to add :ref:`dynamic options` to 
-        the tool instance. Please note that the setup blocks have to be
-        implemented in `python` and there is currently no way to change the
-        interpreter for those blocks.
+    Init block
+        A tool instance can provide an ``init`` block that will be called once,
+        when the tool is loaded. ``init`` implementation are not allowed to act
+        on option values, but, can be used to setup and initialize the tool
+        instance itself. Use this block, for example, to add :ref:`dynamic
+        options <dynamic_options>` to the tool instance. Please note that the
+        setup blocks have to be implemented in `python` and there is currently
+        no way to change the interpreter for those blocks.
 
+    Setup block
+        A tool instance can provide a ``setup`` block that will be called
+        before the options are finalized and rendered. The tool options are 
+        set when this block is called and you can use it, for example, to 
+        implement some logic on the option values. When this block is executed,
+        the options are not yet rendered. That means you are allowed to 
+        set option values to template strings.
+      
     Validation block
         In addition to the actual execution, a *tool* implementation can
         extend its default validation. By default, the system ensures the all
         specified input files exists. You can add more checks in the validation
-        block and you have the chance to add :ref:`dynamic options 
-        <dynamic_options>` to the tools definition although you might want
-        to consider using a *setup block* for that. Please note that the 
-        validation blocks have to be implemented in `python` and there is
-        currently no way to change the interpreter for those blocks.
+        block. Please note that the validation blocks have to be implemented in
+        `python` and there is currently no way to change the interpreter for
+        those blocks.
 
         The validation block also is the place to modify the tools job 
         environment in case you don't want to set parameters from the command
@@ -91,7 +97,7 @@ contains the following blocks:
         contains also the option definition. We use the great `docopt 
         <http://docopt.org>`_ library to parse your option definitions. 
 
-    Blocks for setup, validation and execution
+    Blocks for ``init``, ``setup``, ``validate`` and execution
         You can open a block in a JIP script using ``#%begin <blocktype> 
         <args>`` and close it with ``#%end``. Nested blocks are currently 
         not supported. 
@@ -213,22 +219,33 @@ All execution blocks can be explicitly opened with ``#%begin command`` or
 ``#%begin pipeline`` and can be closed by ``#%end``. If no block is opened
 explicitly, a *bash* command block is created implicitly.
 
-Setup blocks
+Init blocks
 ************
-A script or tool definition can specify a setup block in order to create 
-more options that are registered with the tool. Please note that the setup
+A script or tool definition can specify a ``init`` block in order to create 
+more options that are registered with the tool. Please note that the init
 blocks are evaluated once, just after the tool is created. That means that
 option values are not yet set and you can not implement any logical decisions
-based on the option values. You can, however, use the setup blocks to 
+based on the option values. You can, however, use the init block to 
 add more options to a tool. For example::
 
-    #%begin setup
+    #%begin init
     add_output('output', '${input|name|ext}.out')
     #%end
 
 Here we add a new output option and set its value as a template that uses the
 tools ``input`` option. This is valid as the options value will be evaluated
 later, when the input option is set.
+
+Setup blocks
+************
+Setup block are executed before the options values are rendered and can be
+used to change options based on their values. Because template strings are
+not yet rendered, you can set template strings as values. For example::
+
+    #%begin setup
+    if options['threads'].get(int) > 1:
+        options['parallel_mode'] = True
+    #%end
 
 Validation blocks
 *****************
@@ -372,10 +389,10 @@ validation methods small and fast so speed up pipeline generation.
 
 .. _dynamic_options:
 
-Within your validation block, you are allowed to modify the tool options as
-well. One common pattern is to add additional `hidden` output options. Assume
-for example you have a simple tool that take a prefix parameter and a count
-and then created a number of files::
+Within your ``init`` and ``setup`` blocks, you are allowed to modify the tool
+options. One common pattern is to add additional `hidden` output options.
+Assume for example you have a simple tool that take a prefix parameter and a
+count and then created a number of files::
 
     #!/usr/bin/env jip
     # Touch a number of files with a common prefix
@@ -389,23 +406,28 @@ and then created a number of files::
     done
 
 The tool will do the right job, but the files generated by the tool
-(``<prefix>_<count>``) will no be registered as output files. The means they
+(``<prefix>_<count>``) will not be registered as output files. The means they
 can not be handled in case of a failure or restart, and the tool can not easily
 be wired up within a pipeline setup as no outputs are defined. On the other
 hand, we can also not specify the output option within the scripts header
 directly. The values of the output file options depends on what will be
 specified for the ``prefix`` and ``counter`` options. The way around the
-problem is to use the validate block and register the output option
-dynamically::
+problem is to use the ``init`` and ``setup`` blocks, register the 
+output option dynamically, and then update its value based on the configured
+options::
 
     #!/usr/bin/env jip
     # Touch a number of files with a common prefix
     #
     # usage:
-    #   touch -p <prefix> -c <count> 
+    #   touch --prefix <prefix> --count <count> 
 
-    #%begin validate
-    add_output('output', ["%s_%s" % (p, i) for i in range(1, c.get(int) + 1)])
+    #%begin init
+    add_output('output')
+    #%end
+
+    #%begin setup
+    options['output'].set(["%s_%s" % (p, i) for i in range(1, count.get(int) + 1)])
     #%end
 
     #%begin command 
@@ -414,8 +436,8 @@ dynamically::
     done
 
 What happens here is that we register a new ``output`` options using the 
-contexts :py:meth:`~jip.tools.PythonBlockUtils.add_output` function and
-precalate the names of the files and set them as values. Note that you can
+contexts :py:meth:`~jip.tools.PythonBlockUtils.add_output` function,
+pre-calculate the names of the files and set them as values. Note that you can
 pass converter functions like, ``str``, ``int``, or ``float`` to the options
 :py:meth:`jip.options.Option.get` method to convert the value.
 
@@ -592,6 +614,29 @@ pipeline :py:class:`~jip.pipelines.Node` instances:
 
 Inputs, Outputs, and Options
 ----------------------------
+The previous chapter already explained how you can define tool options and use
+them in your tool implementations. The options are divided in *input*, *output*
+and *general* options. All options can be used to create links (dependencies)
+between tool execution in a pipeline context, but *intpu* and *output* options
+are treated specially. 
+
+Input options are automatically validated for each tool. The system will raise
+in error if you set an input option to a non existing file. 
+
+Output options and files that are referenced as outputs of tools are used
+to detect the state of a tool and its execution, especially when something 
+went wrong. The first indicator for a jobs state, say *running* or *failed*,
+is the job database. Alternatively, if the job is no longer marked as running
+on your compute cluster, the output files of a jobs are checked and the job
+is marked as completed if all outputs exists. That would means that a job
+that failed in the middle of its run might leave files on disk and might be 
+marked as completed accidentally. To prevent this, a JIP run **deletes all 
+output of failed jobs** automatically. If you submit your jobs through the
+``jip submit`` command line tool or run it with ``jip run``, you can prevent 
+deletion of files using the ``--keep`` flag. In general, you are encouraged not
+to use *keep* though. If a job failed, its output will be removed and this 
+will allow you to fix the problem and restart your job without thinking about
+orphan files. 
 
 .. _stream_dispatching:
 
@@ -688,7 +733,7 @@ system, and all jip scripts are passed through the jinja2 engine. There are
 just a few things we changed and added to the context. Most importantly, we use
 `${}` notation to identify variables. This provides a slightly "nicer"
 integration with bash and feels a little bit more native. In addition, we
-configured jinja2 not to replace any unknown variable, which allows you to use
+configured *jinja2* not to replace any unknown variable, which allows you to use
 bash environment variables without any problems.
 
 

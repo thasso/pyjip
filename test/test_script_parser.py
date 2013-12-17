@@ -69,5 +69,27 @@ def test_parse_empty_blocks():
     assert len(blocks) == 1
 
 
+def test_parse_init_and_setup_blocks():
+    blocks = parser.parse_blocks([
+        '#%begin validate',
+        'validation',
+        'block',
+        '#%end',
+        '#%begin init',
+        'init',
+        'block',
+        '#%end',
+        '#%begin setup',
+        'setup',
+        'block',
+        '#%end',
+        '#%begin command',
+        '',
+        '',
+        '#%end',
+    ])
+    assert len(blocks) == 3
+
+
 def test_parse_doc_string():
     assert parser._create_docstring(["#a", "#b", "c"]) == "a\nb\nc"
