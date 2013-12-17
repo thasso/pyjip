@@ -782,7 +782,7 @@ class Pipeline(object):
                     if not target in updated:
                         target._value = []
                         updated.add(target)
-                    target._value.extend(source._value)
+                    target._value.extend(source.value)
             # detect duplicates and try to merge them
             self._expand_merge_duplicates()
 
@@ -1166,7 +1166,7 @@ class Pipeline(object):
                 ooo.dependency = option.dependency
                 ooo._index = i
 
-        node._tool.setup()
+        #node._tool.setup()
         _create_render_context(self, node._tool, node, None)
         self.remove(node)
 
