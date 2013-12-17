@@ -587,7 +587,11 @@ class Option(object):
         """
         if isinstance(v, bool) or self._is_stream(v):
             return converter("")
-        return converter(v)
+        try:
+            return converter(str(v))
+        except Exception as err:
+            log.error("Error while converting '%s': %s", v, err)
+            raise
 
     def is_stream(self):
         """Return true if the current value is a stream or a list of
@@ -913,10 +917,19 @@ class Options(object):
                     nargs = 0
                 elif isinstance(value, (list, tuple)):
                     nargs = "*"
+        default = kwargs.get('default', None)
+        if 'default' in kwargs:
+            del kwargs['default']
+        if not hidden and kwargs.get('default', None) is None and \
+           value is not None:
+            ## flip default and value for non hidden options
+            default = value
+            value = None
+
         option = Option(
             name,
             option_type=kwargs.get('option_type', type),
-            default=kwargs.get('default', None),
+            default=default,
             nargs=nargs,
             hidden=hidden,
             **kwargs
@@ -1169,7 +1182,7 @@ class Options(object):
                 _create_action_delegate(v)
 
         for o in self.options:
-            if o.name == "help":
+            if o.name == "help" or o.hidden:
                 continue
             opts = to_opts(o)
             additional = {}
