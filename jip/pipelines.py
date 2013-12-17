@@ -412,7 +412,7 @@ class Pipeline(object):
                 return v
         raise LookupError("Node with name %s not found" % name)
 
-    def remove(self, tool):
+    def remove(self, tool, remove_links=True):
         """Remove the given tool or node from the pipeline graph.
 
         :param tool: tool or node
@@ -422,7 +422,8 @@ class Pipeline(object):
         node_edges = list(node._edges)
         # remove edges
         for e in node_edges:
-            e.remove_links()
+            if remove_links:
+                e.remove_links()
             if e in self._edges:
                 self._edges.remove(e)
             if e in e._source._edges:
@@ -904,7 +905,7 @@ class Pipeline(object):
             self._cleanup_nodes.append(cleanup_node)
 
     def _expand_sub_pipelines(self, validate=True):
-        """Saerch for sub-pipeline nodes and expand them"""
+        """Search for sub-pipeline nodes and expand them"""
         log.info("Expand | Checking nodes for sub-pipelines")
         check_fanout = True
         for node in self.topological_order():
@@ -995,7 +996,7 @@ class Pipeline(object):
             _create_render_context(self, node._tool, node)
             #_render_nodes(self, [node])
 
-            self.remove(node)
+            self.remove(node, remove_links=False)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
 
     def _expand_name_jobs_by_context(self):

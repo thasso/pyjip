@@ -366,5 +366,89 @@ def test_gem_name_option_delegation_with_output_dir():
     assert jobs[0].children[0] == jobs[1]
 
 
+def test_multiple_pipelines_with_delegated_outputs():
+    @jip.tool('grape_gem_index')
+    class GemIndex(object):
+        """\
+        The GEM Indexer tool
+
+        Usage:
+            gem_index -i <genome> [-o <genome_index>]
+
+        Options:
+            -o, --output <genome_index>  The output GEM index file
+                                         [default: ${input|ext}.gem]
+            -i, --input <genome>         The fasta file for the genome
+        """
+        def get_command(self):
+            return "bash", "gemtools index ${options()}"
+
+    @jip.tool('grape_gem_rnatool')
+    class gem(object):
+        """\
+        The GEMtools RNAseq Mapping Pipeline
+
+        Usage:
+            gem -f <fastq_file> -i <genome_index>
+
+        Inputs:
+            -f, --fastq <fastq_file>  The input fastq
+            -i, --index <genome_index>  The GEM index file for the genome
+        """
+        def get_command(self):
+            return 'bash', 'gemtools rna-pipeline ${options()}'
+
+    @jip.pipeline('grape_gem_setup')
+    class SetupPipeline(object):
+        """\
+        The GEM indexes setup pipeline
+
+        usage:
+            setup -i <genome>
+
+        Options:
+            -i, --input <genome>  The input reference genome
+        """
+        def init(self):
+            self.add_output('index', '${input|ext}.gem')
+
+        def pipeline(self):
+            p = jip.Pipeline()
+            index = p.run('grape_gem_index',
+                          input=self.input, output=self.index)
+            p.context(locals())
+            return p
+
+    @jip.pipeline('grape_gem_rnapipeline')
+    class GrapePipeline(object):
+        """\
+        The default GRAPE RNAseq pipeline
+
+        usage:
+            rnaseq -f <fastq_file> -g <genome>
+
+        Inputs:
+            -f, --fastq <fastq_file>        The input reference genome
+            -g, --genome <genome_index>      The input reference genome
+        """
+        def pipeline(self):
+            p = jip.Pipeline()
+            gem_setup = p.run('grape_gem_setup', input=self.genome)
+            gem = p.run('grape_gem_rnatool', index=gem_setup.index,
+                        fastq=self.fastq)
+            p.context(locals())
+            return p
+
+    p = jip.Pipeline()
+    node = p.run('grape_gem_rnapipeline')
+    node.fastq = 'reads_1.fastq.gz'
+    node.genome = 'genome.fa'
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 2
+    gem_job = filter(lambda x: x.name == 'gem', jobs)[0]
+    assert gem_job is not None
+    assert gem_job.configuration['index'].get().endswith('genome.gem')
+
+
 if __name__ == '__main__':
     unittest.main()
