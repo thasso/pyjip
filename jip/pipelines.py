@@ -913,9 +913,9 @@ class Pipeline(object):
             # setup and render the subpipe node. We
             # do this so that local variables used in the pipeline
             # are rendered properly and the values are set accordingly
-            if hasattr(node._tool, 'pipeline'):
-                node._tool.setup()
-                _render_nodes(self, [node])
+            #if hasattr(node._tool, 'pipeline'):
+            node._tool.setup()
+            _render_nodes(self, [node])
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
