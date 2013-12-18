@@ -409,6 +409,8 @@ class Scanner():
         :rtype: :class:`Tool`
         :raises ToolNotFoundException: if the tool could not be found
         """
+        if name is None:
+            return None
         s = name.split(" ", 1)
         args = None
         if len(s) > 1:

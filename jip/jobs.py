@@ -1099,12 +1099,15 @@ def check_output_files(jobs):
 
 def __output_files(jobs):
     for j in jobs:
-        ofs = list(j.get_output_files())
-        if not ofs:
-            yield j, []
-        else:
-            for of in ofs:
-                yield j, of
+        try:
+            ofs = list(j.get_output_files())
+            if not ofs:
+                yield j, []
+            else:
+                for of in ofs:
+                    yield j, of
+        except Exception as err:
+            log.warn("Unable to fetch output files for job %s: %s", j, err)
 
 
 def check_queued_jobs(jobs, active_jobs=None):
