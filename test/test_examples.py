@@ -580,7 +580,7 @@ done
 def test_hello_world_py_fun(tmpdir):
     tmpdir = str(tmpdir)
     jip.scanner.add_module('examples/hello_world/hello_world.py')
-
+    jip.scanner.scan_modules()
     p = jip.Pipeline()
     p.job(dir=tmpdir).run('fun_hello_world_py')
     jobs = jip.create_jobs(p)
@@ -590,7 +590,7 @@ def test_hello_world_py_fun(tmpdir):
 def test_hello_world_py_cls(tmpdir):
     tmpdir = str(tmpdir)
     jip.scanner.add_module('examples/hello_world/hello_world.py')
-
+    jip.scanner.scan_modules()
     p = jip.Pipeline()
     p.job(dir=tmpdir).run('cls_hello_world_py')
     jobs = jip.create_jobs(p)

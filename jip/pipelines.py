@@ -234,25 +234,8 @@ class Pipeline(object):
         else:
             tool = _tool_name
         node = self.add(tool, _job=_job)
-
-        #################################################################
-        # We do two rounds of validation here. The first one needs
-        # to be done befor any attributes are set, the second one
-        # is done after attributes are applied
-        #################################################################
-        try:
-            tool.validate()
-        except Exception as err:
-            log.debug("Validation error for %s: %s", node, str(err).strip())
-            pass
-
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
-        # silent validate
-        try:
-            tool.validate()
-        except Exception:
-            log.debug("Validation error for %s", node)
         return node
 
     def bash(self, command, **kwargs):
@@ -841,7 +824,7 @@ class Pipeline(object):
 
     def _expand_fanout(self, fanout):
         """Check all nodes in topological order if they need to
-        be fanned out and perform the fanout if neccessary.
+        be fanned out and perform the fanout if necessary.
         """
         if not fanout:
             log.info("Expand | Fanout disabled, updating options")
@@ -919,6 +902,9 @@ class Pipeline(object):
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
+            # validate the sub-pipeline
+            self._validate_node(node, silent=not validate)
+
             # merge the nodes jobs with the sub-pipeline nodes
             for sub_node in sub_pipe.nodes():
                 sub_node._job.merge(node._job)

@@ -415,7 +415,7 @@ def test_tool_job_is_callable_in_pipeline_runs():
 
     @jip.pipeline()
     class MyPipeline():
-        def validate(self):
+        def setup(self):
             # call injected functions
             called.append(True)
             assert callable(self.job), "Job is not callable"
