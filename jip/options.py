@@ -352,7 +352,8 @@ class Option(object):
         self._value = values
 
     def glob(self):
-        """Resolve wildcards used in this option.
+        """Resolve wildcards used in this option. The results is sorted
+        by name and applied as values to this option.
         """
         values = []
         import glob
@@ -360,7 +361,7 @@ class Option(object):
             if isinstance(v, basestring) and v and len(v) > 0 and\
                     "${" not in v:
                 log.debug("Globbing option %s", self.name)
-                v = glob.glob(v)
+                v = sorted(glob.glob(v))
                 values.extend(v)
             elif isinstance(v, Option):
                 v.glob()
