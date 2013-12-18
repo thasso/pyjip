@@ -482,6 +482,8 @@ def test_embedded_pipelines_stage_two(tmpdir):
     jobs = jip.create_jobs(p)
     assert len(jobs) == 8
     assert jobs[0].configuration['prefix'] == 'test'
+    print ">>>OUTPUT", jobs[0].configuration['output'].raw()
+    print ">>>TMPDIR", tmpdir
     assert jobs[0].configuration['output'] == [
         os.path.join(tmpdir, 'test.1'),
         os.path.join(tmpdir, 'test.2'),
