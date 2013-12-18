@@ -575,5 +575,24 @@ done
                              ['test_1', 'test_2']]
 
 
+def test_hello_world_py_fun(tmpdir):
+    tmpdir = str(tmpdir)
+    jip.scanner.add_module('examples/hello_world/hello_world.py')
+
+    p = jip.Pipeline()
+    p.job(dir=tmpdir).run('fun_hello_world_py')
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 1
+
+
+def test_hello_world_py_cls(tmpdir):
+    tmpdir = str(tmpdir)
+    jip.scanner.add_module('examples/hello_world/hello_world.py')
+
+    p = jip.Pipeline()
+    p.job(dir=tmpdir).run('cls_hello_world_py')
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 1
+
 if __name__ == '__main__':
     unittest.main()

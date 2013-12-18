@@ -51,11 +51,18 @@ python -c '
 import sys
 import cPickle
 import jip
+import jip.tools
 import types
 
 jip._disable_module_search = True
 source="".join([l for l in sys.stdin]).decode("base64")
-tool = cPickle.loads(source)
+data = cPickle.loads(source)
+deco = jip.tools.tool()
+tool = jip.tools.PythonTool(
+    data["instance"],
+    deco
+)
+tool._options = data["options"]
 if isinstance(tool, types.FunctionType):
     tool()
 else:
@@ -306,18 +313,21 @@ class tool(object):
     def get_command(self, wrapper, instance):
         interp = "bash"
         cmd = None
-        if not isinstance(instance, types.FunctionType):
+        if not self._pytool and not isinstance(instance, types.FunctionType):
             cmds = self.__call_delegate(self._get_command, wrapper,
                                         instance)
         else:
             if self._pytool:
-                # this is a single function that we want to execute
-                # as a tool
-                wrapper.decorator.add_outputs = None
-                wrapper._add_outputs = None
-                wrapper.cls = None
+                # this is a python tool that wrapps a class or function.
+                # In order to get a single command, we pickle the
+                # wrapped instance and the options and then push it
+                # through the pickel template
+                data = {
+                    "instance": instance,
+                    "options": wrapper.options
+                }
                 r = ('bash', _pickel_template %
-                     (cPickle.dumps(wrapper).encode("base64")))
+                     (cPickle.dumps(data).encode("base64")))
                 return r
             else:
                 # this is not a python tool function but a function

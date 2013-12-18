@@ -51,3 +51,10 @@ you can also use a python module implementation to create a bash script :)
 The `module example <./hello_world.py>`_ covers the basic ways on how you can
 implement a tool using the JIP python API.
 
+To run tools from a python module, you have to add the module to the JIP 
+module search path. This can be done globally in your configuration file or
+using the ``JIP_MODULES`` environment variable. For example::
+
+    $> JIP_MODULES=hello_world.py jip run fun_hello_world
+    Hello World
+
