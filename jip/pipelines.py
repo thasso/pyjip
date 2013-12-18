@@ -510,7 +510,8 @@ class Pipeline(object):
             count[node] = 0
 
         for node in self.nodes():
-            _children = set(node.children())
+            _children = sorted(node.children(),
+                               key=lambda j: j._node_index, reverse=True)
             children[node] = _children
             for successor in _children:
                 count[successor] += 1
