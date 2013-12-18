@@ -9,7 +9,7 @@ import jip.tools
 class BWAPipelineTest(unittest.TestCase):
     def testPipelineStructure(self):
         # load the pipeline
-        tool = jip.find("examples/bwa/initial_io.jip")
+        tool = jip.find("examples/bwa/pileup.jip")
         assert tool is not None
 
         # create a pipeline
@@ -45,7 +45,7 @@ class BWAPipelineTest(unittest.TestCase):
 
     def testPipelineStructureMultiplexed(self):
         # load the pipeline
-        tool = jip.find("examples/bwa/initial_io.jip")
+        tool = jip.find("examples/bwa/pileup.jip")
         assert tool is not None
 
         # create a pipeline
