@@ -227,7 +227,7 @@ def create_groups(jobs):
     return groups
 
 
-def create_executions(jobs, check_outputs=True, check_queued=False,
+def create_executions(jobs, check_outputs=True, check_queued=True,
                       save=False):
     """Return a list of named tuples that reference jobs that can be executed
     in the right order. The named tuples yield by this generator have the
@@ -270,8 +270,8 @@ def create_executions(jobs, check_outputs=True, check_queued=False,
     """
     if check_outputs:
         check_output_files(jobs)
-    #if check_queued:
-        #jobs = check_queued_jobs(jobs)
+    if check_queued:
+        check_queued_jobs(jobs)
 
     # the instance
     Runable = collections.namedtuple("Runnable", ['name', 'job', 'completed'])
@@ -1107,12 +1107,14 @@ def __output_files(jobs):
                 yield j, of
 
 
-def check_queued_jobs(jobs):
+def check_queued_jobs(jobs, active_jobs=None):
     """Check if, for any of the given job, there are queued or running
     jobs that create the same output files. If that is the case, a
     ``ValidationError`` is raised.
 
     :param jobs: the list of jobs to check
+    :param active_jobs: list of jobs to check against. If not specified,
+                        the database is queried for all active jobs
     :raises ValidationError: if there is a queued or running job that creates
                              the same output as one of the jobs in the given
                              list of jobs
@@ -1120,27 +1122,24 @@ def check_queued_jobs(jobs):
     # create a dict for all output files
     # of all currently runninng or queued jobs
     files = {}
-    for j, of in __output_files(db.get_active_jobs()):
+    active_jobs = active_jobs if active_jobs is not None \
+        else db.get_active_jobs()
+    for j, of in __output_files(active_jobs):
         if of:
             files[of] = j
-    checked = []
     for job, of in __output_files(jobs):
         if of and of in files:
             other_job = files[of]
             job.state = other_job.state
-            checked.append(other_job)
-        else:
-            checked.append(job)
-    return checked
-            #raise jip.tools.ValidationError(
-                #job,
-                #"Output file duplication:\n\n"
-                #"During validation an output file name was found\n"
-                #"in another job!\n"
-                #"Job %s [%s] also creates the following file:\n"
-                #"\n\t%s\n\n"
-                #"The job is currenty in %s state. Cancel or delete\n"
-                #"the job in order to submit this run or check\n"
-                #"your output files\n" % (other_job, str(other_job.id),
-                                         #of, other_job.state)
-            #)
+            raise jip.tools.ValidationError(
+                job,
+                "Output file duplication:\n\n"
+                "During validation an output file name was found\n"
+                "in another job!\n"
+                "Job %s [%s] also creates the following file:\n"
+                "\n\t%s\n\n"
+                "The job is currenty in %s state. Cancel or delete\n"
+                "the job in order to submit this run or check\n"
+                "your output files\n" % (other_job, str(other_job.id),
+                                         of, other_job.state)
+            )

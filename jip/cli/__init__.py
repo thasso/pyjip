@@ -568,6 +568,7 @@ def dry(script, script_args, dry=True, show=False):
         show_commands(jobs)
     try:
         jip.jobs.check_output_files(jobs)
+        jip.jobs.check_queued_jobs(jobs)
     except Exception as err:
         print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
         print >>sys.stderr, str(err)
