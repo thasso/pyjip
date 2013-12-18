@@ -783,7 +783,7 @@ def test_nested_pipes_stream_setup_stream_multiplex():
     p = jip.Pipeline()
     p.run(tool, input=["Makefile", "README.rst", "setup.py"],
           output="${input}.dat")
-    p.expand()
+    p.expand(validate=False)
 
     # 2 nodes 1 edge
     assert len(p) == 6
@@ -816,7 +816,7 @@ def test_nested_pipes_stream_setup_stream_intermediate_multiplex():
     p.run(tool, input=["Makefile", "README.rst", "setup.py"],
           inter='${input}.inter',
           output="${input}.dat")
-    p.expand()
+    p.expand(validate=False)
 
     # 2 nodes 1 edge
     assert len(p) == 6

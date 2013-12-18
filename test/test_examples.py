@@ -596,5 +596,17 @@ def test_hello_world_py_cls(tmpdir):
     jobs = jip.create_jobs(p)
     assert len(jobs) == 1
 
+
+def test_file_touch():
+    p = jip.Pipeline()
+    node = p.run('examples/file_touch.jip', p='test', c=5)
+    p.expand()
+    cwd = os.getcwd()
+    j = os.path.join
+    assert node.output == [
+        j(cwd, 'test_' + x) for x in ['1', '2', '3', '4', '5']
+    ]
+
+
 if __name__ == '__main__':
     unittest.main()

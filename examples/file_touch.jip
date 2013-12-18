@@ -4,8 +4,12 @@
 # usage:
 #   touch -p <prefix> -c <count> 
 
-#%begin validate
-add_output('output', ["%s_%s" % (p, i) for i in range(1, c.get(int) + 1)])
+#%begin init
+add_output('output')
+#%end
+
+#%begin setup
+options['output'] = ["%s_%s" % (p, i) for i in range(1, c.get(int) + 1)]
 #%end
 
 #%begin command 

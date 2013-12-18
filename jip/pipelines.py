@@ -80,7 +80,6 @@ class Job(Profile):
         :returns: the newly created node
         :rtype: :class:`Node`
         """
-
         if len(args) > 1:
             raise ValueError("You can only pass one tool to a job run !")
         node = args[0]

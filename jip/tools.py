@@ -409,26 +409,32 @@ class Scanner():
         :rtype: :class:`Tool`
         :raises ToolNotFoundException: if the tool could not be found
         """
-        if exists(name) and os.path.isfile(name):
-            ## the passed argument is a file. Try to load it at a
-            ## script and add the files directory to the search path
-            tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
-            self._register_tool(name, tool)
-            self.jip_file_paths.add(dirname(name))
-            return tool.clone()
-
-        if not self.initialized:
-            self.scan()
-            self.initialized = True
-
-        self.instances.update(Scanner.registry)
-
         s = name.split(" ", 1)
         args = None
         if len(s) > 1:
             import shlex
             name = s[0]
             args = shlex.split(s[1])
+
+        if exists(name) and os.path.isfile(name):
+            ## the passed argument is a file. Try to load it at a
+            ## script and add the files directory to the search path
+            tool = ScriptTool.from_file(name, is_pipeline=is_pipeline)
+            self._register_tool(name, tool)
+            self.jip_file_paths.add(dirname(name))
+            clone = tool.clone()
+            clone.init()
+            if args:
+                log.debug("Scanner | Parsing arguments passed "
+                          "through tool name")
+                clone.parse_args(args)
+            return clone
+
+        if not self.initialized:
+            self.scan()
+            self.initialized = True
+
+        self.instances.update(Scanner.registry)
 
         tool = self.instances.get(name, None)
         if tool is None:
