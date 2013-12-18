@@ -751,10 +751,10 @@ class Pipeline(object):
             # render all ndoes
             log.info("Expand | Render node context for %d nodes", len(self))
             # setup nodes
-            for n in self.nodes():
-                n._tool.setup()
+            #for n in self.nodes():
+                #n._tool.setup()
             # render values
-            _render_nodes(self, list(self.nodes()))
+            #_render_nodes(self, list(self.nodes()))
 
             updated = set([])
             for node in self.topological_order():
