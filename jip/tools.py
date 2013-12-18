@@ -265,6 +265,10 @@ class tool(object):
             try:
                 fun = getattr(instance, name)
             except:
+                # don't double validate, the python tool will call the
+                # Tool validate already
+                if name == 'validate':
+                    return
                 # try to get the function frow main Tool implementation
                 fun = getattr(Tool, name)
         if fun:
