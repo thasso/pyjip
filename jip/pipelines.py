@@ -1048,13 +1048,38 @@ class Pipeline(object):
         n1 = nodes.pop()
         for n2 in nodes:
             for n2_edge in n2._edges:
+                if n2_edge._source == n2:
+                    ## OUTGOING EDGE
+                    # get the other side
+                    target = n2_edge._target
+                    # change all incoming edge sources to n1
+                    new_edge_set = []
+                    for e in target._edges:
+                        if e._source == n2:
+                            e._source = n1
+                        if not e in new_edge_set:
+                            new_edge_set.append(e)
+                    target._edges = new_edge_set
+                    # set this edge source to n1
+                    n2_edge._source = n1
+                else:
+                    ## INCOMING EDGE
+                    # get the soruce side
+                    source = n2_edge._source
+                    # change all outgoing edge targets to n1
+                    new_edge_set = []
+                    for e in source._edges:
+                        if e._target == n2:
+                            e._target = n1
+                        if not e in new_edge_set:
+                            new_edge_set.append(e)
+                    source._edges = new_edge_set
+                    # set this edge target to n1
+                    n2_edge._target = n1
+                # if such edge does not exist, add it to n1
                 if not n2_edge in n1._edges:
                     n1._edges.append(n2_edge)
-            for e in n2._edges:
-                if e._source == n2:
-                    e._source = n1
-                else:
-                    e._target = n1
+            # reset edges and remove the node
             n2._edges = []
             self.remove(n2)
         self._apply_node_name(n1, n1._name)
