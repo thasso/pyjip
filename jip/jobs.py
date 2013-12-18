@@ -854,7 +854,7 @@ def from_node(node, env=None, keep=False):
     if job.name is None:
         job.name = node._tool.name
         node._job.name = job.name
-    log.debug("Creating node %s", job.name)
+    log.debug("Jobs | Creating node %s", job.name)
 
     # get current user
     job.user = getpass.getuser()
