@@ -8,4 +8,5 @@ some more advanced example on how to create complex pipelines.
 Basic examples
 --------------
 
-    * `Hello World <./hello_world/>`_
+    * `Hello World <./hello_world/>`_. The classic hello world example with
+      implementation in different languages.
