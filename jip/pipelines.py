@@ -891,6 +891,8 @@ class Pipeline(object):
             cleanup_node.files.dependency = True
             #for target in (list(targets) + list(temp_nodes)):
             for target in list(targets):
+                if not cleanup_node._pipeline and target._pipeline:
+                    cleanup_node._pipeline = target._pipeline
                 cleanup_node.depends_on(target)
             self._cleanup_nodes.append(cleanup_node)
 

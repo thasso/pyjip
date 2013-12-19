@@ -329,9 +329,9 @@ def show_job_tree(jobs, title="Job hierarchy"):
     :param title: a title for the table
     """
     if title is not None:
-        print "#" * 20
-        print "| {name:^24}  |".format(name=colorize(title, BLUE))
-        print "#" * 20
+        print "#" * 21
+        print "| {name:^25}  |".format(name=colorize(title, BLUE))
+        print "#" * 21
 
     done = set([])
     counts = {}
@@ -396,15 +396,18 @@ def show_job_tree(jobs, title="Job hierarchy"):
     for job in jobs:
         if len(job.dependencies) == 0:
             draw_node(job, levels=[], parents=set([]), level=0)
-    print "#" * 20
-    print "| Tasks: {j:>17}  |".format(j=colorize(len(jobs), BLUE))
-    print "| Jobs: {g:>18}  |".format(
+    print "#" * 21
+    print "| Tasks: {j:>18}  |".format(j=colorize(len(jobs), BLUE))
+    print "| Jobs: {g:>19}  |".format(
         g=colorize(len(jip.jobs.create_groups(jobs)), BLUE)
     )
-    print "| Groups: {g:>16}  |".format(
+    print "| Named Groups: {g:>11}  |".format(
         g=colorize(len(set(map(lambda x: x.pipeline, jobs))), BLUE)
     )
-    print "#" * 20
+    print "| Job Groups: {g:>13}  |".format(
+        g=colorize(len(filter(lambda x: len(x.dependencies) == 0, jobs)), BLUE)
+    )
+    print "#" * 21
 
 
 def _clean_value(v):
