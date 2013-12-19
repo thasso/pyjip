@@ -218,11 +218,24 @@ class tool(object):
                 self.name = cls.__name__
 
         # overwrite the string representation
+        is_class = False
         if not isinstance(cls, types.FunctionType):
             cls.__repr__ = lambda x: self.name
+            is_class = True
+
+        if is_class:
+            old = cls.__setattr__
+
+            def setatr(slf, name, value):
+                ov = slf.__dict__.get(name, None)
+                if ov is not None and isinstance(ov, Option):
+                    ov.set(value)
+                else:
+                    old(slf, name, value)
+            cls.__setattr__ = setatr
+
         tool_instance = PythonTool(cls, self, self.add_outputs)
         Scanner.registry[self.name] = tool_instance
-
         log.debug("Registered tool from module: %s", self.name)
         return cls
 
