@@ -964,6 +964,7 @@ class Foo(object):
     def get_command(self):
         return "foo ${options()}"
 
+
 @pipeline('foo_pp')
 class FooPipeline(object):
     """\
@@ -981,8 +982,9 @@ class FooPipeline(object):
 
     def pipeline(self):
         p = jip.Pipeline()
-        a = p.run('foo', input='Makefile')
+        p.run('foo', input='Makefile')
         return p
+
 
 def test_tool_name_with_local_context():
     p = jip.Pipeline()
@@ -991,6 +993,7 @@ def test_tool_name_with_local_context():
     jobs = jip.create_jobs(p, validate=False)
     assert len(jobs) == 1
     assert jobs[0].name == 'Makefile'
+
 
 def test_pipeline_name():
     p = jip.Pipeline()
