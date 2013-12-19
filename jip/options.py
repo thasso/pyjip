@@ -297,9 +297,16 @@ class Option(object):
         return v
 
     def __repr__(self):
-        return "{%s(%s)::%s}" % (self.name, str(self.source) if self.source
-                                 else "<no-source>",
-                                 str(self.raw()))
+        s = '%s.%s%s'
+        source = self.source if self.source else '<no-source>'
+        vs = [o.__repr__() for o in self._value]
+        if not vs:
+            vs = [] if self.default is None else [self.default]
+        s = s % (source, self.name, vs)
+        return s
+        #return "{%s(%s)::%s}" % (self.name, str(self.source) if self.source
+                                 #else "<no-source>",
+                                 #str(self.raw()))
 
     def __len__(self):
         """Return the number of elements currently assigned to this option"""
@@ -763,7 +770,7 @@ class Options(object):
 
         >>> opts = Options()
         >>> opts.add_input('input')
-        {input(<no-source>)::None}
+        <no-source>.input[]
         >>> opts['input'] = "data.txt"
 
     This assigned the value ``data.txt`` to the ``input`` option.
@@ -1014,9 +1021,9 @@ class Options(object):
             >>> from jip.options import Options
             >>> opts = Options()
             >>> opts.add_input("input", short="-i", value="data.in", hidden=False)
-            {input(<no-source>)::data.in}
+            <no-source>.input['data.in']
             >>> opts.add_output("output", short="-o", value="data.out", hidden=False)
-            {output(<no-source>)::data.out}
+            <no-source>.output['data.out']
             >>> assert opts.to_cmd() == '-i data.in -o data.out'
 
         :returns: command line representation of all non-hidden options
