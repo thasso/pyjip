@@ -5,7 +5,7 @@ import pickle
 import pytest
 import jip
 from jip.pipelines import Pipeline
-from jip.tools import Tool, tool
+from jip.tools import Tool, tool, pipeline
 from jip.options import Option
 
 
@@ -944,3 +944,57 @@ def test_pipeline_with_local_context():
     b = p.get('bash')
     assert b is not None
     assert b.cmd.get() == 'wc -l Makefile'
+
+
+@tool('foo')
+class Foo(object):
+    """\
+    The Foo tool
+
+    usage:
+        foo -i <input> [-o <output>]
+
+    Options:
+        -i, --input  the input
+        -o, --output the output
+    """
+    def setup(self):
+        self.name('${input|name}')
+
+    def get_command(self):
+        return "foo ${options()}"
+
+@pipeline('foo_pp')
+class FooPipeline(object):
+    """\
+    The Foo pipeline
+
+    usage:
+        foo-pp -i <input> [-o <output>]
+
+    Options:
+        -i, --input  the input
+        -o, --output the output
+    """
+    def setup(self):
+        self.name('${input|name}')
+
+    def pipeline(self):
+        p = jip.Pipeline()
+        a = p.run('foo', input='Makefile')
+        return p
+
+def test_tool_name_with_local_context():
+    p = jip.Pipeline()
+    a = p.run('foo', input='Makefile')
+    p.context(locals())
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 1
+    assert jobs[0].name == 'Makefile'
+
+def test_pipeline_name():
+    p = jip.Pipeline()
+    p.run('foo_pp', input='Makefile')
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 1
+    assert jobs[0].pipeline == 'Makefile'
