@@ -953,32 +953,21 @@ class Pipeline(object):
             # option is in one of the new sub_nodes _pipeline_options, we
             # reestablish the link between the options, now linking between
             # the nodes
-            for outedge in node.outgoing():
-                for link in outedge._links:
-                    stream = link[2]
-                    for sub_node in sub_pipe.nodes():
-                        # find nodes who have _pipeline_options set
-                        for po in sub_node._pipeline_options:
-                            if po['option'] == link[0]:
-                                edge = self.add_edge(sub_node, outedge._target)
-                                edge.add_link(
-                                    sub_node._tool.options[po['option'].name],
-                                    link[1],
-                                    stream
-                                )
-            for inedge in node.incoming():
-                for link in inedge._links:
-                    stream = link[2]
-                    for sub_node in sub_pipe.nodes():
-                        # find nodes who have _pipeline_options set
-                        for po in sub_node._pipeline_options:
-                            if po['option'] == link[1]:
-                                edge = self.add_edge(inedge._source, sub_node)
-                                edge.add_link(
-                                    link[0],
-                                    sub_node._tool.options[po['option'].name],
-                                    stream
-                                )
+            self._expand_subpipe_resolve_outgoing(node, sub_pipe)
+            self._expand_subpipe_resolve_incoming(node, sub_pipe)
+            #for inedge in node.incoming():
+                #for link in inedge._links:
+                    #stream = link[2]
+                    #for sub_node in sub_pipe.nodes():
+                        ## find nodes who have _pipeline_options set
+                        #for po in sub_node._pipeline_options:
+                            #if po['option'] == link[1]:
+                                #edge = self.add_edge(inedge._source, sub_node)
+                                #edge.add_link(
+                                    #link[0],
+                                    #sub_node._tool.options[po['option'].name],
+                                    #stream
+                                #)
             # setup the node and render values before we remove the node
             node._tool.setup()
             _create_render_context(self, node._tool, node)
@@ -986,6 +975,74 @@ class Pipeline(object):
 
             self.remove(node, remove_links=False)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
+
+    def _expand_subpipe_resolve_outgoing(self, node, sub_pipe):
+        """Find outgoing edges from the sub pipe node that link
+        to nodes outside of the sub-pipe and are used in nodes inside the
+        sub-pipeline. If such edge/options combination exists, add an edge
+        with link from the node in the sub-pipeline to the node outside of
+        the sub-pipeline.
+
+        :param node: the sub pipeline parent node that is expanded
+        :param sub_pipe: the sub pipeline
+        """
+        for outedge in node.outgoing():
+            for link in outedge._links:
+                self._expand_subpipe_resolve_outgoing_edge(
+                    outedge, link, sub_pipe
+                )
+
+    def _expand_subpipe_resolve_incoming(self, node, sub_pipe):
+        """Find incoming edges from the sub pipe node that link
+        to nodes outside of the sub-pipe and are used in nodes inside the
+        sub-pipeline. If such edge/options combination exists, add an edge
+        with link from the node in the sub-pipeline to the node outside of
+        the sub-pipeline.
+
+        :param node: the sub pipeline parent node that is expanded
+        :param sub_pipe: the sub pipeline
+        """
+        for inedge in node.incoming():
+            for link in inedge._links:
+                self._expand_subpipe_resolve_incoming_edge(
+                    inedge, link, sub_pipe
+                )
+
+    def _expand_subpipe_resolve_outgoing_edge(self, outedge, link, sub_pipe):
+        stream = link[2]
+        for sub_node in sub_pipe.nodes():
+            # find nodes who have _pipeline_options set
+            for po in sub_node._pipeline_options:
+                if po['source_option'] == link[0]:
+                    edge = self.add_edge(sub_node, outedge._target)
+                    source_option = sub_node._tool.options[po['option'].name]
+                    target_option = link[1]
+                    # udpate target option raw values
+                    vs = []
+                    for current in target_option._value:
+                        if current == source_option:
+                            vs.append(target_option)
+                        else:
+                            vs.append(current)
+                    edge.add_link(source_option, target_option, stream)
+
+    def _expand_subpipe_resolve_incoming_edge(self, inedge, link, sub_pipe):
+        stream = link[2]
+        for sub_node in sub_pipe.nodes():
+            # find nodes who have _pipeline_options set
+            for po in sub_node._pipeline_options:
+                if po['source_option'] == link[1]:
+                    edge = self.add_edge(inedge._source, sub_node)
+                    target_option = sub_node._tool.options[po['option'].name]
+                    source_option = link[0]
+                    # udpate target option raw values
+                    vs = []
+                    for current in target_option._value:
+                        if current == source_option:
+                            vs.append(target_option)
+                        else:
+                            vs.append(current)
+                    edge.add_link(source_option, target_option, stream)
 
     def _expand_name_jobs_by_context(self):
         """If utils and a global context are available, apply variable
@@ -1838,6 +1895,7 @@ class Node(object):
             else:
                 self._pipeline_options.append(
                     {"source": value.source, "option": option,
+                     'source_option': value,
                      "stream": allow_stream}
                 )
         else:
@@ -1914,9 +1972,9 @@ class Edge(object):
         :type target_option: jip.options.Option
         """
         if not source_option.source == self._source._tool:
-            raise ValueError("Liked options source != edge.source")
+            raise ValueError("Linked source options.source != edge.source")
         if not target_option.source == self._target._tool:
-            raise ValueError("Liked options target != edge.target")
+            raise ValueError("Linked target option.source != edge.target")
 
         if source_option.is_stream() and not target_option.streamable:
             raise jip.tools.ValidationError(

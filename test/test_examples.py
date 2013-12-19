@@ -608,5 +608,164 @@ def test_file_touch():
     ]
 
 
+def test_pipeline_to_pipeline_edge_delegation():
+    @jip.tool('grape_gem_index')
+    class GemIndex(object):
+        """\
+        The GEM Indexer tool
+
+        Usage:
+            gem_index -i <genome> [-o <genome_index>]
+
+        Options:
+            -o, --output <genome_index>  The output GEM index file
+                                         [default: ${input|ext}.gem]
+            -i, --input <genome>         The fasta file for the genome
+        """
+        def get_command(self):
+            return "bash", "gemtools index ${options()}"
+
+    @jip.tool('grape_gem_rnatool')
+    class gem(object):
+        """\
+        The GEMtools RNAseq Mapping Pipeline
+
+        Usage:
+            gem -f <fastq_file> -i <genome_index>
+
+        Inputs:
+            -f, --fastq <fastq_file>  The input fastq
+            -i, --index <genome_index>  The GEM index file for the genome
+        """
+        def get_command(self):
+            return 'bash', 'gemtools rna-pipeline ${options()}'
+
+    @jip.pipeline('grape_gem_setup')
+    class SetupPipeline(object):
+        """\
+        The GEM indexes setup pipeline
+
+        usage:
+            setup -i <genome>
+
+        Options:
+            -i, --input <genome>  The input reference genome
+        """
+        def init(self):
+            self.add_output('index', '${input|ext}.gem')
+
+        def pipeline(self):
+            p = jip.Pipeline()
+            index = p.run('grape_gem_index',
+                          input=self.input, output=self.index)
+            p.context(locals())
+            return p
+
+    @jip.pipeline('grape_gem_rnapipeline')
+    class GrapePipeline(object):
+        """\
+        The default GRAPE RNAseq pipeline
+
+        usage:
+            rnaseq -f <fastq_file> -g <genome>
+
+        Inputs:
+            -f, --fastq <fastq_file>        The input reference genome
+            -g, --genome <genome_index>      The input reference genome
+        """
+        def pipeline(self):
+            p = jip.Pipeline()
+            gem_setup = p.run('grape_gem_setup', input=self.genome)
+            gem = p.run('grape_gem_rnatool', index=gem_setup.index,
+                        fastq=self.fastq)
+            p.context(locals())
+            return p
+
+    p = jip.Pipeline()
+    node = p.run('grape_gem_rnapipeline')
+    node.fastq = 'reads_1.fastq.gz'
+    node.genome = 'genome.fa'
+    p.expand(validate=False)
+
+    index = p.get('index')
+    gem_node = p.get('gem')
+    cwd = os.getcwd()
+    j = os.path.join
+    assert index.has_outgoing(gem_node, link=('output', 'index'),
+                              value=j(cwd, 'genome.gem'))
+
+
+def test_subpipe_incoming_edge_resolve():
+    @jip.pipeline()
+    def subedge_pipe(tool):
+        """Subedge
+
+        usage:
+            subedge --input <input>
+        """
+        p = jip.Pipeline()
+        p.job('ls').bash('ls ${input}', input=tool.input)
+        return p
+
+    p = jip.Pipeline()
+    produce = p.job('touch').bash('touch ${outfile}', outfile='out.dat')
+    p.run('subedge_pipe', input=produce.outfile)
+    p.expand(validate=False)
+    touch = p.get('touch')
+    ls = p.get('ls')
+    cwd = os.getcwd()
+    j = os.path.join
+    assert touch.has_outgoing(ls, link=('outfile', 'input'),
+                              value=j(cwd, 'out.dat'))
+
+
+def test_subpipe_incoming_edge_resolve_pipe_to_pipe():
+    @jip.pipeline()
+    def subedge_pipe_1(tool):
+        """Subedge
+
+        usage:
+            subedge --input <input> --output <output>
+        """
+        p = jip.Pipeline()
+        p.job('p1').bash('touch', input=tool.input, output=tool.output)
+        return p
+
+    @jip.pipeline()
+    def subedge_pipe_2(tool):
+        """Subedge
+
+        usage:
+            subedge --input <input> --output <output>
+        """
+        p = jip.Pipeline()
+        p.job('p2').bash('touch', input=tool.input, output=tool.output)
+        return p
+
+    @jip.pipeline()
+    def subedge_pipe_combine(tool):
+        """Subedge
+
+        usage:
+            subedge --input <input> --output <output>
+        """
+        p = jip.Pipeline()
+        p1 = p.run('subedge_pipe_1', input=tool.input, output='p1.out')
+        p.run('subedge_pipe_2', input=p1, output=tool.output)
+        return p
+
+    p = jip.Pipeline()
+    p.run('subedge_pipe_combine', input='a.txt', output="out.dat")
+    p.expand(validate=False)
+    assert len(p) == 2
+    p1 = p.get('p1')
+    p2 = p.get('p2')
+    cwd = os.getcwd()
+    j = os.path.join
+    assert p1.has_outgoing(p2)
+    assert p1.has_outgoing(p2, value=j(cwd, 'out.dat'))
+    assert p1.has_outgoing(p2, link=('output', 'input'),
+                           value=j(cwd, 'p1.out'))
+
 if __name__ == '__main__':
     unittest.main()
