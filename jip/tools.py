@@ -1047,6 +1047,7 @@ class Tool(object):
         self._options = None
         self._options_source = options_source
         self._job = None
+        self._is_pipeline = False
 
     def setup(self):
         """Setup method that can be implemented to manipulate tool options
@@ -1389,6 +1390,7 @@ class PythonTool(Tool):
         ################################################################
         self._options_source = None
         self._add_outputs = add_outputs
+        self._is_pipeline = decorator._force_pipeline
 
     def clone(self, counter=None):
         cloned_tool = Tool.clone(self, counter=counter)
@@ -1590,6 +1592,7 @@ class ScriptTool(Tool):
 
         if not self.command_block and not self.pipeline_block:
             raise Exception("No executable or pipeline block found!")
+        self._is_pipeline = self.pipeline_block is not None
 
     def pipeline(self):
         if self.pipeline_block:
