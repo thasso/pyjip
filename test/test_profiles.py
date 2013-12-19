@@ -230,8 +230,6 @@ def test_tool_name_in_pipelines_with_multiplexing_and_custom_name():
 
     p = jip.Pipeline()
     p.run('MyPipeline')
-    p.expand()
-
     profile = jip.Profile(name="customname")
     jobs = jip.create_jobs(p, profile=profile)
     assert len(jobs) == 2

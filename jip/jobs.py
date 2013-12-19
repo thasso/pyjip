@@ -842,18 +842,8 @@ def from_node(node, env=None, keep=False):
     """
     job = jip.db.Job(node._tool)
     tool = node._tool
-    job.pipeline = node._pipeline
     job.state = jip.db.STATE_HOLD
     #job.name = tool.name
-    job.name = node.name
-    if job.name is None:
-        job.name = node._name
-    if job.name is None:
-        job.name = node._tool._job_name
-        node._job.name = job.name
-    if job.name is None:
-        job.name = node._tool.name
-        node._job.name = job.name
     log.debug("Jobs | Creating node %s", job.name)
 
     # get current user
@@ -866,6 +856,8 @@ def from_node(node, env=None, keep=False):
     job.env = env if env is not None else create_job_env()
     if node._job is not None:
         node._job.apply(job)
+    job.name = node.name
+    job.pipeline = node._pipeline
 
     # store additional options
     job.configuration = node._tool.options

@@ -233,7 +233,7 @@ class tool(object):
         # helper function to expose a name function directly
         def set_name(name):
             # set the job name
-            wrapper._job_name = name
+            wrapper.job.name = name
         # inject helper functions
         helper_function = {
             "name": set_name,
@@ -791,8 +791,7 @@ class PythonBlockUtils(object):
         :param name: the name of the pipeline
         :type name: string
         """
-        self.pipeline.name(name)
-        self.tool._job_name = name
+        self.tool._job.name = name
 
     def bash(self, command, **kwargs):
         """Create a *bash* job that executes a bash command.
@@ -1041,7 +1040,6 @@ class Tool(object):
         """
         #: the tools name
         self._name = name
-        self._job_name = None
         #: path to the tools source file
         self.path = None
         self._options = None

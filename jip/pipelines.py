@@ -41,6 +41,8 @@ class Job(Profile):
         self._name = name
         if self._in_pipeline_name is None:
             self._in_pipeline_name = name
+        else:
+            name = self._in_pipeline_name
         if self._node is not None and self._pipeline is not None:
             self._pipeline._apply_node_name(self._node, name)
 
@@ -61,6 +63,22 @@ class Job(Profile):
         if self._pipeline and self._node:
             self._pipeline._apply_node_name(self._node, name)
             return self._node.name
+        return name
+
+    def _render_name(self):
+        if not self._pipeline or not self._node:
+            return self.name
+
+        ctx = {}
+        for o in self._node._tool.options:
+            ctx[o.name] = o
+        if self._in_pipeline_name:
+            name = self._in_pipeline_name
+        else:
+            name = self._node._name
+        name = render_template(
+            "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
+        )
         return name
 
     def __call__(self, *args, **kwargs):
@@ -184,7 +202,6 @@ class Pipeline(object):
         """
         if name is None:
             return
-        self._name = name
         for n in self.nodes():
             n._pipeline = name
 
@@ -292,18 +309,12 @@ class Pipeline(object):
             n._pipeline = self._name
             n._job = job
             job._node = n
-            if job._in_pipeline_name:
-                tool._job_name = job._in_pipeline_name
             self._nodes[tool] = n
             # initialize the tool name using the tools' name
             # initialize the node index
             n._node_index = self._node_index
             self._node_index += 1
-            name = tool.name if not tool._job_name else tool._job_name
-            if not name:
-                name = tool.name
-            if _job and _job.name:
-                name = _job.name
+            name = tool.name if not job.name else job.name
             log.debug("Add node | added %s", name)
             self._apply_node_name(n, name)
         return self._nodes[tool]
@@ -772,16 +783,13 @@ class Pipeline(object):
         # apply names from global context
         self._expand_name_jobs_by_context()
 
-        # apply all _job_names of nodes that might have been
         # applied and perform the final validation on all nodes
         if _find_dup:
             log.info("Expand | Validating nodes")
             for node in self.nodes():
                 #node._tool.options.make_absolute(node._job.working_dir)
                 self._validate_node(node, silent=not validate)
-                if node._tool._job_name is not None:
-                    self._apply_node_name(node, node._tool._job_name)
-
+                #self._apply_node_name(node, node._name)
 
         ##########################################################
         # transitive reduction of dependencies
@@ -908,9 +916,12 @@ class Pipeline(object):
             # merge the nodes jobs with the sub-pipeline nodes
             for sub_node in sub_pipe.nodes():
                 sub_node._job.merge(node._job)
-            # check and set this pipelines name
-            if self._name is None:
-                self.name(node._tool._job_name)
+
+            # render and apply the nodes name as pipeline
+            # name
+            node._name = node.job._render_name()
+            sub_pipe.name(node.name)
+
             log.info("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
                 self.excludes.extend(sub_pipe.excludes)
@@ -955,19 +966,6 @@ class Pipeline(object):
             # the nodes
             self._expand_subpipe_resolve_outgoing(node, sub_pipe)
             self._expand_subpipe_resolve_incoming(node, sub_pipe)
-            #for inedge in node.incoming():
-                #for link in inedge._links:
-                    #stream = link[2]
-                    #for sub_node in sub_pipe.nodes():
-                        ## find nodes who have _pipeline_options set
-                        #for po in sub_node._pipeline_options:
-                            #if po['option'] == link[1]:
-                                #edge = self.add_edge(inedge._source, sub_node)
-                                #edge.add_link(
-                                    #link[0],
-                                    #sub_node._tool.options[po['option'].name],
-                                    #stream
-                                #)
             # setup the node and render values before we remove the node
             node._tool.setup()
             _create_render_context(self, node._tool, node)
@@ -1207,6 +1205,7 @@ class Pipeline(object):
             cloned_tool = node._tool.clone()
             # Add the cloned tool to the current graph
             cloned_node = self.add(cloned_tool, _job=node._job)
+            cloned_node._pipeline = node._pipeline
             log.debug("Fanout | Added new node: %s", cloned_node)
             # reattach all edge that are not part of the fanout
             # and copy the links. We will resolve the incoming edges
@@ -2066,8 +2065,10 @@ def _render_nodes(pipeline, nodes):
         nds[n.name] = n
 
     # create a context for each node and set it for each option
+    ctxs = {}
     for node in nodes:
-        _create_render_context(pipeline, node._tool, node, nds)
+        ctx = _create_render_context(pipeline, node._tool, node, nds)
+        ctxs[node] = ctx
 
     def _create(tool):
         return _create_render_context(pipeline, tool, None, nds)
