@@ -6,7 +6,7 @@ except:
     from setuptools import setup, Extension
 
 name = 'pyjip'
-version = '0.3'
+version = '0.4'
 description = 'JIP pipeline library'
 author_email = "thasso.griebel@gmail.com"
 url = ""
