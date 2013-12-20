@@ -1,3 +1,4 @@
-include README.rst
+include Readme.rst
+include LICENSE
 include distribute_setup.py
 include jip/dispatcher/jip_dispatcher.h

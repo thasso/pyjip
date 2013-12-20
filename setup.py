@@ -12,7 +12,7 @@ author_email = "thasso.griebel@gmail.com"
 url = ""
 packages = ['jip', 'jip.cli', 'jip.vendor', 'jip.scripts', 'jip.dispatcher']
 try:
-    with open('README.rst') as rf:
+    with open('Readme.rst') as rf:
         readme = rf.read()
 except:
     readme = ''
@@ -33,8 +33,8 @@ setup(
     package_data={
         'jip.scripts': ['*.jip']
     },
-    install_requires=["sqlalchemy==0.8.2",
-                      "jinja2==2.7",
+    install_requires=["sqlalchemy>=0.8.2",
+                      "jinja2>=2.7",
                       "argparse"
                       ],
     ext_modules=[dispatcher_ext],
