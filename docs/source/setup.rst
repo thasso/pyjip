@@ -260,3 +260,9 @@ In addition you have to start the *JIP server* and keep it running::
 
 This will start a server process that will take care of accepting jobs and
 executing them in the background.
+
+.. note:: The JIP server uses PyZMQ for message passing and you have to make
+          sure that the library is installed before you can start the server.
+          You can install PyZMQ with pip::
+
+              $> pip install pyzmq
