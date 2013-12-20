@@ -217,6 +217,24 @@ def test_output_file_query(tmpdir):
     assert job.one() == jobs[0]
 
 
+def test_file_query_and(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    p.run('bash', cmd="touch ${input}", outfile="A.txt", input="in.dat")
+    abspath = os.path.join(os.getcwd(), "A.txt")
+    in_file = os.path.join(os.getcwd(), 'in.dat')
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+
+    job = jip.db.query_by_files(inputs=[], outputs=abspath, and_query=True)
+    assert job.count() == 0
+    job = jip.db.query_by_files(inputs=[in_file],
+                                outputs=abspath, and_query=True)
+    assert job.count() == 1
+    assert job.one() == jobs[0]
+
+
 def test_output_file_query_multiple_files(tmpdir):
     db_file = os.path.join(str(tmpdir), "test.db")
     jip.db.init(db_file)

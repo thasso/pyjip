@@ -20,7 +20,7 @@ import sys
 
 from sqlalchemy import Column, Integer, String, DateTime, \
     ForeignKey, Table, orm
-from sqlalchemy import Text, Boolean, PickleType, bindparam, select, or_
+from sqlalchemy import Text, Boolean, PickleType, bindparam, select, or_, and_
 from sqlalchemy.orm import relationship, deferred, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
@@ -936,13 +936,19 @@ def get_all():
     return list(session.query(Job))
 
 
-def query_by_files(inputs=None, outputs=None):
+def query_by_files(inputs=None, outputs=None, and_query=False):
     """Query the database for jobs that reference the given input or output
     file. **NOTE** that the queries are performed ONLY against absolute
     paths!
 
+    By default, of both ``inputs`` and ``outputs`` are specified, an ``OR``
+    queries is triggered. You can set the ``and_query`` parameter to True
+    to switch to ``AND``.
+
     :param inputs: list of absolute path file names or s single file name
     :param outputs: list of absolute path file names or s single file name
+    :param and_query: queries for for jobs with inputs AND outputs instead
+                      of OR
     :returns: iterator over all jobs that reference one of the given files
     """
     if not inputs and not outputs:
@@ -956,14 +962,15 @@ def query_by_files(inputs=None, outputs=None):
 
     log.info("DB | query for jobs by files :: %s %s", inputs, outputs)
     session = create_session()
-    if inputs and outputs:
+    if inputs is not None and outputs is not None:
+        q_type = or_ if not and_query else and_
         jobs = session.query(Job).filter(
-            or_(
+            q_type(
                 Job.out_files.any(OutputFile.path.in_(outputs)),
                 Job.in_files.any(InputFile.path.in_(inputs))
             )
         )
-    elif inputs:
+    elif inputs is not None:
         jobs = session.query(Job).filter(
             Job.in_files.any(InputFile.path.in_(inputs))
         )
