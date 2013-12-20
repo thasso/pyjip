@@ -6,7 +6,7 @@ Usage:
     jip-jobs [-s <state>...] [-o <out>...] [-e]
              [--show-archived] [-j <id>...] [-J <cid>...]
              [-N] [-q <queue>]
-    jip-jobs [-I <inputs>...] [-O <outputs>...]
+    jip-jobs [-I <inputs>...] [-O <outputs>...] [-o <out>...] [-e]
     jip-jobs [--help|-h]
 
 Options:
@@ -50,7 +50,7 @@ import sys
 
 import jip.cluster
 from . import render_table, colorize, STATE_COLORS, parse_args, \
-    STATE_CHARS, parse_job_ids
+    STATE_CHARS, parse_job_ids, YELLOW, BLUE
 import jip.db
 
 
@@ -199,12 +199,29 @@ def _pipeline_job(job):
     job.hosts = ", ".join(hosts)
     return state
 
+LAST = None
+PIPELINE_COLOR = None
+
+
+def SWITCH_PIPELINE_COLOR():
+    global PIPELINE_COLOR
+    if PIPELINE_COLOR == YELLOW:
+        PIPELINE_COLOR = None
+    else:
+        PIPELINE_COLOR = YELLOW
+
+
+def _pipeline_name(j):
+    if LAST and LAST.pipeline != j.pipeline:
+        SWITCH_PIPELINE_COLOR()
+    return colorize(j.pipeline, PIPELINE_COLOR)
+
 
 JOB_HEADER = [
     ("Id", lambda j: j.id),
     ("C-Id", lambda j: j.job_id),
     ("Name", lambda j: j.name),
-    ("Pipeline", lambda j: j.pipeline),
+    ("Pipeline", _pipeline_name),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
@@ -286,8 +303,8 @@ def main():
     ####################################################################
     # Query jobs
     ####################################################################
-    inputs = args['--inputs']
-    outputs = args['--outputs']
+    inputs = args['--inputs'] if args['--inputs'] else None
+    outputs = args['--outputs'] if args['--outputs'] else None
     job_ids = None
     cluster_ids = None
     if not inputs and not outputs:
@@ -328,6 +345,7 @@ def main():
     else:
         jobs = jip.db.query_by_files(inputs=inputs, outputs=outputs)
 
+    global LAST
     rows = []
     state = args['--state']
     if state:
@@ -342,6 +360,7 @@ def main():
             else:
                 print "\t".join([str(headers[column](job))
                                  for column in columns])
+        LAST = job
     if not direct:
         print render_table(columns, rows)
 
