@@ -31,13 +31,14 @@ Manipulate jobs
     hold     put selected jobs on hold
     restart  restart selected jobs
     logs     show log files of jobs
+    edit     edit job commands for a given job
+    show     show job options and command for jobs
 
 Miscellaneous
 =============
 
     tools     list all tools available through the search paths
     profiles  list all available profiles
-    edit      edit job commands for a given job
     clean     remove job logs
     check     check job status
     server    start the jip grid server
