@@ -3,11 +3,10 @@
 Archive jip jobs
 
 Usage:
-    jip-archive [-j <id>...] [-J <cid>...] [--db <db>] [-c]
+    jip-archive [-j <id>...] [-J <cid>...] [-c]
     jip-archive [--help|-h]
 
 Options:
-    --db <db>                Select a path to a specific job database
     -c, --clean              Remove job logfiles
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id

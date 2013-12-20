@@ -3,11 +3,10 @@
 Hold jip jobs
 
 Usage:
-    jip-hold [-j <id>...] [-J <cid>...] [--db <db>]
+    jip-hold [-j <id>...] [-J <cid>...]
     jip-hold [--help|-h]
 
 Options:
-    --db <db>                Select a path to a specific job database
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -h --help                Show this help message

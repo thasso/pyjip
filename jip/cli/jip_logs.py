@@ -3,12 +3,11 @@
 Access and show job log files
 
 Usage:
-    jip-logs [-j <id>...] [-J <cid>...] [--db <db>] [-e|-o] [-n <lines>]
+    jip-logs [-j <id>...] [-J <cid>...] [-e|-o] [-n <lines>]
              [--head]
     jip-logs [--help|-h]
 
 Options:
-    --db <db>                Select a path to a specific job database
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -e, --error              Use only the error log file

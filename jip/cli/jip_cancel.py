@@ -3,11 +3,10 @@
 Cancel jip jobs
 
 Usage:
-    jip-cancel [-j <id>...] [-J <cid>...] [--db <db>] [--clean]
+    jip-cancel [-j <id>...] [-J <cid>...] [--clean]
     jip-cancel [--help|-h]
 
 Options:
-    --db <db>                   Select a path to a specific job database
     --clean                     Remove the logfiles
     -j, --job <id>...           List jobs with specified id
     -J, --cluster-job <cid>...  List jobs with specified cluster id
