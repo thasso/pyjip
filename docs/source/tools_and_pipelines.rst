@@ -964,10 +964,10 @@ set the ``long`` or ``short`` flags and make them non-hidden::
 The script context
 ------------------
 Within a jip script, within template blocks, and in python blocks like
-*validate* or *pipeline*, a set of functions is exposed to simplify
-certain tasks that have to be done quiet often, for example, checking for the
-existence of files. The following functions and variables are available without
-any additional import statements:
+*validate*, *setup*, *init*, or *pipeline*, a set of functions is exposed to
+simplify certain tasks that have to be done quiet often, for example, checking
+for the existence of files. The following functions and variables are available
+without any additional import statements:
 
     * **tool** holds a reference to the current tool or pipeline
 
@@ -1099,7 +1099,7 @@ based implementations. For example:
         Inputs:
             -r, --reference  The reference
         """
-        def validate(self):
+        def init(self):
             self.add_output('output', '${reference}.bwt')
 
         def get_command(self):
