@@ -102,12 +102,12 @@ is stored in two location on your system:
     might have to specify the path to the global configuration file explicitly.
     To do this, set ``jip.configuration.install_path`` to the absolute path
     the directory that contains the ``jip.json`` **before** you make any other
-    calls to the jip API.
+    calls to the JIP API.
 
 `$JIP_CONFIG`:
-    You can point to a custom configuraiton using the :envvar:`JIP_CONFIG` 
+    You can point to a custom configuration using the :envvar:`JIP_CONFIG` 
     environment variable. If the file exists, it is loaded after the global
-    configuraiton but before the configuraiton in the current users home
+    configuration but before the configuration in the current users home
     directory.
 
 `$HOME/.jip/jip.json`:
@@ -143,12 +143,15 @@ JIP API:
         Database location. The path or URL to connect to the JIP database. The
         JIP database is used to store runtime information about jobs submitted
         to a compute cluster. By default, :command:`jip` puts the database into
-        `$HOME/.jip/jipbs.db` and uses an embedded sqlite database.
+        `$HOME/.jip/jobs.db` and uses an embedded sqlite database. This setting
+        can be overwritten at runtime using the :envvar:`JIP_DB` environment 
+        variable.
 
     `jip_path`
         Colon separated path or locations for jip tools.  You can put a colon
         separated list of folder here. All folders in this list will be
-        searched for tools.
+        searched for tools. You can add paths at runtime using the 
+        :envvar:`JIP_PATH` environment variable.
 
     `jip_modules`
         List of python modules. Put a list of module names here to 
@@ -161,13 +164,14 @@ JIP API:
 
         With this configuration, JIP will load the `my.tools` python module to 
         search for tools. Please note that `my.tools` module must be available
-        on your :envvar:`PYTHONPATH`. 
+        on your :envvar:`PYTHONPATH`.  You can add module dynamically to the 
+        list using the :envvar:`JIP_MODULES` environment variable.
 
     `cluster`
         name of a class that implements :py:class:`jip.cluster.Cluster`.  When
         used in a cluster environment, the specified class is used to interact
         with your grid system on the lower level. See :ref:`the cluster 
-        configuration documentation <cluster_config>` and and the 
+        configuration documentation <cluster_config>` and the 
         :py:mod:`jip.cluster` module for more information about supported 
         cluster engines and how you can configure them.
 
