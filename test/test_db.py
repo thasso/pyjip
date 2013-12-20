@@ -260,3 +260,51 @@ def test_iput_file_query_multiple_files(tmpdir):
     assert job.count() == 2
 
 
+def test_no_duplicated_jobs(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    a = p.bash('ls ${input}', input='A.txt')
+    b = p.bash('ls ${input}', input='B.txt')
+    p.context(locals())
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 2
+    assert len(list(jip.db.get_all())) == 0
+    # save only the first
+    jip.db.save(jobs[0])
+    assert len(list(jip.db.get_all())) == 1
+    assert jobs[0].id == 1
+    assert jobs[1].id is None
+
+
+def test_no_duplicated_jobs_after_file_query_direct(tmpdir):
+    db_file = os.path.join(str(tmpdir), "test.db")
+    jip.db.init(db_file)
+    p = jip.Pipeline()
+    a = p.bash('ls ${input}', input='A.txt', output='out.dat')
+    p.context(locals())
+    jobs = jip.create_jobs(p, validate=False)
+    jip.db.save(jobs)
+    assert len(list(jip.db.get_all())) == 1
+    assert jobs[0].id == 1
+
+    # second pipeline
+    p = jip.Pipeline()
+    a = p.bash('ls ${input}', input='A.txt', output='out.dat')
+    b = p.bash('ls ${input}', input=a)
+    p.context(locals())
+    jobs = jip.create_jobs(p, validate=False)
+    # search for the out.dat job
+    existing = jip.db.query_by_files(
+        outputs=jobs[1].tool.input.value
+    )
+    assert len(list(existing)) == 1
+    old = list(existing)[0]
+    # now replace the dependency
+    jobs[1].dependencies = [old]
+    # save only job 1
+    jip.db.save(jobs[1])
+    # we should have 2 jobs in the database
+    assert len(list(jip.db.get_all())) == 2
+    # and the one we skipped has no ID
+    assert jobs[0].id is None
