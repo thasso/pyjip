@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 """
-This is the master and control command for jip. Use it to invoke supported
-sub-command to launch, check, and modify jobs.
-
 Usage:
     jip [--loglevel <level>] [-p] <command> [<args>...]
     jip [--version] [--help]
@@ -13,19 +10,20 @@ Options:
     --version           Show the version information
     --loglevel <level>  Set the JIP log level to one of error|warn|info|debug
 
-The commands to execute jobs:
+Commands
+========
 
     run     Locally run a jip script
     submit  submit a jip script to a remote cluster
     bash    Run or submit a bash command
 
-The following command can be used to show and filter a list of
-jobs:
+List and query jobs
+===================
 
     jobs    list and update jobs from the job database
 
-The jip jobs command output can be piped into one of the following
-action command. Note that the commands also work standalone:
+Manipulate jobs
+===============
 
     delete   delete the selected jobs
     archive  archive the selected jobs
@@ -34,7 +32,8 @@ action command. Note that the commands also work standalone:
     restart  restart selected jobs
     logs     show log files of jobs
 
-Miscellaneous other commands:
+Miscellaneous
+=============
 
     tools     list all tools available through the search paths
     profiles  list all available profiles
@@ -42,6 +41,14 @@ Miscellaneous other commands:
     clean     remove job logs
     check     check job status
     server    start the jip grid server
+
+Documentation, bug-reports and feedback
+---------------------------------------
+If you discover any issues, please open a bug report in the JIP issue tracker.
+
+Documentation: http://pyjip.rtfd.org
+Source Code  : https://github.com/thasso/pyjip/
+Issue Tracker: https://github.com/thasso/pyjip/issues
 """
 import os
 import sys
@@ -97,13 +104,14 @@ find tool definitions that are not in any default paths.
 
 
 def _main():
-    args = docopt(__doc__, version=str(jip.__version__),
+    version = str(jip.__version__)
+    args = docopt(__doc__, version=version,
                   options_first=True, help=True)
     if args['--loglevel']:
         log_level(args['--loglevel'])
     cmd = args['<command>']
     if not cmd:
-        docopt(__doc__, version='1.0', options_first=True, argv=['--help'],
+        docopt(__doc__, version=version, options_first=True, argv=['--help'],
                help=True)
         sys.exit(1)
 
@@ -126,8 +134,8 @@ def _main():
             runpy.run_module("jip.cli.jip_interpreter", run_name="__main__")
         else:
             sys.stderr.write("\nCommand %s not found\n\n" % (cmd))
-            docopt(__doc__, version='1.0', options_first=True, argv=['--help'],
-                   help=True)
+            docopt(__doc__, version=version, options_first=True,
+                   argv=['--help'], help=True)
             sys.exit(0)
     except KeyboardInterrupt:
         sys.exit(1)
