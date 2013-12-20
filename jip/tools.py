@@ -224,14 +224,23 @@ class tool(object):
             is_class = True
 
         if is_class:
-            old = cls.__setattr__
+            old = None
+            if hasattr(cls, '__setattr__'):
+                old = cls.__setattr__
 
             def setatr(slf, name, value):
                 ov = slf.__dict__.get(name, None)
                 if ov is not None and isinstance(ov, Option):
                     ov.set(value)
                 else:
-                    old(slf, name, value)
+                    if old:
+                        old(slf, name, value)
+                    else:
+                        if name in slf.__dict__:
+                            slf.__dict__[name] = value
+                        else:
+                            raise AttributeError()
+
             cls.__setattr__ = setatr
 
         tool_instance = PythonTool(cls, self, self.add_outputs)
