@@ -92,12 +92,18 @@ class InputFile(Base):
     path = Column('path', String, index=True)
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
+    def __repr__(self):
+        return "Input: %s[%s]" % (self.path, str(self.job_id))
+
 
 class OutputFile(Base):
     __tablename__ = 'files_out'
     id = Column(Integer, primary_key=True)
     path = Column('path', String, index=True)
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
+
+    def __repr__(self):
+        return "Output: %s[%s]" % (self.path, str(self.job_id))
 
 
 class Job(Base):
@@ -932,11 +938,11 @@ def get_all():
 
 def query_by_files(inputs=None, outputs=None):
     """Query the database for jobs that reference the given input or output
-    file. **NOTE** that the queries are permormed ONLY against absolute
+    file. **NOTE** that the queries are performed ONLY against absolute
     paths!
 
-    :param inputs: list of abolute path file names or s single file name
-    :param outputs: list of abolute path file names or s single file name
+    :param inputs: list of absolute path file names or s single file name
+    :param outputs: list of absolute path file names or s single file name
     :returns: iterator over all jobs that reference one of the given files
     """
     if not inputs and not outputs:
