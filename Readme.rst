@@ -68,3 +68,7 @@ Changelog
   - Added explicit UTF-8 encoding for the dependency tree
 
 * 0.1 : Initial release
+
+Licences
+========
+JIP is licensed under the BSD license.
