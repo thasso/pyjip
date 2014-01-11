@@ -461,3 +461,23 @@ echo
 """ % (funcname, funcname))
     assert script is not None
     script.setup()
+
+
+def test_tool_empty_list_options():
+    help_string = """\
+    Some Tool
+
+    Usage: tools -i <input>... [-o <output>...]
+
+    Options:
+        -i, --input <input>...    The input
+        -o, --output <output>...  The output
+    """
+    tool = Tool(help_string)
+    assert tool.options is not None
+    assert len(tool.options) == 2
+    tool.parse_args(['-i', 'A', 'B'])
+    assert tool.options['input'].raw() == ['A', 'B']
+    assert tool.options['output'].raw() == []
+
+

@@ -416,7 +416,11 @@ class Option(object):
             self.render_context = None
             self._value = rendered
         if self.default is not None and len(self._value) == 0:
-            values = [self.default]
+            if isinstance(self.default, (list, tuple)):
+                values = []
+                values.extend(self.default)
+            else:
+                values = [self.default]
         return values
 
     @value.setter
@@ -566,7 +570,7 @@ class Option(object):
                 vs.append(v)
         if self.nargs == 1 and len(vs) == 1:
             return vs[0]
-        return vs if vs else None
+        return vs if vs or isinstance(self.default, (list, tuple)) else None
 
     def expand(self):
         """Returns the raw values of the list but expanded to contain
