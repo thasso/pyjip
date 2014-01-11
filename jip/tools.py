@@ -35,6 +35,7 @@ from os.path import exists, basename, dirname, abspath
 import os
 import sys
 import types
+import shutil
 
 import jip.templates
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
@@ -1293,7 +1294,10 @@ class Tool(object):
         for outfile in outfiles:
             if exists(outfile):
                 log.warning("Tool cleanup! Removing: %s", outfile)
-                remove(outfile)
+                if os.path.isfile(outfile):
+                    remove(outfile)
+                elif os.path.isdir(outfile):
+                    shutil.rmtree(outfile)
 
     def get_output_files(self, sticky=True):
         """Yields a list of all output files for the options
