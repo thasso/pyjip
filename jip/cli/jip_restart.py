@@ -75,6 +75,7 @@ def main():
         ################################################################
         for exe in jip.jobs.create_executions(jobs,
                                               check_outputs=False,
+                                              check_queued=False,
                                               save=True):
             if exe.job.state in [jip.db.STATE_DONE] and \
                not args['--force']:
