@@ -957,8 +957,8 @@ def query_by_files(inputs=None, outputs=None, and_query=False):
         outputs = [outputs]
     if inputs and not isinstance(inputs, (list, tuple)):
         inputs = [inputs]
-    outputs = [os.path.abspath(o) for o in outputs] if outputs else None
-    inputs = [os.path.abspath(o) for o in inputs] if inputs else None
+    outputs = [os.path.abspath(o) for o in outputs] if outputs is not None else None
+    inputs = [os.path.abspath(o) for o in inputs] if inputs is not None else None
 
     log.info("DB | query for jobs by files :: %s %s", inputs, outputs)
     session = create_session()
