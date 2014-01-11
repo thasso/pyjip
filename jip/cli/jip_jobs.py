@@ -5,8 +5,7 @@ The JIP job lister
 Usage:
     jip-jobs [-s <state>...] [-o <out>...] [-e]
              [--show-archived] [-j <id>...] [-J <cid>...]
-             [-N] [-q <queue>]
-    jip-jobs [-I <inputs>...] [-O <outputs>...] [-o <out>...] [-e]
+             [-N] [-q <queue>] [-I <inputs>...] [-O <outputs>...]
     jip-jobs [--help|-h]
 
 Options:
