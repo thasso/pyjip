@@ -213,7 +213,10 @@ def SWITCH_PIPELINE_COLOR():
 def _pipeline_name(j):
     if LAST and LAST.pipeline != j.pipeline:
         SWITCH_PIPELINE_COLOR()
-    return colorize(j.pipeline, PIPELINE_COLOR)
+    if j.pipeline:
+        return colorize(j.pipeline, PIPELINE_COLOR)
+    else:
+        return ""
 
 
 JOB_HEADER = [
