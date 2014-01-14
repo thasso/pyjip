@@ -284,9 +284,9 @@ class Profile(object):
         if self.mem is not None:
             job.max_memory = self.mem
         if self.log is not None:
-            job.stderr = self.log
+            job.stderr = self._render(job, self.log)
         if self.out is not None:
-            job.stdout = self.out
+            job.stdout = self._render(job, self.out)
         if self.account is not None:
             job.account = self.account
         if self.temp is not None:
