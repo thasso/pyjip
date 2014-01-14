@@ -32,6 +32,8 @@ to ensure that no output file is created by multiple jobs.
 
 .. autofunction:: jip.jobs.create_jobs
 
+.. autofunction:: jip.jobs.create_executions
+
 .. autofunction:: jip.jobs.check_output_files
 
 .. autofunction:: jip.jobs.check_queued_jobs
