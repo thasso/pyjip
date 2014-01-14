@@ -614,7 +614,17 @@ def submit_job(job, clean=False, force=False, save=True,
         session = db.commit_session(session)
         session.close()
 
-    # submit the job to the cluster
+    # Issue #12
+    # we have to make sure that log file folders exist
+    # otherwise job submission might succeed but nothing
+    # will be executed and the job failes silently without log files
+    for log_file in (job.stdout, job.stderr):
+        if not log_file:
+            continue
+        parent = os.path.dirname(log_file)
+        if not os.path.exists(parent):
+            os.makedirs(parent)
+    # submit the job
     cluster.submit(job)
     all_jobs = [job]
 
