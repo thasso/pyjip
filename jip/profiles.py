@@ -100,7 +100,10 @@ depends on the cluster implementation and the capabilities of the cluster:
             Path to the ``stdout`` log file for this job
 
         log
-            Path to the ``stderr`` log file for this job
+            path to the ``stderr`` log file for this job
+
+        err
+            path to the ``stderr`` log file for this job
 
         extra
             This is an array that takes additional options that are
@@ -156,6 +159,20 @@ class Profile(object):
             else os.getcwd()
         if profile is not None and _load:
             self.load(profile)
+
+    @property
+    def err(self):
+        """Set the jobs error log file
+
+        :getter: access the jobs name
+        :setter: set the jobs name
+        :type: string
+        """
+        return self.log
+
+    @err.setter
+    def err(self, value):
+        self.log = value
 
     @property
     def name(self):
