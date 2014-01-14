@@ -2,7 +2,7 @@
 """
 Show options and commands for a list of jobs
 
-usage: jip-submit [-j <id>...] [-J <cid>...]
+usage: jip-show [-j <id>...] [-J <cid>...]
 
 Options:
     -j, --job <id>...           List jobs with specified id
