@@ -1230,10 +1230,13 @@ class Pipeline(object):
                                   "%s [%s]", link, new_edge)
                 # get the new value
                 o = opts[j]
-                cloned_node.set(option.name, o, set_dep=False)
+                allow_stream = False
+                cloned_node.set(option.name, o, set_dep=False,
+                                allow_stream=allow_stream)
                 #cloned_node._tool.options[option.name]._index = i
+                ost = str(o) if not isinstance(o, Option) else o._value
                 log.debug("Fanout | apply value %s: %s=%s", cloned_node,
-                          option.name, o)
+                          option.name, ost)
                 ooo = cloned_node._tool.options[option.name]
                 ooo.dependency = option.dependency
                 ooo._index = i

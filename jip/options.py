@@ -406,7 +406,8 @@ class Option(object):
                     if self._index < 0:
                         rendered.extend(v)
                     else:
-                        rendered.append(v[self._index])
+                        rendered.append(v[self._index
+                                          if self._index < len(v) else 0])
                 else:
                     rendered.append(value)
             # update default
