@@ -244,13 +244,15 @@ def replace_filter(ctx, value, search, replace):
 
 
 @contextfilter
-def ext_filter(ctx, value, splitter='.'):
+def ext_filter(ctx, value, splitter='.', all=False):
     """Cut away the last file extension splitted by `splitter`.
     The default splitter is ``.``
 
     :param ctx: the context
     :param value: the file path
     :param splitter: the splitter
+    :param all: if set to True the left-mose occurence of the split character
+                is used
     """
     try:
         if isinstance(value, JipUndefined):
@@ -267,7 +269,10 @@ def ext_filter(ctx, value, splitter='.'):
         else:
             v = value.get()
         try:
-            i = str(v).rindex(splitter)
+            if not all:
+                i = str(v).rindex(splitter)
+            else:
+                i = str(v).index(splitter)
             if i > 0:
                 return str(v)[:i]
         except:

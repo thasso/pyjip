@@ -74,3 +74,8 @@ def test_render_value_option():
     assert render_template("${t|arg}", tool=tool, test="1") == "-t infile"
     assert render_template("${t|arg('-o ')}",
                            tool=tool, test="1") == "-o infile"
+
+
+def test_ext_filter():
+    assert render_template('${f|ext}', f='my.file.txt') == 'my.file'
+    assert render_template('${f|ext(all=True)}', f='my.file.txt') == 'my'

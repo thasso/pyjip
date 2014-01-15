@@ -785,7 +785,11 @@ The following filters are currently available:
         The extension filter cuts away file file name extension and can
         also be applied multiple times. Assume your `output` options is set to
         `my.file.txt`. Using ``${output|ext}`` prints ``my.file`` while
-        ``${output|ext|ext}`` prints ``my``.
+        ``${output|ext|ext}`` prints ``my``. The ``ext`` filter cuts away the
+        rightmost extension by default. You can however set the ``all`` option
+        to ``True``. This will cause all file extensions to be removed. For 
+        example, `my.file.txt` passed through ``${output|ext(all=True)}`` will
+        print ``my``.
 
     **suf**
         Takes a single argument and adds it as a suffix to the option value
