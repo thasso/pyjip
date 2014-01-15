@@ -423,6 +423,10 @@ class Option(object):
                 values = [self.default]
         return values
 
+    def __iter__(self):
+        for v in self.value:
+            yield v
+
     @value.setter
     def value(self, value):
         self._value = []

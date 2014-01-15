@@ -390,3 +390,12 @@ def test_option_expand_mixed_embedded():
     p = Option('embedded', default=1)
     o.set([1, p, 2])
     assert o.expand() == [1, p, 2]
+
+
+def test_list_option_rendering():
+    o = Option('test', nargs="*")
+    o.value = ["A", "B"]
+    from jip.templates import render_template
+    assert render_template("${o}", o=o) == 'A B'
+    assert render_template("${o|join(',')}", o=o) == 'A,B'
+
