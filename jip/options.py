@@ -730,7 +730,10 @@ class Option(object):
         return "%s %s" % (self.get_opt(), value)
 
     def __str__(self):
-        return self.get()
+        try:
+            return self.get()
+        except ValueError:
+            return self.join.join(self.value)
 
     def __eq__(self, other):
         if not isinstance(other, Option):

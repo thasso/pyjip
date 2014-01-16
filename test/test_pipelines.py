@@ -1001,3 +1001,16 @@ def test_pipeline_name():
     jobs = jip.create_jobs(p, validate=False)
     assert len(jobs) == 1
     assert jobs[0].pipeline == 'Makefile'
+
+
+def test_multiplex_with_stream():
+    p = jip.Pipeline()
+    first = p.bash("cat ${input}", input=['A', 'B'])
+    second = p.bash("wc -l")
+    first | second
+    p.expand(validate=False)
+    assert len(p) == 4
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 4
+    execs = jip.create_executions(jobs)
+    assert len(execs) == 2
