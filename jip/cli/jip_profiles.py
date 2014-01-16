@@ -17,7 +17,8 @@ def main():
     parse_args(__doc__, options_first=True)
     for name, values in jip.config['profiles'].iteritems():
         print "Profile:", colorize(name, BLUE)
-        rows = [(k, v) for k, v in values.iteritems()]
+        print "Description:", values.get('description', "")
+        rows = [(k, v) for k, v in values.iteritems() if k != 'description']
         print render_table(("Name", "Value"), rows)
         print ""
 

@@ -57,6 +57,10 @@ or pipeline:
         env
             Dictionary that can be used to extend the jobs shell environment
 
+        description
+            Optional field that describes the profile and can be used to
+            describe custom profiles in the user configuration
+
 
 Cluster/Grid specific properties
 --------------------------------
@@ -134,7 +138,7 @@ class Profile(object):
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=0,
                  extra=None, profile=None, prefix=None, temp=False, _load=True,
-                 env=None, tool_name=None, working_dir=None):
+                 env=None, tool_name=None, working_dir=None, description=None):
         self._name = name  # render_template(name)
         self.environment = render_template(environment)
         self.nodes = render_template(nodes)
@@ -150,6 +154,7 @@ class Profile(object):
         self.out = render_template(out)
         self.account = render_template(account)
         self.prefix = render_template(prefix)
+        self.description = description
         self.env = None
         self.temp = temp
         self.extra = extra
@@ -216,7 +221,8 @@ class Profile(object):
         self.account = profile.get('account', self.account)
         self.mem = profile.get('mem', self.mem)
         self.extra = profile.get('extra', self.extra)
-        self.enc = profile.get('env', self.env)
+        self.env = profile.get('env', self.env)
+        self.description = profile.get('description', self.description)
 
     def load_args(self, args):
         """Update this profile from the given dictionary of command line
@@ -350,7 +356,8 @@ class Profile(object):
     def __call__(self, name=None, threads=None, nodes=None, tasks=None,
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=None, extra=None, dir=None):
+                 profile=None, prefix=None, temp=None, extra=None, dir=None,
+                 description=None):
         return self.__class__(
             name=name if name is not None else self._name,
             threads=threads if threads is not None else self.threads,
@@ -372,6 +379,8 @@ class Profile(object):
             temp=temp if temp is not None else self.temp,
             extra=extra if extra is not None else self.extra,
             working_dir=dir if dir is not None else self.working_dir,
+            description=description if description is not None
+            else self.description,
             _load=False
         )
 
