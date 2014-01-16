@@ -30,7 +30,7 @@ Usage:
              [-O <out>] [-e <err>] [--dry] [--show]
              [-i <input>...] [-o <output>...] [-f <outfile>...]
              [-s] [--keep] [--force] [--with-profiler]
-             -c <cmd>...
+             [-c <cmd>...]
     jip-bash [--help|-h]
 
 Options:
@@ -90,6 +90,9 @@ def main():
     bash = pipeline.job(
         args['--name'] if args['--name'] else 'bash'
     ).run('bash')
+    if not args['--cmd']:
+        args['--cmd'] = "\n".join(sys.stdin.readlines())
+
     bash.input = [sys.stdin if a == 'stdin' else a
                   for a in args['--input']]
     bash.output = [sys.stdout if a == 'stdout' else a
