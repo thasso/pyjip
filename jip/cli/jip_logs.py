@@ -30,6 +30,9 @@ from os.path import exists
 def main():
     args = parse_args(__doc__, options_first=False)
     job_ids, cluster_ids = parse_job_ids(args)
+    if not job_ids and not cluster_ids:
+        print __doc__.strip("\n")
+        return
     jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
                         archived=None, fields=['stdout', 'stderr',
                                                'job_id', 'id', 'name',
