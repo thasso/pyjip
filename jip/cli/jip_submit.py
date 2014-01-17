@@ -31,7 +31,9 @@ Options:
   -E, --environment <pe>   Specify an environment if your grid engine supports
                            it. For SGE, this is translated to the parallel
                            environment
-  -m, --mem <mem>          Max memory assigned to the job
+  -m, --mem <mem>          Max memory assigned to the job in MB. Also supports
+                           suffixes like G, M or K for Gigabyte, Megabyte and
+                           Kilobyte
   -n, --name <name>        Job name
   -o, --out <out>          Stdout log file
   -e, --log <err>          Stderr log file

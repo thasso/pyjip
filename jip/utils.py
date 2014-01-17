@@ -161,3 +161,31 @@ def parse_time(time):
         minutes += 1
     r = (delta.days * 1440) + (60 * hours) + minutes
     return r
+
+
+def parse_mem(mem):
+    """Takse a string and parses a memory pattern. The supported suffixes are
+    G M or K both upper and lower case.
+
+    :param mem: the memory string
+    :returns: memory in megabyte
+    """
+    m = None
+    try:
+        m = int(mem)
+    except:
+        pass
+    if m or m == 0:
+        return m
+
+    try:
+        # check the memory patterns
+        lc = mem[-1].upper()
+        m = int(mem[:-1])
+        if lc == "G":
+            m = m * 1024
+        elif lc == "K":
+            m = m / 1024
+        return m
+    except:
+        raise ValueError("Unable to parse %s to memory", mem)

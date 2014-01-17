@@ -288,7 +288,7 @@ class Profile(object):
         if self.time is not None:
             job.max_time = jip.utils.parse_time(self.time)
         if self.mem is not None:
-            job.max_memory = self.mem
+            job.max_memory = jip.utils.parse_mem(self.mem)
         if self.log is not None:
             job.stderr = self._render(job, self.log)
         if self.out is not None:
