@@ -16,6 +16,7 @@ Commands
     run     Locally run a jip script
     submit  submit a jip script to a remote cluster
     bash    Run or submit a bash command
+    pipe    Run or submit a pipeline command
 
 List and query jobs
 ===================
