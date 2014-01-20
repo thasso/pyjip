@@ -431,6 +431,10 @@ def delete(job, clean_logs=False, cluster=None):
     does **NOT** delete any dependencies, it operates *ONLY* on the given
     job instance.
 
+    You can use :py:func:`jip.jobs.get_subgraph` to get a full subgraph of a
+    job, or :py:func:`jip.jobs.get_group_jobs` to create a list of all jobs
+    that are related due to grouping or piping.
+
     :param job: the job to be deleted
     :type job: `jip.db.Job`
     :param clean: if True, the job log files will be deleted
