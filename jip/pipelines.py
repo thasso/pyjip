@@ -1692,7 +1692,7 @@ class Node(object):
             def_in = other._tool.options.get_default_input()
             log.debug("op node > :: %s->%s [%s<-%s]",
                       self, other, dout.name, def_in.name)
-            other.set(def_in.name, dout)
+            other.set(def_in.name, dout, allow_stream=False)
             return other
 
         # if the right hand side is an option, set
