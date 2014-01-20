@@ -14,12 +14,14 @@ Options:
                            cancellation
   -P, --profile <profile>  Select a job profile for resubmission
   -s, --spec <spec>        Job environment specification file (see jip specs)
-  -t, --time <time>        Max wallclock time for the job
+  -t, --time <time>        Max wall-clock time for the job. Specify in minutes,
+                           or use the suffixes 'h', 'm', and 's'. For example,
+                           '3h30m'.
   -q, --queue <queue>      Job queue
   -p, --priority <prio>    Job priority
   -A, --account <account>  The account to use for submission
   -C, --threads <threads>  Number of threads for each task. If you do not
-                           request > 1 taks, this is the number of CPU's
+                           request > 1 tasks, this is the number of CPU's
                            assigned to the job.
   -T, --tasks <tasks>      Number of requested tasks. In case you submit MPI
                            jobs, this is the number of MPI CPU's the job
