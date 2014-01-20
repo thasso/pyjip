@@ -59,15 +59,26 @@ requests.
 
 Changelog
 =========
-* 0.3 :
-  - Added auto-naming support for anonymous jobs that are assigned to variables.
-    The variable name is used as default job name
-  - Lots of changes to the internals
+0.4:
+    * Create a pipe command to write quick pipeline directly from the command line [`Issue 22 <https://github.com/thasso/pyjip/issues/22>`_]
+    * Inconsistency between job().bash() and bash() usage in pipeline [`Issue 20 <https://github.com/thasso/pyjip/issues/20>`_]
+    * Add links to job and pipeline iteration to delete functions in jip.db and jip.jobs [`Issue 19 <https://github.com/thasso/pyjip/issues/19>`_]
+    * Enable parsing of memory assignments in profiles and add support for G M and K suffixes [`Issue 18 <https://github.com/thasso/pyjip/issues/18>`_]
+    * "jip logs" called without argument returns an error instead of "usage" [`Issue 16 <https://github.com/thasso/pyjip/issues/16>`_]
+    * Tool cleanup fails if the output points to a directory [`Issue 10 <https://github.com/thasso/pyjip/issues/10>`_]
+    * Option parsing fails when multiple list options are specified and one is optional and not set [`Issue 8 <https://github.com/thasso/pyjip/issues/8>`_]
+    * jip restart jobs fails as the job detects itself and refuses to submit again [`Issue 7 <https://github.com/thasso/pyjip/issues/7>`_]
+    * jip jobs with selected output duplicates columns [`Issue 5 <https://github.com/thasso/pyjip/issues/5>`_]
 
-* 0.2 :
-  - Added explicit UTF-8 encoding for the dependency tree
+0.3 :
+    * Added auto-naming support for anonymous jobs that are assigned to variables.
+      The variable name is used as default job name
+    * Lots of changes to the internals
 
-* 0.1 : Initial release
+0.2 :
+    * Added explicit UTF-8 encoding for the dependency tree
+
+0.1 : Initial release
 
 Licences
 ========
