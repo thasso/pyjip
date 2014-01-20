@@ -68,7 +68,7 @@ We now have a pipeline graph with exactly one :class:`~jip.pipelines.Node`.
 Running jobs locally
 --------------------
 Pipeline instances represent the execution graph and its properties, but they
-are not ment to be executed directly. We have to convert the pipeline nodes 
+are not meant to be executed directly. We have to convert the pipeline nodes 
 into :class:`jobs <jip.db.Job>` that can be executed wither locally or send 
 to a remote cluster. The first step here is to :py:func:`create 
 <jip.jobs.create>` the job instances::
@@ -132,12 +132,55 @@ pre-configured database and cluster instance :ref:`below
 <api_jip_configuration>`. For this example, we will go through the process of 
 manually configuring both the cluster instance as well as the database.
 
+The initial process of creating the jobs for a given pipeline is the same as if
+you want to run the jobs locally::
+
+    >>> jobs = create_jobs(p)
+    >>> assert len(jobs) == 1
+
+If you want to use the preconfigured configuration, you only have to modify the
+call to ``create_executions`` to ensure that jobs are saved in the database, and
+use ``submit_job`` rather than ``run_job``:
+
+.. code-block:: python
+
+    for exe in create_executions(jobs, check_outputs=True):
+        print "Submitting %s:" % exe.name,
+        if exe.completed:
+            print "Skipped"
+        elif submit_job(exe.job):
+            print "Submitted job %s with remote id %s" % (exe.job.id,
+                exe.job.cluster_id)
+        else:
+            print "Failure"
+            break
+
+You might want to add a global profile to your run, for example, to specify
+the queue that is used during submission. Use the ``jip.profiles`` module to
+load a preconfigured profile:
+
+.. code-block:: python
+
+    import jip.profiles
+    profile = jip.profiles.get("default")
+    for exe in create_executions(jobs, check_outputs=True, profile=profile):
+        ...
+
+
 Customize the database location
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Without any further specification, the JIP database is configured by the user
 in the JIP configuration files. You can however use the API to alter and 
 modify the location.
 
+The database reference is globally stored in the ``jip.db`` module. If you want
+to use a different location, make sure you initialize the ``jip.db`` module
+properly:
+
+.. code-block:: python
+
+    import jip.db
+    jip.db.init("</path/to/db.file>")
 
 .. _api_jip_configuration:
 
@@ -148,6 +191,7 @@ Use the JIP configuration
 
 The Scanner
 -----------
+
 .. toctree::
    :maxdepth: 2
           
