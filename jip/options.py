@@ -1401,6 +1401,8 @@ class Options(object):
         from jip.vendor import docopt
         from jip.vendor.docopt import Required, Optional, Argument, \
             OneOrMore, Command
+        # Fix for Issue #24. We simply make sure there are no tabs:)
+        doc = doc.replace("\t", "    ")
         inputs = [re.sub(r'^-*', '', s) for s in inputs] if inputs else []
         outputs = [re.sub(r'^-*', '', s) for s in outputs] if outputs else []
         opts = cls(source=source)

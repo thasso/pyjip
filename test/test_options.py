@@ -399,3 +399,29 @@ def test_list_option_rendering():
     assert render_template("${o}", o=o) == 'A B'
     assert render_template("${o|join(',')}", o=o) == 'A,B'
 
+
+def test_docopt_parser_with_tabs():
+    help_string = """\
+Some Tool
+
+Usage: tools [-t] [-i <input>...] <cmd>
+
+Inputs:
+	-i, --input <input>...	The input
+
+Options:
+	-t	Some boolean
+	<cmd>	The command
+    """
+    opts = Options.from_docopt(help_string)
+
+    assert len(opts) == 3  # the two + help
+    assert opts['input'] is not None
+    assert opts['input'].nargs == "*"
+    assert not opts['input'].required
+    assert opts['t'] is not None
+    assert opts['t'].nargs == 0
+    assert not opts['t'].required
+    assert opts['cmd'] is not None
+    assert opts['cmd'].nargs == 1
+    assert opts['cmd'].required
