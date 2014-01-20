@@ -859,15 +859,6 @@ class PythonBlockUtils(object):
         :rtype: :class:`jip.pipelines.Node`
         """
         bash_node = self.pipeline.run('bash', cmd=command, **kwargs)
-        ctx = {}
-        self._update_context(ctx, kwargs, bash_node)
-        # add options and make sure
-        # the bash tool options take precedence
-        ctx['input'] = bash_node._tool.options['input']
-        ctx['output'] = bash_node._tool.options['output']
-        ctx['outfile'] = bash_node._tool.options['outfile']
-        cmd = render_template(command, **ctx)
-        bash_node.cmd = cmd
         return bash_node
 
     def _update_global_env(self, env):
