@@ -1617,14 +1617,16 @@ class Node(object):
                     return link
         return None
 
-    def depends_on(self, other):
+    def depends_on(self, *args):
         """Add an explicit dependency between this node and the other
-        node.
+        node. The function accepts multiple values so you can specify multiple
+        parents at once.
 
-        :param other: the parent node
+        :param args*: all parent nodes.
         :type other: :class:`Node`
         """
-        self._graph.add_edge(other, self)
+        for other in args:
+            self._graph.add_edge(other, self)
 
     def group(self, other):
         """Groups this not and the other node. This creates a dependency

@@ -1014,3 +1014,13 @@ def test_multiplex_with_stream():
     assert len(jobs) == 4
     execs = jip.create_executions(jobs)
     assert len(execs) == 2
+
+
+def test_depends_on_with_multiple_nodes():
+    p = jip.Pipeline()
+    a = p.bash('hostname')
+    b = p.bash('hostname')
+    c = p.bash('hostname')
+    a.depends_on(c, b)
+
+    assert len(list(a.incoming())) == 2
