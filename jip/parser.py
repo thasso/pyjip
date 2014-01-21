@@ -215,7 +215,7 @@ def loads(path, script_class=None, is_pipeline=False):
         if tool.name is None:
             tool.name = os.path.basename(path)
             try:
-                tool.name = tool.name[:tool.name.index('.')]
+                tool.name = tool.name[:tool.name.rindex('.')].replace(".", "_")
             except:
                 pass
         return tool
