@@ -425,3 +425,31 @@ Options:
     assert opts['cmd'] is not None
     assert opts['cmd'].nargs == 1
     assert opts['cmd'].required
+
+
+def test_options_setting_as_property():
+    help_string = """\
+Some Tool
+
+Usage: tools --name <input>
+
+Options:
+    -n, --name <name>    The input
+    """
+    opts = Options.from_docopt(help_string)
+    assert opts is not None
+
+    opts['name'].set("Test")
+    assert opts['name'].get() == "Test"
+    assert opts.name.get() == "Test"
+    assert opts.name == "Test"
+
+    opts['name'] = "Test2"
+    assert opts['name'].get() == "Test2"
+    assert opts.name.get() == "Test2"
+    assert opts.name == "Test2"
+
+    opts.name = 'Test3'
+    assert opts['name'].get() == "Test3"
+    assert opts.name.get() == "Test3"
+    assert opts.name == "Test3"

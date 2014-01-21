@@ -1115,6 +1115,19 @@ class Options(object):
             return self.options[i]
         return None
 
+    def __getattr__(self, name):
+        i = self.__index(name)
+        if i >= 0:
+            return self.options[i]
+        return object.__getattr__(self, name)
+
+    def __setattr__(self, name, value):
+        i = self.__index(name)
+        if i >= 0:
+            self.options[i].set(value)
+        else:
+            object.__setattr__(self, name, value)
+
     def __setitem__(self, name, option):
         i = self.__index(name)
         if isinstance(option, Option):
