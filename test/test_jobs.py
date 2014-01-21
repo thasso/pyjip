@@ -460,3 +460,52 @@ def test_embedded_pipelines():
     jobs = jip.create_jobs(p)
     assert len(jobs) == 1
     assert len(jobs[0].on_success) == 1
+
+
+def test_setting_working_directory_cwd():
+    cwd = os.getcwd()
+    p = jip.Pipeline()
+    # produce n files
+    p.run('produce', prefix='test', number=5)
+    jobs = jip.create_jobs(p)
+    assert jobs[0].working_directory == cwd
+
+
+def test_setting_working_directory_to_sub():
+    cwd = os.getcwd()
+    p = jip.Pipeline()
+    # produce n files
+    p.job(dir="sub").run('produce', prefix='test', number=5)
+    jobs = jip.create_jobs(p)
+    assert jobs[0].working_directory == cwd + "/sub"
+
+
+def test_setting_working_directory_cwd_with_profile():
+    cwd = os.getcwd()
+    p = jip.Pipeline()
+    # produce n files
+    p.run('produce', prefix='test', number=5)
+    profile = jip.profiles.Profile()
+    jobs = jip.create_jobs(p, profile=profile)
+    assert jobs[0].working_directory == cwd
+
+
+def test_setting_working_directory_to_sub_with_profile():
+    cwd = os.getcwd()
+    p = jip.Pipeline()
+    # produce n files
+    p.job(dir="sub").run('produce', prefix='test', number=5)
+    profile = jip.profiles.Profile()
+    jobs = jip.create_jobs(p, profile=profile)
+    assert jobs[0].working_directory == cwd + "/sub"
+
+
+def test_setting_working_directory_to_sub_with_profile_and_render_output():
+    cwd = os.getcwd()
+    p = jip.Pipeline()
+    # produce n files
+    p.job(dir="sub").bash('hostname ${outfile}', outfile="a.txt")
+    profile = jip.profiles.Profile()
+    jobs = jip.create_jobs(p, profile=profile)
+    assert jobs[0].working_directory == cwd + "/sub"
+    assert jobs[0].configuration['outfile'].get() == cwd + "/sub/a.txt"

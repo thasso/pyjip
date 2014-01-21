@@ -866,7 +866,12 @@ def from_node(node, env=None, keep=False):
     job.keep_on_fail = keep
     job.tool_name = tool.name
     job.path = tool.path
-    job.working_directory = os.getcwd()
+    job.working_directory = os.path.normpath(
+        os.path.abspath(node._job.working_dir)
+    )
+    if not job.working_directory:
+        job.working_directory = os.getcwd()
+
     job.env = env if env is not None else create_job_env()
     if node._job is not None:
         node._job.apply(job)

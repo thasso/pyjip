@@ -299,7 +299,7 @@ class Profile(object):
             job.temp = self.temp
         if self.extra is not None:
             job.extra = self.extra
-        if self.working_dir is not None:
+        if self.working_dir is not None and job.working_directory is None:
             job.working_directory = os.path.abspath(self.working_dir)
 
         # load environment
