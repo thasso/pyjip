@@ -160,8 +160,7 @@ class Profile(object):
         self.extra = extra
         self.job_specs = None
         self.tool_name = tool_name
-        self.working_dir = working_dir if working_dir is not None \
-            else os.getcwd()
+        self.working_dir = working_dir
         if profile is not None and _load:
             self.load(profile)
 
@@ -350,7 +349,7 @@ class Profile(object):
 
         :param master: the master profile
         """
-        self.working_dir = master.working_dir if master.working_dir \
+        self.working_dir = master.working_dir if self.working_dir is None\
             else self.working_dir
 
     def __call__(self, name=None, threads=None, nodes=None, tasks=None,

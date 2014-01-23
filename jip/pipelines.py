@@ -3,6 +3,7 @@
 used to create pipeline graphs
 """
 import collections
+import os
 
 from jip.options import Option
 from jip.tools import Tool
@@ -128,10 +129,12 @@ class Pipeline(object):
         self.excludes = []
         self._node_index = 0  # unique steadily increasing number
         self._utils = None
+        self._cwd = self._job.working_dir
 
     def __getstate__(self):
         data = {}
         data['_job'] = self._job
+        data['_cwd'] = self._cwd
         data['_current_job'] = self._current_job
         data['_name'] = self._name
         data['_node_index'] = self._node_index
@@ -140,6 +143,7 @@ class Pipeline(object):
 
     def __setstate__(self, data):
         ## update dict
+        self.__dict__['_cwd'] = data['_cwd']
         self.__dict__['_edges'] = set([])
         self.__dict__['_component_index'] = {}
         self.__dict__['_cleanup_nodes'] = []
@@ -768,7 +772,13 @@ class Pipeline(object):
             #_render_nodes(self, list(self.nodes()))
 
             updated = set([])
+            cwd = self._cwd
+            if cwd is None:
+                cwd = os.getcwd()
             for node in self.topological_order():
+                # ensure a working directory is set
+                if node._job.working_dir is None:
+                    node._job.working_dir = cwd
                 node._tool.options.make_absolute(node._job.working_dir)
                 for link in [l for e in node.outgoing() for l in e._links]:
                     source = link[0]
@@ -1411,7 +1421,7 @@ class Node(object):
         :param kwargs: option arguments for the tool
         :returns: tuple of (pipeline, node)
         """
-        pipeline = Pipeline()
+        pipeline = Pipeline(cwd=self._graph._cwd)
         job = self._graph.job()
         job._node = None
         job._pipeline = pipeline
