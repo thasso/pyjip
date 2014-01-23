@@ -266,11 +266,19 @@ class Profile(object):
         elif self.name is not None:
             log.info("Apply pipeline name to job: %s %s", job, self.name)
             job.pipeline = self._render(job, self.name)
+        # deal with threads
         if self.threads is not None and job.threads < 1:
             if not overwrite_threads:
                 job.threads = max(int(self.threads), job.threads)
             else:
                 job.threads = int(self.threads)
+        # jobs with no dependencies are treated specially because we
+        # can always overwrite their threads
+        if overwrite_threads and self.threads and\
+                len(job.dependencies) == 0 and\
+                len(job.children) == 0:
+            job.threads = int(self.threads)
+
         # TODO: add the same override logic as for threads
         if self.nodes is not None:
             job.nodes = self.nodes

@@ -67,8 +67,9 @@ def main():
                 )
 
         # apply the profile to all non-done jobs
-        map(profile.apply,
-            filter(lambda n: n.state != jip.db.STATE_DONE, jobs))
+        force = args['--force']
+        for j in filter(lambda n: force or n.state != jip.db.STATE_DONE, jobs):
+            profile.apply(j, overwrite_threads=True)
 
         ################################################################
         # Get the pipeline graphs and resubmit them
