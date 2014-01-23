@@ -22,6 +22,7 @@ to the jip configuration by also allows dotted access::
 """
 import collections
 import logging
+import os
 from os import getenv
 from os.path import join, exists
 import copy
@@ -89,9 +90,20 @@ class Config(object):
 
     def _init_global(self):
         # load configuration from install_path if specified
+        global install_path
+        if install_path is None:
+            # guess the install path
+            try:
+                import __main__
+                install_path = os.path.dirname(__main__.__file__)
+            except:
+                pass
         if install_path is not None:
+            log.debug("Checking for jip configuration in %s", install_path)
             path = join(install_path, "jip.json")
             self._init_file(path)
+        else:
+            log.debug("No global configuration path found")
 
     def _init_file(self, path):
         if not path:
@@ -101,6 +113,8 @@ class Config(object):
         if exists(path):
             log.debug("Loading configuration from %s", path)
             self._config = _update(self._config, _load(path))
+        else:
+            log.debug("Config file not found: %s", path)
 
     def get(self, name, default=None):
         """Get a value from the configuration
