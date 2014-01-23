@@ -26,7 +26,8 @@ if __name__ == "__main__":
                    outfile="${target_file}.1.%d" % i)
         b = p.bash('wc -w ${input}; sleep 1',
                    input=a, output="${target_file}.2.%d" % i)
-        l = p.bash('echo "Other" > ${target_file}.3.%d; sleep 1' % i)
+        l = p.bash('echo "Other" > ${outfile}; sleep 1',
+                   outfile="${target_file}.3.%d" % i)
         p.context(locals())
 
         # create the jobs
