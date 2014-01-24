@@ -186,11 +186,16 @@ properly:
 
 Use the JIP configuration
 -------------------------
+TODO: Add more docs for the api based configuration
 
 .. _api_scanner:
 
 The Scanner
 -----------
+TODO: Document the tool scanner
+
+JIP modules and Classes
+-----------------------
 
 .. toctree::
    :maxdepth: 2
@@ -201,6 +206,7 @@ The Scanner
    db
    executils
    jobs
+   profiles
    options
    pipelines
    templates
