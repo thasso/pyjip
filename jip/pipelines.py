@@ -254,6 +254,44 @@ class Pipeline(object):
         else:
             tool = _tool_name
         node = self.add(tool, _job=_job)
+
+        # add options if specified in kwargs
+        def _add_opts(option_type):
+            def _add(opts, name, kwargs=None):
+                kwargs = kwargs if kwargs else {}
+                if option_type == "_inputs":
+                    opts.add_input(name, **kwargs)
+                elif option_type == '_outputs':
+                    opts.add_output(name, **kwargs)
+                else:
+                    opts.add_option(name, **kwargs)
+
+            if option_type in kwargs:
+                for name, value in kwargs[option_type].iteritems():
+                    opts = node._tool.options
+                    if isinstance(value, dict):
+                        # get and remove any value set here,
+                        # otherwise this will influence the nargs
+                        # setting of the new option. We set the
+                        # value later anyways. We remove it from the
+                        # dict only if nargs is set. That means that
+                        # nargs will dominate
+                        v = None
+                        if "value" in value:
+                            v = value["value"]
+                            if "nargs" in value:
+                                del value["value"]
+                        _add(opts, name, value)
+                        if v is not None:
+                            node.set(name, v, allow_stream=False)
+                    else:
+                        _add(opts, name)
+                        node.set(name, value, allow_stream=False)
+                del kwargs[option_type]
+        _add_opts("_inputs")
+        _add_opts("_outputs")
+        _add_opts("_options")
+
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
         return node
