@@ -1,0 +1,13 @@
+#!/usr/bin/env jip
+# Merge pipeline
+#
+# Usage:
+#     merge_pipe -i <input>... -o <output>
+# 
+# Options:
+#    -i, --input <input>...   The input file
+#    -o, --output <output>    The output file
+
+#%begin pipeline
+align = bash('echo "ALIGN ${input}" to ${output}', input=input, output="${input|name}.aln")
+merge = run('merger', input=align.output, output=output)

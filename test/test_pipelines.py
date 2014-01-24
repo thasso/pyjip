@@ -1024,3 +1024,26 @@ def test_depends_on_with_multiple_nodes():
     a.depends_on(c, b)
 
     assert len(list(a.incoming())) == 2
+
+
+def test_fanin_pipeline():
+    @jip.tool()
+    def merger():
+        """\
+        The merger
+
+        Usage:
+            merger -i <input>... -o <output>
+
+        Options:
+            -i, --input <input>...   The input files
+            -o, --output <output>    The output file
+        """
+        return "echo Merge"
+
+    p = jip.Pipeline()
+    align = p.bash('cat ${input}', input=["A", "B"], output="${input}.aln")
+    merge = p.run('merger', input=align, output='result')
+    jobs = jip.create_jobs(p, validate=False)
+    assert len(jobs) == 4
+
