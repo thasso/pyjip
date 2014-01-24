@@ -138,8 +138,9 @@ class Profile(object):
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=0,
                  extra=None, profile=None, prefix=None, temp=False, _load=True,
-                 env=None, tool_name=None, working_dir=None, description=None):
-        self._name = name  # render_template(name)
+                 env=None, tool_name=None, working_dir=None, description=None,
+                 specs=None, job_specs=None, _name=None):
+        self._name = name if not _name else _name  # render_template(name)
         self.environment = render_template(environment)
         self.nodes = render_template(nodes)
         self.threads = render_template(threads)
@@ -161,7 +162,7 @@ class Profile(object):
         self.job_specs = None
         self.tool_name = tool_name
         self.working_dir = working_dir
-        self.specs = {}
+        self.specs = specs if specs else {}
         if profile is not None and _load:
             self.load(profile)
 
@@ -411,8 +412,8 @@ class Profile(object):
                  tasks_per_node=None, environment=None, time=None, queue=None,
                  priority=None, log=None, out=None, account=None, mem=None,
                  profile=None, prefix=None, temp=None, extra=None, dir=None,
-                 description=None):
-        return self.__class__(
+                 description=None, env=None):
+        clone = self.__class__(
             name=name if name is not None else self._name,
             threads=threads if threads is not None else self.threads,
             tasks=tasks if tasks is not None else self.tasks,
@@ -420,6 +421,7 @@ class Profile(object):
             self.tasks_per_node,
             environment=environment if environment is not None
             else self.environment,
+            env=env if env is not None else self.env,
             nodes=nodes if nodes is not None else self.nodes,
             profile=profile if profile is not None else self.profile,
             queue=queue if queue is not None else self.queue,
@@ -437,6 +439,9 @@ class Profile(object):
             else self.description,
             _load=False
         )
+        for name, spec in self.specs.iteritems():
+            clone.specs[name] = spec()
+        return clone
 
     def __repr__(self):
         return str(vars(self))
@@ -481,6 +486,29 @@ class Profile(object):
         profile.extra = job.extra
         profile.working_dir = job.working_directory
         profile.env = job.env
+        return profile
+
+    @classmethod
+    def from_file(cls, file_name):
+        """Load a profile from a json file
+
+        :param file_name: the name of the input file
+        """
+        with open(file_name) as of:
+            data = json.load(of)
+            return cls.from_dict(data)
+
+    @classmethod
+    def from_dict(cls, data):
+        """Load a profile from a dictionary"""
+        profile = cls()
+        # apply all the params
+        for k, v in data.iteritems():
+            if k != 'jobs':
+                profile.__setattr__(k, v)
+        if "jobs" in data:
+            for name, spec in data["jobs"].iteritems():
+                profile.specs[name] = cls.from_dict(spec)
         return profile
 
 

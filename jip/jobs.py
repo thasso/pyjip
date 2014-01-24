@@ -671,6 +671,12 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
     # createa the dispatcher graph
     dispatcher_nodes = jip.executils.create_dispatcher_graph(job)
     log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
+    # load job environment
+    env = job.env
+    if env is not None:
+        for k, v in env.iteritems():
+            log.info("Loading job environment %s:%s", k, v)
+            os.environ[k] = str(v)
 
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(profiler=profiler)

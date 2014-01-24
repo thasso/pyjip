@@ -29,6 +29,11 @@ class Job(Profile):
         self._node = None
         self._in_pipeline_name = None
 
+    @classmethod
+    def from_profile(cls, profile, pipeline):
+        job = cls(pipeline=pipeline, **(profile.__dict__))
+        return job
+
     def __getstate__(self):
         data = self.__dict__.copy()
         data['_pipeline'] = None
@@ -307,6 +312,9 @@ class Pipeline(object):
             return n
         elif not tool in self._nodes:
             n = Node(tool, self)
+            if not _job and tool._job:
+                # load profile from tool
+                _job = Job.from_profile(tool._job, self)
             # set the job
             job = _job() if _job else self._current_job()
             n._tool._job = job
@@ -822,6 +830,7 @@ class Pipeline(object):
             #done = set([])
             #for child in j.outgoing():
                 #transitive_reduction(j, child._target, done)
+
         log.info("Expand | Expansion finished. Nodes: %d", len(self))
         return fanout_done
 
@@ -995,6 +1004,9 @@ class Pipeline(object):
 
             self.remove(node, remove_links=False)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
+
+            # apply pipeline profile
+            node._job.apply_to_pipeline(sub_pipe)
 
     def _expand_subpipe_resolve_outgoing(self, node, sub_pipe):
         """Find outgoing edges from the sub pipe node that link
