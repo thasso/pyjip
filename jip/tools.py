@@ -261,6 +261,7 @@ class tool(object):
         helper_function = {
             "name": set_name,
             "job": wrapper.job,
+            "profile": wrapper.job,
             "add_output": wrapper.options.add_output,
             "add_input": wrapper.options.add_input,
             "add_option": wrapper.options.add_option,
@@ -1094,6 +1095,9 @@ class Tool(object):
         if self._job is None:
             self._job = jip.profiles.Profile()
         return self._job
+
+    def profile(self):
+        return self.job
 
     @property
     def options(self):

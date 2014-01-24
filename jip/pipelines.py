@@ -321,6 +321,8 @@ class Pipeline(object):
             name = tool.name if not job.name else job.name
             log.debug("Add node | added %s", name)
             self._apply_node_name(n, name)
+            # set pipeline profile
+            n._pipeline_profile = _job() if _job else self._current_job()
         return self._nodes[tool]
 
     def _apply_node_name(self, node, name):
@@ -918,6 +920,10 @@ class Pipeline(object):
             # are rendered properly and the values are set accordingly
             #if hasattr(node._tool, 'pipeline'):
             node._tool.setup()
+            # reapply the pipeline profile so it precedes the tool profile
+            if node._pipeline_profile:
+                node._pipeline_profile.update(node._job, overwrite=False)
+                node._job.update(node._pipeline_profile)
             _render_nodes(self, [node])
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
@@ -980,6 +986,10 @@ class Pipeline(object):
             self._expand_subpipe_resolve_incoming(node, sub_pipe)
             # setup the node and render values before we remove the node
             node._tool.setup()
+            # reapply the pipeline profile so it precedes the tool profile
+            if node._pipeline_profile:
+                node._pipeline_profile.update(node._job, overwrite=False)
+                node._job.update(node._pipeline_profile)
             _create_render_context(self, node._tool, node)
             #_render_nodes(self, [node])
 
@@ -1367,6 +1377,7 @@ class Node(object):
         self.__dict__['_graph'] = graph
         self.__dict__['_name'] = graph._name
         self.__dict__['_pipeline'] = graph._name
+        self.__dict__['_pipeline_profile'] = None
         self.__dict__['_index'] = index
         # the _node_index is an increasing counter that indicates
         # the order in which nodes were added to the pipeline graph
@@ -1835,7 +1846,8 @@ class Node(object):
 
     def __setattr__(self, name, value):
         if name in ["_job", "_index", "_pipeline",
-                    "_node_index", "_name", "_graph", "_edges", '_tool']:
+                    "_node_index", "_name", "_graph", "_edges", '_tool',
+                    '_pipeline_profile']:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

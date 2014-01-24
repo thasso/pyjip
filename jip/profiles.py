@@ -155,14 +155,40 @@ class Profile(object):
         self.account = render_template(account)
         self.prefix = render_template(prefix)
         self.description = description
-        self.env = None
+        self.env = env
         self.temp = temp
         self.extra = extra
         self.job_specs = None
         self.tool_name = tool_name
         self.working_dir = working_dir
+        self.specs = {}
         if profile is not None and _load:
             self.load(profile)
+
+    def apply_to_pipeline(self, pipeline):
+        """Apply this profile to the pipeline
+
+        :param pipeline: the pipeline
+        :type pipeline: :class:`jip.pipeline.Pipeline`
+        """
+        for node in pipeline.nodes():
+            # check if there is a matching spec for the node
+            node_profile = self.specs.get(node.name, None)
+            if not node_profile:
+                # check via regexp
+                for spec_name, spec in self.specs.iteritems():
+                    if re.match(spec_name, node.name):
+                        node_profile = spec
+
+            if node_profile:
+                # the node profile overwrites the node
+                node._job.update(node_profile)
+                if node._pipeline_profile:
+                    node._pipeline_profile.update(node_profile)
+            # apply global profile, don't overwrite
+            node._job.update(self, overwrite=False)
+            if node._pipeline_profile:
+                node._pipeline_profile.update(self, overwrite=False)
 
     @property
     def err(self):
@@ -349,6 +375,27 @@ class Profile(object):
         if hasattr(job, 'pipe_to'):
             for child in job.pipe_to:
                 self.apply(child)
+
+    def update(self, profile, overwrite=True):
+        """Update this profile from a given profile. All values that are
+        not None in the other profile are applied to this
+        profile
+
+        :param profile: the other profile
+        :type profile: :class:`Profile`
+        :param overwrite: if True, value will be set regardless. Otherwise, the
+                          new value will only be applied if the old value
+                          is None
+        """
+        attrs = ["environment", "nodes", "threads",
+                 "tasks", "tasks_per_node", "queue",
+                 "time", "mem", "priority", "log", "out",
+                 "account", "prefix", "env", "temp", "extra"]
+        for attr in attrs:
+            other = profile.__getattribute__(attr)
+            if other is not None and (overwrite or
+                                      self.__getattribute__(attr) is None):
+                setattr(self, attr, other)
 
     def merge(self, master):
         """Merge this profile with the given master profile.
