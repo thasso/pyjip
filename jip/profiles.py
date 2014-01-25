@@ -139,7 +139,7 @@ class Profile(object):
                  priority=None, log=None, out=None, account=None, mem=0,
                  extra=None, profile=None, prefix=None, temp=False, _load=True,
                  env=None, tool_name=None, working_dir=None, description=None,
-                 specs=None, job_specs=None, _name=None):
+                 specs=None, job_specs=None, _name=None, **kwargs):
         self._name = name if not _name else _name  # render_template(name)
         self.environment = render_template(environment)
         self.nodes = render_template(nodes)
