@@ -86,7 +86,7 @@ You can check the status of the job with `jip jobs <jip_jobs>`::
 
     $> jip jobs
 
-Take a look at the `JIP command line wrapper <cli>` that conatins a list of all
+Take a look at the `JIP command line wrapper <cli>` that contains a list of all
 available JIP commands.
 
 Write a JIP Script
