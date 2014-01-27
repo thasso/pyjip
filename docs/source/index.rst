@@ -14,9 +14,9 @@ interactively, to avoid duplicated job submission and more.
 Quick start
 -----------
 There is more documentation available and there are a few things you might need
-to understand before you can create more sophisticated work-flows. But here is
-the quick-start to install and configure JIP on your system. Take a look at the
-:ref:`setup guide <setup>` for a more detailed description of the installation 
+to understand before you create more sophisticated work-flows. But here is
+the quick-start to install and to configure JIP on your system. Take a look at the
+:ref:`setup guide <setup>` for more detailed description of the installation 
 and configuration process.
 
 Installation 
