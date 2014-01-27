@@ -148,7 +148,7 @@ where we actually define different kinds of options::
 
 
     #!/usr/bin/env jip
-    # Wow, accessing arguments without parsing them is greate!
+    # Wow, accessing arguments without parsing them is great!
     #
     # Usage:
     #     my_tool -i <input>... [-o <output>] [-b] 
@@ -167,7 +167,7 @@ where we actually define different kinds of options::
     echo "OUTPUT: ${output}"
     echo "BOOLEAN? ${boolean|arg("yes")|else("no")}"
 
-A single JIP tools always has a set of options (see 
+A single JIP tool always has a set of options (see 
 :class:`~jip.options.Options` for the underlying API). The options are divided 
 into three groups:
 
