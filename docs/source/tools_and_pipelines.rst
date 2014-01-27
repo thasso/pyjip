@@ -46,7 +46,7 @@ The simplest form of a tool consist of the following parts:
 
     Init block
         A tool instance can provide an ``init`` block that will be called once,
-        when the tool is loaded. ``init`` implementation are not allowed to act
+        when the tool is loaded. ``init`` implementations are not allowed to act
         on option values, but, can be used to setup and initialize the tool
         instance itself. Use this block, for example, to add :ref:`dynamic
         options <dynamic_options>` to the tool instance. Please note that the
@@ -63,7 +63,7 @@ The simplest form of a tool consist of the following parts:
       
     Validation block
         In addition to the actual execution, a *tool* implementation can
-        extend its default validation. By default, the system ensures the all
+        extend its default validation. By default, the system ensures that all
         specified input files exists. You can add more checks in the validation
         block. Please note that the validation blocks have to be implemented in
         `python` and there is currently no way to change the interpreter for
