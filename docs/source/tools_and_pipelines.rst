@@ -109,15 +109,15 @@ and command line options. Unfortunately, this is often neglected and you end
 up with a set of script files that you understand while you write and use
 them first, but if you have to come back to those *things* after some time,
 you are often lost. The easiest way is to try to document both your script
-and the command line options it takes in a meaningful way. The downside
-of this is that your initially small script that consists of just a few lines
-of code get filled with a lot of code responsible for parsing your command line
+and the command line options, then it takes in a meaningful way. The downside
+of this is that your initial small script that consists of just a few lines
+of code will get filled with a lot of code responsible for parsing your command line
 options.
 
 The *docopt* library tries to tackle the problem and is able to parse option
 definitions that are given in a *POSIX* compliant way. JIP makes heavy use
 of this library and allows you to specify the option definition in a *POSIX*
-style way and then extract the available meta-information. Here is one of the
+style way and then to extract the available meta-information. Here is one of the
 most simple scripts you can write::
 
     #!/usr/bin/env jip
