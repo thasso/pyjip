@@ -134,16 +134,16 @@ Make the script executable, ``chmod +x greetings.jip`` and run it::
     Hello Joe
 
 You can see that you have access to the parsed options directly in your script.
-In additions, the ``-h|--help`` options is in place and will print the 
+In addition, the ``-h|--help`` option is in place and will print the 
 documentation.
 
 We decided to use a slightly modified version of the `docopt
-<http://docopt.org>`_ library and force you to write documentation, at least
+<http://docopt.org>`_ library and to force you to write documentation, at least
 for your options. It might sound harsh and it is a hard constrain, but in order
 to write reusable tools, you have to provide some sort of definition of your
-tools options anyways. It turns out, writing options is rather straight
+tools options. It turns out, writing options is rather straight
 forward, you get documentation for your tools and the JIP system can extract
-the information about your tools options. Here is a little bit larger example
+the information about your tools options. Here is a larger example
 where we actually define different kinds of options::
 
 
