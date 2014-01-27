@@ -3,7 +3,7 @@
 JIP Pipeline system
 ===================
 JIP is another approach to implement a pipeline system that helps to manage a
-large number of jobs on a compute cluster and simplifies the process of
+large number of jobs on a compute cluster and it simplifies the process of
 creating computational pipelines with dependency support, automatic expansions
 and simplified management of jobs and resources.
 
