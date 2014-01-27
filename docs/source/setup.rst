@@ -17,16 +17,16 @@ system automatically. What is needed are the following libraries:
       open and close strings in the :ref:`JIP configuration 
       <config_templates>`.
 
-    * ``argparse`` is used for argument parsing. This is part of the python
+    * ``argparse`` is used for argument parsing. This is part of the Python
       standard library since version 2.7, but will be installed as a 
       dependency for older python versions.
 
 .. note:: The JIP job database uses an SQlite back-end, which is part of the
-          python standard library since version 2.5, but needs to be enabled
-          when python is compiled. Most of the bundled python installations
+          Python standard library since version 2.5, but needs to be enabled
+          when Python is compiled. Most of the bundled Python installations
           come with support for sqlite, but if you compiled your own version
-          of python, make sure you have sqlite support. You can check if your
-          python installation supports sqlite with the following command::
+          of Python, make sure you have sqlite support. You can check if your
+          Python installation supports sqlite with the following command::
             
               $> python -c 'import sqlite3'
 
