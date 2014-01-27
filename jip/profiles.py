@@ -140,7 +140,7 @@ class Profile(object):
                  priority=None, log=None, out=None, account=None, mem=0,
                  extra=None, profile=None, prefix=None, temp=False, _load=True,
                  env=None, tool_name=None, working_dir=None, description=None,
-                 specs=None, job_specs=None, _name=None, **kwargs):
+                 specs=None, _name=None, **kwargs):
         self._name = name if not _name else _name  # render_template(name)
         self.environment = render_template(environment)
         self.nodes = render_template(nodes)
@@ -160,9 +160,10 @@ class Profile(object):
         self.env = env
         self.temp = temp
         self.extra = extra
-        self.job_specs = None
         self.tool_name = tool_name
         self.working_dir = working_dir
+        if self.working_dir is None and kwargs.get('dir', None):
+            self.working_dir = kwargs['dir']
         self.specs = specs if specs else {}
         if profile is not None and _load:
             self.load(profile)
@@ -176,6 +177,8 @@ class Profile(object):
         for node in pipeline.nodes():
             # check if there is a matching spec for the node
             node_profile = self.specs.get(node.name, None)
+            if not node_profile:
+                node_profile = self.specs.get(node._name, None)
             # check via regexp
             for spec_name, spec in self.specs.iteritems():
                 if fnmatch.fnmatch(node.name, spec_name):
@@ -208,6 +211,20 @@ class Profile(object):
     @err.setter
     def err(self, value):
         self.log = value
+
+    @property
+    def dir(self):
+        """Set the jobs working directory
+
+        :getter: access the jobs working directory
+        :setter: set the jobs working directory
+        :type: string
+        """
+        return self.working_dir
+
+    @dir.setter
+    def dir(self, value):
+        self.working_dir = value
 
     @property
     def name(self):
@@ -425,7 +442,7 @@ class Profile(object):
         attrs = ["environment", "nodes", "threads",
                  "tasks", "tasks_per_node", "queue",
                  "time", "mem", "priority", "log", "out",
-                 "account", "prefix", "env", "temp", "extra"]
+                 "account", "prefix", "env", "temp", "extra", "working_dir"]
         for attr in attrs:
             other = profile.__getattribute__(attr)
             if other is not None and (overwrite or
