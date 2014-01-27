@@ -29,6 +29,11 @@ class Job(Profile):
         self._node = None
         self._in_pipeline_name = None
 
+    @classmethod
+    def from_profile(cls, profile, pipeline):
+        job = cls(pipeline=pipeline, **(profile.__dict__))
+        return job
+
     def __getstate__(self):
         data = self.__dict__.copy()
         data['_pipeline'] = None
@@ -254,6 +259,44 @@ class Pipeline(object):
         else:
             tool = _tool_name
         node = self.add(tool, _job=_job)
+
+        # add options if specified in kwargs
+        def _add_opts(option_type):
+            def _add(opts, name, kwargs=None):
+                kwargs = kwargs if kwargs else {}
+                if option_type == "_inputs":
+                    opts.add_input(name, **kwargs)
+                elif option_type == '_outputs':
+                    opts.add_output(name, **kwargs)
+                else:
+                    opts.add_option(name, **kwargs)
+
+            if option_type in kwargs:
+                for name, value in kwargs[option_type].iteritems():
+                    opts = node._tool.options
+                    if isinstance(value, dict):
+                        # get and remove any value set here,
+                        # otherwise this will influence the nargs
+                        # setting of the new option. We set the
+                        # value later anyways. We remove it from the
+                        # dict only if nargs is set. That means that
+                        # nargs will dominate
+                        v = None
+                        if "value" in value:
+                            v = value["value"]
+                            if "nargs" in value:
+                                del value["value"]
+                        _add(opts, name, value)
+                        if v is not None:
+                            node.set(name, v, allow_stream=False)
+                    else:
+                        _add(opts, name)
+                        node.set(name, value, allow_stream=False)
+                del kwargs[option_type]
+        _add_opts("_inputs")
+        _add_opts("_outputs")
+        _add_opts("_options")
+
         for k, v in kwargs.iteritems():
             node.set(k, v, allow_stream=False)
         return node
@@ -307,6 +350,9 @@ class Pipeline(object):
             return n
         elif not tool in self._nodes:
             n = Node(tool, self)
+            if not _job and tool._job:
+                # load profile from tool
+                _job = Job.from_profile(tool._job, self)
             # set the job
             job = _job() if _job else self._current_job()
             n._tool._job = job
@@ -321,6 +367,8 @@ class Pipeline(object):
             name = tool.name if not job.name else job.name
             log.debug("Add node | added %s", name)
             self._apply_node_name(n, name)
+            # set pipeline profile
+            n._pipeline_profile = _job() if _job else self._current_job()
         return self._nodes[tool]
 
     def _apply_node_name(self, node, name):
@@ -820,6 +868,7 @@ class Pipeline(object):
             #done = set([])
             #for child in j.outgoing():
                 #transitive_reduction(j, child._target, done)
+
         log.info("Expand | Expansion finished. Nodes: %d", len(self))
         return fanout_done
 
@@ -918,6 +967,10 @@ class Pipeline(object):
             # are rendered properly and the values are set accordingly
             #if hasattr(node._tool, 'pipeline'):
             node._tool.setup()
+            # reapply the pipeline profile so it precedes the tool profile
+            if node._pipeline_profile:
+                node._pipeline_profile.update(node._job, overwrite=False)
+                node._job.update(node._pipeline_profile)
             _render_nodes(self, [node])
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
@@ -980,11 +1033,18 @@ class Pipeline(object):
             self._expand_subpipe_resolve_incoming(node, sub_pipe)
             # setup the node and render values before we remove the node
             node._tool.setup()
+            # reapply the pipeline profile so it precedes the tool profile
+            if node._pipeline_profile:
+                node._pipeline_profile.update(node._job, overwrite=False)
+                node._job.update(node._pipeline_profile)
             _create_render_context(self, node._tool, node)
             #_render_nodes(self, [node])
 
             self.remove(node, remove_links=False)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
+
+            # apply pipeline profile
+            node._job.apply_to_pipeline(sub_pipe)
 
     def _expand_subpipe_resolve_outgoing(self, node, sub_pipe):
         """Find outgoing edges from the sub pipe node that link
@@ -1367,6 +1427,7 @@ class Node(object):
         self.__dict__['_graph'] = graph
         self.__dict__['_name'] = graph._name
         self.__dict__['_pipeline'] = graph._name
+        self.__dict__['_pipeline_profile'] = None
         self.__dict__['_index'] = index
         # the _node_index is an increasing counter that indicates
         # the order in which nodes were added to the pipeline graph
@@ -1835,7 +1896,8 @@ class Node(object):
 
     def __setattr__(self, name, value):
         if name in ["_job", "_index", "_pipeline",
-                    "_node_index", "_name", "_graph", "_edges", '_tool']:
+                    "_node_index", "_name", "_graph", "_edges", '_tool',
+                    '_pipeline_profile']:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

@@ -53,7 +53,6 @@ Other Options:
     -h --help             Show this help message
 
 """
-import json
 import sys
 
 import jip
@@ -82,8 +81,9 @@ def main(argv=None):
                                else args['--profile'])
     profile.tool_name = script.name
     if args['--spec']:
-        with open(args['--spec']) as of:
-            profile.load_spec(json.load(of), script.name)
+        spec_prof = jip.profiles.Profile.from_file(args['--spec'])
+        spec_prof.update(profile)
+        profile = spec_prof
 
     profile.load_args(args)
     log.info("Profile: %s", profile)

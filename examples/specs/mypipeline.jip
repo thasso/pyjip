@@ -1,0 +1,10 @@
+#!/usr/bin/env jip
+# Pipeline with custom profile
+# 
+# usage:
+#     mypipeline
+
+#%begin pipeline
+
+first = bash("echo Run me")
+other = job(priority="high").run("mytool")

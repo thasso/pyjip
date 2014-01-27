@@ -3,21 +3,20 @@
 JIP Pipeline system
 ===================
 JIP is another approach to implement a pipeline system that helps to manage a
-large number of jobs on a compute cluster and simplifies the process of
+large number of jobs on a compute cluster. It simplifies the process of
 creating computational pipelines with dependency support, automatic expansions
 and simplified management of jobs and resources.
 
-Even if you don't care about pipeline and dependencies, JIP offers a set of
-management commands to simplify interactions with your compute cluster,
-allowing you to submit commands quickly, restart and move jobs, edit commands
-interactively, avoid duplicated job submission and more.
+Even if you are not interested in pipeline and dependencies; JIP offers a set of
+management commands to simplify interactions with your compute cluster via allowing you to submit commands quickly, to restart and to move jobs, to edit commands
+interactively, to avoid duplicated job submission and more.
 
 Quick start
 -----------
 There is more documentation available and there are a few things you might need
-to understand before you can create more sophisticated work-flows. But here is
-the quick-start to install and configure JIP on your system. Take a look at the
-:ref:`setup guide <setup>` for a more detailed description of the installation 
+to understand before you create more sophisticated work-flows. But here is
+the quick-start to install and to configure JIP on your system. Take a look at the
+:ref:`setup guide <setup>` for more detailed description of the installation 
 and configuration process.
 
 Installation 
@@ -52,7 +51,7 @@ For a :class:`Gridengine/SGE/OGE <jip.cluster.SGE>` cluster::
         }
     }
 
-Please note that for SGE, in order to submit multi-threaded jobs, you have to 
+Please note that in order to submit multi-threaded jobs for SGE, you have to 
 specify the parallel environment that is configured for threaded jobs.
 
 For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
@@ -87,7 +86,7 @@ You can check the status of the job with `jip jobs <jip_jobs>`::
 
     $> jip jobs
 
-Take a look at the `JIP command line wrapper <cli>` that conatins a list of all
+Take a look at the `JIP command line wrapper <cli>` that contains a list of all
 available JIP commands.
 
 Write a JIP Script
@@ -109,19 +108,19 @@ submit it::
     $> ./hello.jip Joe -- --dry --show # do not run but show dry run and command
     #> ./hello.jip Joe -- submit  # submit the script run
 
-The combination of argument parsing and templates allows you do do much more.
-Take a look at the :ref:`getting_started` guide and the :ref:`templates
+The combination of argument parsing and templates allows you to do much more.
+Please take a look at the :ref:`getting_started` guide and the :ref:`templates
 <templates>` documentation.
 
 Where to go next
 ----------------
 
 The :ref:`getting_started` guide 
-    goes through a couple of examples and explains basic tools and pipeline
+    goes through a couple of examples, explains basic tools and pipeline
     generation.
 
 The :ref:`tools_and_pipelines` chapter 
-    documentats the script and template API and how the execution graph
+    documents the script and template API and how the execution graph
     and be manipulated.
 
 The :ref:`examples` chapter 
