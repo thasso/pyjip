@@ -238,9 +238,9 @@ later, when the input option is set.
 
 Setup blocks
 ************
-Setup block are executed before the options values are rendered and can be
+Setup blocks are executed before the options values are rendered and can be
 used to change options based on their values. Because template strings are
-not yet rendered, you can set template strings as values. For example::
+not yet rendered, you can set the template strings as values. For example::
 
     #%begin setup
     if options['threads'].get(int) > 1:
