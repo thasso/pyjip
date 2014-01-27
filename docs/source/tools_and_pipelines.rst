@@ -88,12 +88,12 @@ interpreter detects ``--`` in the command line and uses it to separate
 arguments. Everything after the ``--`` is passed as an argument to the
 JIP interpreter rather than your tool.
 
-Basic JIP scripts can be used to implement both tools and pipeline and provide
+Basic JIP scripts can be used to implement both tools & pipeline, and they provide
 a way to define the JIP options directly in the script. A script usually 
 contains the following blocks:
 
     Documentation, help and options
-        A jip script starts of with a documentation and help block that 
+        A jip script starts with a documentation and help block that 
         contains also the option definition. We use the great `docopt 
         <http://docopt.org>`_ library to parse your option definitions. 
 
