@@ -269,7 +269,7 @@ more about tool validation.
 
 The execution environment
 *************************
-A tool implementation carries its own job environment. This options you can
+A tool implementation carries its own job environment. This options let you to
 modify on a per-tool bases are covered in the :py:class:`~jip.profiles.Profile`
 class. Job profiles can also be applied *outside* of the tool implementation,
 when you submit or execute the tool or pipeline. Please note that specifying
