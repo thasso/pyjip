@@ -264,7 +264,7 @@ contain a single ``validate`` block::
 
 All validation blocks are written in *python* and the :ref:`context 
 <python_context>` exposes a set of helper functions to perform checks on files
-and raise arbitrary validation errors. See :ref:`Validation <validation>` for
+and raises arbitrary validation errors. See :ref:`Validation <validation>` for
 more about tool validation.
 
 The execution environment
