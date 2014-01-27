@@ -51,7 +51,7 @@ For a :class:`Gridengine/SGE/OGE <jip.cluster.SGE>` cluster::
         }
     }
 
-Please note that for SGE, in order to submit multi-threaded jobs, you have to 
+Please note that in order to submit multi-threaded jobs for SGE, you have to 
 specify the parallel environment that is configured for threaded jobs.
 
 For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
