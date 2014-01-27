@@ -223,7 +223,7 @@ Init blocks
 ************
 A script or tool definition can specify a ``init`` block in order to create 
 more options that are registered with the tool. Please note that the init
-blocks are evaluated once, just after the tool is created. That means that
+blocks are evaluated once, just after the tool is created. That means that the 
 option values are not yet set and you can not implement any logical decisions
 based on the option values. You can, however, use the init block to 
 add more options to a tool. For example::
