@@ -108,8 +108,8 @@ submit it::
     $> ./hello.jip Joe -- --dry --show # do not run but show dry run and command
     #> ./hello.jip Joe -- submit  # submit the script run
 
-The combination of argument parsing and templates allows you do do much more.
-Take a look at the :ref:`getting_started` guide and the :ref:`templates
+The combination of argument parsing and templates allows you to do much more.
+Please take a look at the :ref:`getting_started` guide and the :ref:`templates
 <templates>` documentation.
 
 Where to go next
