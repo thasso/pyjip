@@ -5,7 +5,7 @@ Setup and configuration
 
 Dependencies and requirements
 -----------------------------
-JIP does not have a lot of dependencies and they should be installed with the
+JIP does have a bunch dependencies that should be installed with the
 system automatically. What is needed are the following libraries:
 
     * `SQLAlchemy <http://www.sqlalchemy.org/>`_ is used for the job database
@@ -18,7 +18,7 @@ system automatically. What is needed are the following libraries:
       <config_templates>`.
 
     * ``argparse`` is used for argument parsing. This is part of the python
-      standard library since version 2.7 but will be installed as a 
+      standard library since version 2.7, but will be installed as a 
       dependency for older python versions.
 
 .. note:: The JIP job database uses an SQlite back-end, which is part of the
@@ -30,12 +30,11 @@ system automatically. What is needed are the following libraries:
             
               $> python -c 'import sqlite3'
 
-          If the command above does not raise an exception, you have sqlite
+          If the command above does not raise any exception, you have sqlite
           support.
 
 The current implementation uses the job database for simple communication. That
-requires a way to lock the database file and have it in a location that is 
-accessible from all nodes in your compute cluster. The default location
+requires a way to lock the database file and have it in a location accessible from all nodes in your compute cluster. The default location
 is ``$HOME/.jip/jobs.db``, but you can change the path in the JIP 
 configuration.
 
