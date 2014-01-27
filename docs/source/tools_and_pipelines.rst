@@ -46,7 +46,7 @@ The simplest form of a tool consist of the following parts:
 
     Init block
         A tool instance can provide an ``init`` block that will be called once,
-        when the tool is loaded. ``init`` implementation are not allowed to act
+        when the tool is loaded. ``init`` implementations are not allowed to act
         on option values, but, can be used to setup and initialize the tool
         instance itself. Use this block, for example, to add :ref:`dynamic
         options <dynamic_options>` to the tool instance. Please note that the
@@ -63,7 +63,7 @@ The simplest form of a tool consist of the following parts:
       
     Validation block
         In addition to the actual execution, a *tool* implementation can
-        extend its default validation. By default, the system ensures the all
+        extend its default validation. By default, the system ensures that all
         specified input files exists. You can add more checks in the validation
         block. Please note that the validation blocks have to be implemented in
         `python` and there is currently no way to change the interpreter for
@@ -88,12 +88,12 @@ interpreter detects ``--`` in the command line and uses it to separate
 arguments. Everything after the ``--`` is passed as an argument to the
 JIP interpreter rather than your tool.
 
-Basic JIP scripts can be used to implement both tools and pipeline and provide
+Basic JIP scripts can be used to implement both tools & pipeline, and they provide
 a way to define the JIP options directly in the script. A script usually 
 contains the following blocks:
 
     Documentation, help and options
-        A jip script starts of with a documentation and help block that 
+        A jip script starts with a documentation and help block that 
         contains also the option definition. We use the great `docopt 
         <http://docopt.org>`_ library to parse your option definitions. 
 
@@ -109,15 +109,15 @@ and command line options. Unfortunately, this is often neglected and you end
 up with a set of script files that you understand while you write and use
 them first, but if you have to come back to those *things* after some time,
 you are often lost. The easiest way is to try to document both your script
-and the command line options it takes in a meaningful way. The downside
-of this is that your initially small script that consists of just a few lines
-of code get filled with a lot of code responsible for parsing your command line
+and the command line options, then it takes in a meaningful way. The downside
+of this is that your initial small script that consists of just a few lines
+of code will get filled with a lot of code responsible for parsing your command line
 options.
 
 The *docopt* library tries to tackle the problem and is able to parse option
 definitions that are given in a *POSIX* compliant way. JIP makes heavy use
 of this library and allows you to specify the option definition in a *POSIX*
-style way and then extract the available meta-information. Here is one of the
+style way and then to extract the available meta-information. Here is one of the
 most simple scripts you can write::
 
     #!/usr/bin/env jip
@@ -134,21 +134,21 @@ Make the script executable, ``chmod +x greetings.jip`` and run it::
     Hello Joe
 
 You can see that you have access to the parsed options directly in your script.
-In additions, the ``-h|--help`` options is in place and will print the 
+In addition, the ``-h|--help`` option is in place and will print the 
 documentation.
 
 We decided to use a slightly modified version of the `docopt
-<http://docopt.org>`_ library and force you to write documentation, at least
+<http://docopt.org>`_ library and to force you to write documentation, at least
 for your options. It might sound harsh and it is a hard constrain, but in order
 to write reusable tools, you have to provide some sort of definition of your
-tools options anyways. It turns out, writing options is rather straight
+tools options. It turns out, writing options is rather straight
 forward, you get documentation for your tools and the JIP system can extract
-the information about your tools options. Here is a little bit larger example
+the information about your tools options. Here is a larger example
 where we actually define different kinds of options::
 
 
     #!/usr/bin/env jip
-    # Wow, accessing arguments without parsing them is greate!
+    # Wow, accessing arguments without parsing them is great!
     #
     # Usage:
     #     my_tool -i <input>... [-o <output>] [-b] 
@@ -167,7 +167,7 @@ where we actually define different kinds of options::
     echo "OUTPUT: ${output}"
     echo "BOOLEAN? ${boolean|arg("yes")|else("no")}"
 
-A single JIP tools always has a set of options (see 
+A single JIP tool always has a set of options (see 
 :class:`~jip.options.Options` for the underlying API). The options are divided 
 into three groups:
 
@@ -204,7 +204,7 @@ Execution blocks
 JIP script must contain exactly one, non-empty, execution block. There are 
 two types of execution blocks:
 
-    command blocks (``#%begin command [<interpreter>]``)
+    command block (``#%begin command [<interpreter>]``)
         Command blocks execute their block content with a specified 
         interpreter. The block content is a JIP template and you have 
         access to the full context. The command block takes a single
@@ -223,7 +223,7 @@ Init blocks
 ************
 A script or tool definition can specify a ``init`` block in order to create 
 more options that are registered with the tool. Please note that the init
-blocks are evaluated once, just after the tool is created. That means that
+blocks are evaluated once, just after the tool is created. That means that the 
 option values are not yet set and you can not implement any logical decisions
 based on the option values. You can, however, use the init block to 
 add more options to a tool. For example::
@@ -238,9 +238,9 @@ later, when the input option is set.
 
 Setup blocks
 ************
-Setup block are executed before the options values are rendered and can be
+Setup blocks are executed before the options values are rendered and can be
 used to change options based on their values. Because template strings are
-not yet rendered, you can set template strings as values. For example::
+not yet rendered, you can set the template strings as values. For example::
 
     #%begin setup
     if options['threads'].get(int) > 1:
@@ -264,12 +264,12 @@ contain a single ``validate`` block::
 
 All validation blocks are written in *python* and the :ref:`context 
 <python_context>` exposes a set of helper functions to perform checks on files
-and raise arbitrary validation errors. See :ref:`Validation <validation>` for
+and raises arbitrary validation errors. See :ref:`Validation <validation>` for
 more about tool validation.
 
 The execution environment
 *************************
-A tool implementation carries its own job environment. This options you can
+A tool implementation carries its own job environment. This options let you to
 modify on a per-tool bases are covered in the :py:class:`~jip.profiles.Profile`
 class. Job profiles can also be applied *outside* of the tool implementation,
 when you submit or execute the tool or pipeline. Please note that specifying
