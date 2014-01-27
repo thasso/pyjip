@@ -1,0 +1,23 @@
+#!/usr/bin/env jip
+# Run a job in the cross product of two sets of files
+#
+# usage:
+#     xproduct -f <first>... -s <second>...
+#
+# Inputs:
+#     -f, --first <first>...    The first set of files
+#     -s, --second <second>...  The second set of files
+
+#%begin pipeline
+# itereate the first set of files and run them through some programm
+first_job = job('${input|name}').bash(
+        'echo "Run on ${input}"',
+        input=first,
+        output="${input|name}.out"
+)
+# iterate on the second files and run a job that takes first_jobs output
+# and the second file. For this, we need to create two input options.
+second_job = job('${first|name}-${second|name}').bash(
+    'Run on ${first} and ${second}',
+    _inputs={"first":first_job, "second":second}
+)

@@ -1,0 +1,11 @@
+#!/usr/bin/env jip
+# Merge files
+#
+# Usage:
+#     merger -i <input>... -o <output>
+#
+# Options:
+#     -i, --input <input>...  The input files
+#     -o, --output <output>   The output file
+
+echo "Merging: ${input} to ${output}"
