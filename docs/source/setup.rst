@@ -199,10 +199,10 @@ for specific configuration blocks.
 
 Cluster Configuration
 ^^^^^^^^^^^^^^^^^^^^^
-The ``cluster`` configuration is loaded form your JIP configuration file.
+The ``cluster`` configuration is loaded from your JIP configuration file.
 The following base configurations are available. Please refer to the 
-implementation documentation for details on configuration parameters for
-each of the grid connectors.
+implementation documentation for details of the configuration parameters for
+each grid connectors.
 
 Grid engines
 ************
