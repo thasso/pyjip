@@ -116,11 +116,11 @@ Where to go next
 ----------------
 
 The :ref:`getting_started` guide 
-    goes through a couple of examples and explains basic tools and pipeline
+    goes through a couple of examples, explains basic tools and pipeline
     generation.
 
 The :ref:`tools_and_pipelines` chapter 
-    documentats the script and template API and how the execution graph
+    documents the script and template API and how the execution graph
     and be manipulated.
 
 The :ref:`examples` chapter 
