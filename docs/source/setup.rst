@@ -127,7 +127,7 @@ Here is an example of a JIP configuration file::
         "profiles": {
             "default": {
                 "queue": "project",
-                "max_time": "3h"
+                "time": "3h"
             }
         },
         "templates":{
