@@ -204,7 +204,7 @@ Execution blocks
 JIP script must contain exactly one, non-empty, execution block. There are 
 two types of execution blocks:
 
-    command blocks (``#%begin command [<interpreter>]``)
+    command block (``#%begin command [<interpreter>]``)
         Command blocks execute their block content with a specified 
         interpreter. The block content is a JIP template and you have 
         access to the full context. The command block takes a single
