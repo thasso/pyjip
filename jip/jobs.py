@@ -626,6 +626,8 @@ def submit_job(job, clean=False, force=False, save=True,
         if not log_file:
             continue
         parent = os.path.dirname(log_file)
+        if not parent:
+            continue
         if not os.path.exists(parent):
             os.makedirs(parent)
     # submit the job
