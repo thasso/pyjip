@@ -261,6 +261,7 @@ class tool(object):
         helper_function = {
             "name": set_name,
             "job": wrapper.job,
+            "profile": wrapper.job,
             "add_output": wrapper.options.add_output,
             "add_input": wrapper.options.add_input,
             "add_option": wrapper.options.add_option,
@@ -501,6 +502,23 @@ class Scanner():
 
     def _register_tool(self, name, tool):
         self.instances[name] = tool
+        # check and load profile for the given tool
+        if tool.path:
+            spec_file = tool.path
+            # replace extension with .spec
+            try:
+                i = spec_file.rindex(".")
+                if i >= 0:
+                    spec_file = spec_file[:i] + ".spec"
+                    log.debug("Checking for spec file at: %s", spec_file)
+                    if os.path.exists(spec_file):
+                        log.info("Loading spec for %s from %s",
+                                 name, spec_file)
+                        profile = jip.profiles.Profile.from_file(spec_file)
+                        tool._job = profile
+            except Exception as err:
+                log.error("Error while loading spec for %s: %s", name, err,
+                          exc_info=True)
 
     def scan_files(self, parent=None):
         """Scan files for jip tools. This functions detects files with
@@ -1095,6 +1113,9 @@ class Tool(object):
             self._job = jip.profiles.Profile()
         return self._job
 
+    def profile(self):
+        return self.job
+
     @property
     def options(self):
         """Access this tools :py:class:`jip.options.Options` instance.
@@ -1398,6 +1419,11 @@ class PythonTool(Tool):
                 self.instance = cls
         except:
             self.instance = cls
+
+        try:
+            self.path = inspect.getsourcefile(cls)
+        except:
+            log.debug("Unable to find source file for %s", self.name)
         ################################################################
         # Load options either through a argparser function that was
         # specified by name in the decorator or load them from the

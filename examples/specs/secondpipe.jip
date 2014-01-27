@@ -1,0 +1,9 @@
+#!/usr/bin/env jip
+# Pipeline with custom profile
+# 
+# usage:
+#     mypipeline --input <input>
+
+#%begin pipeline
+somebash = bash("Run me", input=input)
+other_pipe = run("mypipeline")

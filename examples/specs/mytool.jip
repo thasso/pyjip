@@ -1,0 +1,10 @@
+#!/usr/bin/env jip
+# Tool with a custom spec
+#
+# usage:
+#     mytool
+
+#%begin setup
+profile.time = "3h"
+#%end
+echo $PATH

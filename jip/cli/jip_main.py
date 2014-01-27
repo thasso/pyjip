@@ -40,6 +40,7 @@ Miscellaneous
 
     tools     list all tools available through the search paths
     profiles  list all available profiles
+    specs     create a spec file for a given pipeline
     clean     remove job logs
     check     check job status
     server    start the jip grid server
