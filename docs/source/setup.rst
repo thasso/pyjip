@@ -240,9 +240,8 @@ For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
 
 Local scheduler
 ***************
-If you don't have access to a compute grid or you want to use JIP and on your
-local machine to schedule jobs and run them in the background, JIP comes with
-a local scheduler implementations. For this to work, you have to configure
+If you don't have access to a compute grid or if you want to use JIP on your
+local machine to schedule jobs & run them in the background, JIP comes with local scheduler implementations. For this to work, you have to configure
 JIP to connect to a server process using the :class:`JIP local scheduler 
 connector <jip.grids.JIP>` in your JIP configuration::
 
