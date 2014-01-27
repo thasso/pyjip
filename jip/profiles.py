@@ -44,7 +44,7 @@ or pipeline:
             property that is also considered when you execute a pipeline or
             tool outside of a compute grid.
 
-        working_dir
+        working_dir or dir
             The working directory for a job. This is initialized to the
             current working directory of the process that creates the profile.
 
