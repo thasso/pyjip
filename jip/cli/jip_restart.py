@@ -5,7 +5,8 @@ Restart jip jobs
 Usage:
     jip-restart [-j <id>...] [-J <cid>...] [--force] [--no-clean]
                 [-P <profile>] [-t <time>] [-q <queue>] [-p <prio>]
-                [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>]
+                [-A <account>] [-C <cpus>] [-m <mem>] [-n <name>] [-s <spec>]
+                [--dry] [--show]
     jip-restart [--help|-h]
 
 Options:
@@ -19,8 +20,12 @@ Options:
     -C, --threads <cpus>     Number of CPU's assigned to the job
     -m, --mem <mem>          Max memory assigned to the job
     -n, --name <name>        Job name
+    -s, --spec <spec>        Job environment specification file (see jip specs)
     --no-clean               Do not remove existing job logs
     --force                  Ignore job state and force restart
+    --dry                    Do not submit but show the dry configuration
+    --show                   Do not submit but show to commands that will be
+                             executed
     -h --help                Show this help message
 """
 import os
@@ -29,7 +34,8 @@ import sys
 import jip.db
 import jip.jobs
 from jip.profiles import Profile
-from . import parse_args, parse_job_ids, confirm, colorize, YELLOW
+from . import parse_args, parse_job_ids, confirm, colorize, YELLOW, show_dry,\
+    show_commands
 
 
 def main():
@@ -44,33 +50,44 @@ def main():
 
     # get full pipelines
     jobs = jip.jobs.resolve_jobs(jobs)
+    profile = Profile(profile=args['--profile'])
+    if args['--spec']:
+        spec_prof = Profile.from_file(args['--spec'])
+        spec_prof.update(profile)
+        profile = spec_prof
+    profile.load_args(args)
+    ###############################################################
+    # Update the job profiles and update the job environment
+    ###############################################################
+    env_init = False
+    for j in jobs:
+        # load JIP_PATH and JIP_MODULES
+        if not env_init:
+            env = j.env
+            os.environ['JIP_MODULES'] = "%s:%s" % (
+                os.getenv("JIP_MODULES", ""),
+                env.get('JIP_MODULES', "")
+            )
+            os.environ['JIP_PATH'] = "%s:%s" % (
+                os.getenv("JIP_PATH", ""),
+                env.get('JIP_PATH', "")
+            )
+
+    # apply the profile to all non-done jobs
+    force = args['--force']
+    for j in filter(lambda n: force or n.state != jip.db.STATE_DONE, jobs):
+        profile.apply(j, overwrite=True)
+
+    if args['--dry'] or args['--show']:
+        if args['--dry']:
+            show_dry(jobs, profiles=True)
+        if args['--show']:
+            show_commands(jobs)
+        return
+
     if confirm("Are you sure you want "
                "to restart %d jobs" % len(jobs),
                False):
-        profile = Profile(profile=args['--profile'])
-        profile.load_args(args)
-        ###############################################################
-        # Update the job profiles and update the job environment
-        ###############################################################
-        env_init = False
-        for j in jobs:
-            # load JIP_PATH and JIP_MODULES
-            if not env_init:
-                env = j.env
-                os.environ['JIP_MODULES'] = "%s:%s" % (
-                    os.getenv("JIP_MODULES", ""),
-                    env.get('JIP_MODULES', "")
-                )
-                os.environ['JIP_PATH'] = "%s:%s" % (
-                    os.getenv("JIP_PATH", ""),
-                    env.get('JIP_PATH', "")
-                )
-
-        # apply the profile to all non-done jobs
-        force = args['--force']
-        for j in filter(lambda n: force or n.state != jip.db.STATE_DONE, jobs):
-            profile.apply(j, overwrite_threads=True)
-
         ################################################################
         # Get the pipeline graphs and resubmit them
         ################################################################

@@ -117,6 +117,7 @@ depends on the cluster implementation and the capabilities of the cluster:
 
 """
 import collections
+import fnmatch
 import re
 import os
 import json
@@ -175,17 +176,20 @@ class Profile(object):
         for node in pipeline.nodes():
             # check if there is a matching spec for the node
             node_profile = self.specs.get(node.name, None)
-            if not node_profile:
-                # check via regexp
-                for spec_name, spec in self.specs.iteritems():
-                    if re.match(spec_name, node.name):
+            # check via regexp
+            for spec_name, spec in self.specs.iteritems():
+                if fnmatch.fnmatch(node.name, spec_name):
+                #if re.match(spec_name, node.name):
+                    if not node_profile:
                         node_profile = spec
+                    else:
+                        node_profile.update(spec)
 
             if node_profile:
-                # the node profile overwrites the node
                 node._job.update(node_profile)
                 if node._pipeline_profile:
                     node._pipeline_profile.update(node_profile)
+
             # apply global profile, don't overwrite
             node._job.update(self, overwrite=False)
             if node._pipeline_profile:
@@ -258,8 +262,16 @@ class Profile(object):
             k = re.sub("^-+", "", k)
             k = re.sub("-", "_", k)
             if v and hasattr(self, k):
-                setattr(self, k, v)
-        ## handle tasks per node explicitly
+                # check for multiple values
+                for single in v.split(" "):
+                    tup = single.split("=")
+                    if len(tup) == 1:
+                        setattr(self, k, single)
+                    else:
+                        # find or create a spec for the given key
+                        spec_profile = self.specs.get(tup[0], Profile())
+                        setattr(spec_profile, k, tup[1])
+                        self.specs[tup[0]] = spec_profile
 
     def _render_job_name(self, job):
         ctx = {}
@@ -282,31 +294,16 @@ class Profile(object):
             "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
         )
 
-    def apply(self, job, _load_specs=True, overwrite_threads=False,
-              pipeline=False):
-        """Apply this profile to a given job and all its ambedded children
-        All non-None values are applied to the given job.
+    def apply_overwrite(self, job):
+        """Apply the profile and overwrite all settings that are set
+        in this profile
         """
-        log.debug("Profiles | Applying job profile to %s", job)
-        if not pipeline:
-            job.name = self._render_job_name(job)
-        elif self.name is not None:
-            log.info("Apply pipeline name to job: %s %s", job, self.name)
-            job.pipeline = self._render(job, self.name)
-        # deal with threads
-        if self.threads is not None and job.threads < 1:
-            if not overwrite_threads:
-                job.threads = max(int(self.threads), job.threads)
-            else:
-                job.threads = int(self.threads)
-        # jobs with no dependencies are treated specially because we
-        # can always overwrite their threads
-        if overwrite_threads and self.threads and\
-                len(job.dependencies) == 0 and\
-                len(job.children) == 0:
-            job.threads = int(self.threads)
+        log.debug("Profiles | Overwriting job profile to %s", job)
 
-        # TODO: add the same override logic as for threads
+        if self.name:
+            job.name = self._render_job_name(job)
+        if self.threads:
+            job.threads = int(self.threads)
         if self.nodes is not None:
             job.nodes = self.nodes
         if self.tasks is not None:
@@ -333,7 +330,7 @@ class Profile(object):
             job.temp = self.temp
         if self.extra is not None:
             job.extra = self.extra
-        if self.working_dir is not None and job.working_directory is None:
+        if self.working_dir is not None:
             job.working_directory = os.path.abspath(self.working_dir)
 
         # load environment
@@ -346,32 +343,69 @@ class Profile(object):
                 rendered[k] = render_template(v, **current)
             job.env.update(rendered)
 
-        if specs is None:
-            get_specs()
+        if hasattr(job, 'pipe_to'):
+            for child in job.pipe_to:
+                self.apply_overwrite(child)
+        # check specs
+        for spec_name, spec in self.specs.iteritems():
+            if fnmatch.fnmatch(job.name, spec_name):
+                spec.apply_overwrite(job)
 
-        if _load_specs:
-            if job.tool.name in specs:
-                # apply the job spec
-                spec_profile = Profile(threads=self.threads)
-                spec_profile.load_spec(specs[job.tool.name], None)
-                spec_profile.apply(job, False, overwrite_threads=True)
+    def apply(self, job, pipeline=False, overwrite=False):
+        """Apply this profile to the given job."""
+        log.debug("Profiles | Applying job profile to %s", job)
+        if overwrite:
+            self.apply_overwrite(job)
+            return
 
-            if self.tool_name in specs:
-                # apply the job spec
-                spec_profile = Profile(threads=self.threads)
-                spec_profile.load_spec(specs[self.tool_name], None)
-                spec_profile.apply(job, False)
-                spec = specs[self.tool_name]
-                if 'jobs' in spec and job.tool.name in spec['jobs']:
-                    spec_profile = Profile(threads=self.threads)
-                    spec_profile.load_spec(spec['jobs'][job.tool.name], None)
-                    spec_profile.apply(job, False, overwrite_threads=True)
+        # set the job name or the pipeline name
+        # if this is a job or a pipeline
+        if not pipeline:
+            job.name = self._render_job_name(job)
+        elif self.name is not None:
+            log.info("Apply pipeline name to job: %s %s", job, self.name)
+            job.pipeline = self._render(job, self.name)
 
-        if self.job_specs is not None and job.tool.name in self.job_specs:
-            # apply the job spec
-            spec_profile = Profile(threads=self.threads)
-            spec_profile.load_spec(self.job_specs[job.tool.name], None)
-            spec_profile.apply(job, False, overwrite_threads=True)
+        if self.threads and job.threads is None:
+            job.threads = int(self.threads)
+        if self.nodes is not None and job.nodes is None:
+            job.nodes = self.nodes
+        if self.tasks is not None and job.tasks is None:
+            job.tasks = self.tasks
+        if self.tasks_per_node is not None and job.tasts_per_node is None:
+            job.tasks_per_node = self.tasks_per_node
+        if self.environment is not None and job.environment is None:
+            job.environment = self.environment
+        if self.queue is not None and job.queue is None:
+            job.queue = self.queue
+        if self.priority is not None and job.priority is None:
+            job.priority = self.priority
+        if self.time is not None and job.max_time is None:
+            job.max_time = jip.utils.parse_time(self.time)
+        if self.mem is not None and job.max_memory is None:
+            job.max_memory = jip.utils.parse_mem(self.mem)
+        if self.log is not None and job.stderr is None:
+            job.stderr = self._render(job, self.log)
+        if self.out is not None and job.stdout is None:
+            job.stdout = self._render(job, self.out)
+        if self.account is not None and job.account is None:
+            job.account = self.account
+        if self.temp is not None and job.temp is None:
+            job.temp = self.temp
+        if self.extra is not None and job.extra is None:
+            job.extra = self.extra
+        if self.working_dir is not None and job.working_directory is None:
+            job.working_directory = os.path.abspath(self.working_dir)
+
+        # load environment
+        if self.env:
+            current = os.environ.copy()
+            if job.env:
+                current.update(job.env)
+            rendered = {}
+            for k, v in self.env.iteritems():
+                rendered[k] = render_template(v, **current)
+            job.env.update(rendered)
 
         if hasattr(job, 'pipe_to'):
             for child in job.pipe_to:
@@ -446,21 +480,6 @@ class Profile(object):
     def __repr__(self):
         return str(vars(self))
 
-    def load_spec(self, spec, tool):
-        """Update this profile from the specifications default parameters
-
-        :param spec: dictionary with the job specification
-        :param tool: name of the tool or pipeline
-        """
-        if spec is not None and (tool is None or tool in spec):
-            d = spec if tool is None or tool not in spec else spec[tool]
-            for k, v in d.iteritems():
-                if v is None:
-                    continue
-                self.__setattr__(k, v)
-            if tool is not None and 'jobs' in spec[tool]:
-                self.job_specs = spec[tool]['jobs']
-
     @classmethod
     def from_job(cls, job):
         """Create a profile based on a given job. All properties
@@ -516,7 +535,20 @@ def get(name='default', tool=None):
     """Load a profile by name. If tools is speciefied, the specs are
     searched to the tool and if found, the spec is applied.
     """
-    p = Profile(profile=name)
+    # check the name for specs
+    s = name.split(' ')
+    p = Profile()
+    for ss in s:
+        tup = ss.split("=")
+        if len(tup) == 1:
+            # update global
+            l = Profile(profile=tup[0])
+            p.update(l)
+        else:
+            # update or create spec
+            spec = p.specs.get(tup[0], Profile())
+            spec.update(Profile(profile=tup[1]))
+            p.specs[tup[0]] = spec
     return p
 
 

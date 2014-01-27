@@ -26,7 +26,6 @@ Other Options:
     -h --help             Show this help message
 
 """
-import json
 import sys
 
 from . import parse_args, dry, colorize, YELLOW, GREEN, RED, BLUE
@@ -52,22 +51,17 @@ def main(argv=None):
         dry(script, script_args, dry=args['--dry'], show=args['--show'])
         return
 
-    spec = None
-    if args['--spec']:
-        with open(args['--spec']) as of:
-            spec = json.load(of)
-
     keep = args['--keep']
     force = args['--force']
-    threads = args['--threads']
     profiler = args['--with-profiler']
     silent = not args['--status']
     try:
-        profile = jip.profiles.Profile(threads=threads)
-        if spec:
-            profile.load_spec(spec, script.name)
-            # reset threads
-            profile.threads = threads
+        profile = jip.profiles.Profile()
+        if args['--spec']:
+            spec_prof = jip.profiles.Profile.from_file(args['--spec'])
+            spec_prof.update(profile)
+            profile = spec_prof
+        profile.load_args(args)
 
         jobs = jip.jobs.create_jobs(script, args=script_args, keep=keep,
                                     profile=profile)

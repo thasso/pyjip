@@ -884,10 +884,15 @@ def from_node(node, env=None, keep=False):
     job.name = node.name
     job.pipeline = node._pipeline
 
+    # update job defaults after the profile is applied
+    if not job.threads:
+        job.threads = 1
+
     # store additional options
     job.configuration = node._tool.options
     job.configuration.make_absolute(job.working_directory)
     if node._additional_input_options:
+
         node_options = set(job.configuration.options)
         job.additional_options = set([])
         for a in node._additional_input_options:
@@ -1017,6 +1022,9 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
         pipeline = p
     log.info("Jobs | Expanding pipeline with %d nodes", len(pipeline))
     pipeline.expand(validate=validate)
+    if profile is not None:
+        profile.apply_to_pipeline(pipeline)
+
     log.info("Jobs | Expanded pipeline has %d nodes", len(pipeline))
     if pipeline.excludes:
         if not excludes:
@@ -1035,14 +1043,13 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
     # create all jobs. We keep the list for the order and
     # a dict to store the mapping from the node to teh job
     log.debug("Jobs | Creating job environment for %d nodes", len(pipeline))
-    env = create_job_env(profiler=profiler)
     nodes2jobs = {}
     jobs = []
     num_nodes = len(pipeline)
     for i, node in enumerate(pipeline.topological_order()):
         log.debug("Jobs | Creating job for %s (%d/%d)", node, i + 1, num_nodes)
         ## first create jobs
-        job = from_node(node, env=env, keep=keep)
+        job = from_node(node, keep=keep)
         log.debug("Jobs | Created job %s", job)
         jobs.append(job)
         nodes2jobs[node] = job

@@ -475,7 +475,7 @@ def test_pipeline_tool_spec_regexp():
     p.expand()
 
     profile = jip.Profile(threads=5, queue="yeah", priority="high")
-    profile.specs['My.*'] = jip.Profile(threads=10, queue="rock")
+    profile.specs['My*'] = jip.Profile(threads=10, queue="rock")
     profile.apply_to_pipeline(p)
 
     jobs = jip.create_jobs(p)
