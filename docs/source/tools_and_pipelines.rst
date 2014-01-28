@@ -771,7 +771,7 @@ For example:
 The following filters are currently available:
 
     **arg**
-        The argument filter applies to options that have a value value
+        The argument filter applies to options that have a value 
         specified and whose value is not False. The *arg* filter without any
         arguments prefixes the options with its original short/long option name.
         You can specify a prefix or a suffix to change this behaviour or to
@@ -782,7 +782,7 @@ The following filters are currently available:
         Suffixes can also be specified, i.e., ``${output|arg(suffix=";")}``
 
     **ext**
-        The extension filter cuts away file file name extension and can
+        The extension filter cuts away file name extension and can
         also be applied multiple times. Assume your `output` options is set to
         `my.file.txt`. Using ``${output|ext}`` prints ``my.file`` while
         ``${output|ext|ext}`` prints ``my``. The ``ext`` filter cuts away the
