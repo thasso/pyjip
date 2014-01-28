@@ -689,6 +689,14 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
             log.info("Loading job environment %s:%s", k, v)
             os.environ[k] = str(v)
 
+    # Issue #37
+    # make sure working directories exist at submission time
+    if not os.path.exists(job.working_directory):
+        os.makedirs(job.working_directory)
+    for child in job.pipe_to:
+        if not os.path.exists(child.working_directory):
+            os.makedirs(child.working_directory)
+
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(profiler=profiler)
 

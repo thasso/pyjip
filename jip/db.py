@@ -448,6 +448,8 @@ class Job(Base):
             # catch the errno 2 No such file or directory, which indicates the
             # interpreter is not available
             if err.errno == 2:
+                log.error("No interpreter found for script: %s", script_file,
+                          exc_info=True)
                 raise Exception("Interpreter %s not found!" % self.interpreter)
             raise err
 
