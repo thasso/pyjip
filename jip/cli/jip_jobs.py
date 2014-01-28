@@ -199,13 +199,13 @@ def _pipeline_job(job):
     return state
 
 LAST = None
-PIPELINE_COLOR = None
+PIPELINE_COLOR = ""
 
 
 def SWITCH_PIPELINE_COLOR():
     global PIPELINE_COLOR
     if PIPELINE_COLOR == YELLOW:
-        PIPELINE_COLOR = None
+        PIPELINE_COLOR = ""
     else:
         PIPELINE_COLOR = YELLOW
 
