@@ -900,7 +900,7 @@ that demonstrates the usage of the filters::
     echo "========================================="
     echo "The 'ext' filter cuts away the last file"
     echo "extension. By default, the extension is"
-    echo "detcted by '.', but you can specify a"
+    echo "detected by '.', but you can specify a"
     echo "custom split character"
     echo ""
     echo "RAW INPUT   : ${input|ext}"
