@@ -473,19 +473,19 @@ instance into a jip tool or pipeline. The following decorators are available:
         that is then executed as a tool.
 
     :class:`@pipeline <jip.tools.pipeline>` 
-        Apply this to functions or classes. Functions must return return a 
+        Apply this to functions or classes. Functions must return an 
         :class:`jip.pipelines.Pipeline` instance or a pipeline script. Classes 
-        must implement a ``pipeline`` function that returns the 
+        must implement a ``pipeline`` function that returns a 
         pipeline instance or a pipeline script.
 
 Function annotation is the most simple and also the most limited way to 
 implement a JIP tool. You do not have a way to customize the tool validation.
-That said, implementing jip tools as python functions is straight forward and
+That said, implementing jip tools as Python functions is straight forward and
 easy to do::
 
     @pytool()
     def greetings():
-        print "Greetings fellow pythoniast"
+        print "Greetings fellow Pythoniast"
 
 In this case the tool execution itself is implemented in python. Alternatively,
 you can also use the ``@tool`` annotation and return a template string or
