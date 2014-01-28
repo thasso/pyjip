@@ -676,12 +676,12 @@ structure. The hierarchy contains all three jobs, but only a single job will be
 send and executed on your compute cluster. In this example, we use the 
 pipeline :ref:`node operators <pipeline_operators>` to delegate the output
 from our *producer* to the output file and then further to a *group* of
-two jobs that to the word and line counts. A variation of the example above
+two jobs of the word and the line counts. A variation of the example above
 would be to explicitly specify the producers output::
 
     bash('echo "Hello World"'), output='producer_out.txt') | (bash('wc -l') + bash('wc -w'))
 
-Both variations are similar in nature and do the job. But, both of them do 
+Both variations are similar in nature and so the jobs. But, both of them do 
 not necessarily improve readability or maintainability of the script. They do
 the job, but you might not consider the script *nice*.
 
