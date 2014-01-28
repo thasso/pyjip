@@ -1,0 +1,6 @@
+#!/usr/bin/env jip
+# logme log file demo
+#
+
+#%begin pipeline
+logger = job(dir="logger", out="${name}.out", err="${name}.err").bash("hostname")
