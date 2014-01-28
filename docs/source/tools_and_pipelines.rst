@@ -967,7 +967,7 @@ set the ``long`` or ``short`` flags and make them non-hidden::
 
 The script context
 ------------------
-Within a jip script, within template blocks, and in python blocks like
+Within a jip script, within template blocks, and in Python blocks like
 *validate*, *setup*, *init*, or *pipeline*, a set of functions is exposed to
 simplify certain tasks that have to be done quiet often, for example, checking
 for the existence of files. The following functions and variables are available
@@ -983,7 +983,7 @@ without any additional import statements:
       values directly but an instance of :py:class:`jip.options.Option`. If you
       want to get the value, try ``opts['output'].get()``.
 
-    * **_ctx** a named tuple that allows read only access to the 
+    * **_ctx** a named tuple that allows read-only access to the 
       current script context.
 
     * **__file__** contains the path to the script file
