@@ -561,7 +561,7 @@ always have access to:
 
 Please take a look at the documentation of the :class:`@tool <jip.tools.tool>`
 decorator. There are options you can pass to the decorator to customize how 
-your class is converted to a tool and change, for example, names of the 
+your class is converted to a tool and change, for example, the names of 
 functions that are to map between your implementation and the 
 :class:`~jip.tools.Tool` class.
 
