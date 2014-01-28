@@ -630,6 +630,15 @@ def submit_job(job, clean=False, force=False, save=True,
             continue
         if not os.path.exists(parent):
             os.makedirs(parent)
+
+    # Issue #37
+    # make sure working directories exist at submission time
+    if not os.path.exists(job.working_directory):
+        os.makedirs(job.working_directory)
+    for child in job.pipe_to:
+        if not os.path.exists(child.working_directory):
+            os.makedirs(child.working_directory)
+
     # submit the job
     cluster.submit(job)
     all_jobs = [job]
