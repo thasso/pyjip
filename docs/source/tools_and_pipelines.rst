@@ -572,16 +572,16 @@ JIP Pipelines
 
 Node operators
 ^^^^^^^^^^^^^^
-Pipeline nodes support a set of operator that simplify some operations on the 
+Pipeline nodes support a set of operators that simplify some operations on the 
 nodes and the graph structure. The following operators are supported by 
 pipeline :py:class:`~jip.pipelines.Node` instances:
 
     ``|`` 
         The *or* or *pipe* operator behaves similar to the common behaviour in
-        your bash shell. The default output of the left side's node (see
+        your bash shell. The default output of the left sides' node (see
         :py:meth:`jip.options.Option.get_default_output`) is connected the
         default input of the right sides' node. A new edge is added to the
-        pipeline graph making the right side dependant to the left side, and,
+        pipeline graph making the right side dependent to the left side, and,
         if both nodes support streaming, a stream link is established. 
     ``>``
         The *greater than* operator can be used **set the output** option
