@@ -1053,8 +1053,8 @@ In addition, the following functions are available:
 
 Injected functions
 ^^^^^^^^^^^^^^^^^^
-If you use a class based approach and the :ref:`decorators <decorators>` to
-implement you tools, the following functions and attributes are injected into 
+If you use a class-based approach and the :ref:`decorators <decorators>` to
+implement your tools, the following functions and attributes are injected into 
 your class if they do not conflict with a local function or attribute:
 
     options
@@ -1069,7 +1069,7 @@ your class if they do not conflict with a local function or attribute:
         The ``check_file`` helper to check for existence of files referenced
         by an option
     validation_error
-        quickly raise a validation error
+        quickly raises a validation error
     name
         a function to set your tool or pipeline run-time name
     add_output
@@ -1086,8 +1086,7 @@ your class if they do not conflict with a local function or attribute:
 In addition, all tool options are injected as class attributes as long as they
 do not conflict with an existing property.
 
-This allows you to quickly access the functions and properties in your class
-based implementations. For example:
+This allows you to quickly access the functions and properties in your class-based implementations. For example:
 
 
 .. code-block:: python
