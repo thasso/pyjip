@@ -348,15 +348,15 @@ functions and classes to create pipeline and tools.
 
 Tool validation and pre-processing
 **********************************
-*Validation* is an essential step in all pipeline execution. You want to fail
-as early as possible and make sure all mandatory options are set. 
+*Validation* is an essential step in all pipeline executions. You would want to fail
+as early as possible and to make sure all mandatory options are set. 
 
 JIP tools and pipeline come with a default validation mechanism that is
 triggered while building pipelines and before the execution. By default,
 all ``input`` options of a tool or pipeline are validated and it is ensured
 that the referenced file exists or that the file will be created by another
 tool in a pipeline setup. In addition, all mandatory options are checked and
-errors are raises if a mandatory option is not set. 
+errors raise if a mandatory option is not set. 
 
 You can also customize the process of validation. In JIP scripts, you can
 add a ``validate``  block like this::
