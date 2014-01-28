@@ -152,8 +152,8 @@ class Profile(object):
         self.time = render_template(time)
         self.mem = render_template(mem)
         self.priority = render_template(priority)
-        self.log = render_template(log)
-        self.out = render_template(out)
+        self.log = log
+        self.out = out
         self.account = render_template(account)
         self.prefix = render_template(prefix)
         self.description = description
@@ -307,6 +307,8 @@ class Profile(object):
         ctx = {}
         for o in job.tool.options:
             ctx[o.name] = o
+        ctx['name'] = self.name
+        ctx['job'] = self
         return render_template(
             "%s%s" % ("" if not self.prefix else self.prefix, name), **ctx
         )
@@ -461,9 +463,9 @@ class Profile(object):
 
     def __call__(self, name=None, threads=None, nodes=None, tasks=None,
                  tasks_per_node=None, environment=None, time=None, queue=None,
-                 priority=None, log=None, out=None, account=None, mem=None,
-                 profile=None, prefix=None, temp=None, extra=None, dir=None,
-                 description=None, env=None):
+                 priority=None, log=None, out=None, err=None, account=None,
+                 mem=None, profile=None, prefix=None, temp=None, extra=None,
+                 dir=None, description=None, env=None):
         clone = self.__class__(
             name=name if name is not None else self._name,
             threads=threads if threads is not None else self.threads,
@@ -478,7 +480,8 @@ class Profile(object):
             queue=queue if queue is not None else self.queue,
             time=time if time is not None else self.time,
             priority=priority if priority is not None else self.priority,
-            log=log if log is not None else self.log,
+            log=log if log is not None else
+            (err if err is not None else self.log),
             out=out if out is not None else self.out,
             account=account if account is not None else self.account,
             mem=mem if mem is not None else self.mem,
