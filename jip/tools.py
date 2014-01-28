@@ -928,6 +928,9 @@ class PythonBlockUtils(object):
 
                     return str(self.option)
 
+                def __getattr__(self, name):
+                    return self.node._tool.options[name]
+
             for k in ctx.keys():
                 v = ctx[k]
                 if isinstance(v, Node):
