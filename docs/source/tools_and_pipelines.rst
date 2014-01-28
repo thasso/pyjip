@@ -621,21 +621,21 @@ between tool execution in a pipeline context, but *intpu* and *output* options
 are treated specially. 
 
 Input options are automatically validated for each tool. The system will raise
-in error if you set an input option to a non existing file. 
+an error if you set an input option to a non-existing file. 
 
 Output options and files that are referenced as outputs of tools are used
 to detect the state of a tool and its execution, especially when something 
-went wrong. The first indicator for a jobs state, say *running* or *failed*,
+goes wrong. The first indicator for a jobs state, say *running* or *failed*,
 is the job database. Alternatively, if the job is no longer marked as running
-on your compute cluster, the output files of a jobs are checked and the job
-is marked as completed if all outputs exists. That would means that a job
+on your compute cluster, the output files of a job are checked and the job
+is marked as completed if all outputs exists. That would mean that a job
 that failed in the middle of its run might leave files on disk and might be 
 marked as completed accidentally. To prevent this, a JIP run **deletes all 
 output of failed jobs** automatically. If you submit your jobs through the
 ``jip submit`` command line tool or run it with ``jip run``, you can prevent 
 deletion of files using the ``--keep`` flag. In general, you are encouraged not
-to use *keep* though. If a job failed, its output will be removed and this 
-will allow you to fix the problem and restart your job without thinking about
+to use *keep* though. If a job fails, its output will be removed and this 
+will allow you to fix the problem and to restart your job without thinking about
 orphan files. 
 
 .. _stream_dispatching:
