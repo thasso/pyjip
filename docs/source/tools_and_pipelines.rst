@@ -487,7 +487,7 @@ easy to do::
     def greetings():
         print "Greetings fellow Pythoniast"
 
-In this case the tool execution itself is implemented in python. Alternatively,
+In this case the tool execution itself is implemented in Python. Alternatively,
 you can also use the ``@tool`` annotation and return a template string or
 a tuple to specify the interpreter and the template string::
 
@@ -498,7 +498,7 @@ a tuple to specify the interpreter and the template string::
 In case you use ``@tool``, you can access the tools 
 :py:attr:`jip.tools.Tool.options` as in any JIP script from :ref:`the context 
 <python_context>`. On the other hand, if you use the `@pytool` decorator and
-implement a python function that is executed as a tool directly, you can
+implement a Python function that is executed as a tool directly, you can
 access the tool instance as a parameter::
 
     @pytool()
@@ -513,7 +513,7 @@ access the tool instance as a parameter::
 Here, ``self`` is the actual tool instance created by the decorator and 
 populated with the options.
 
-An alternative approach, and suitable when you deal with more complex tools, is
+An alternative approach, and as well suitable when you deal with more complex tools, is
 to implement the tool not as a function but as a class. This enables you to 
 add more than just the ``run`` or ``get_command`` functions, but also provide
 a ``validate`` implementation and even customize other parts of the tool
@@ -527,7 +527,7 @@ implementation. Here is the python implementation of the greetings tool::
         """
         def validate(self):
             if self.options['name'] == 'Joe':
-                self.validation_error("Sorry joe, I don't like your shoes.")
+                self.validation_error("Sorry Joe, I don't like your shoes.")
 
         def run(self):
             # we are not a tool instance
@@ -535,7 +535,7 @@ implementation. Here is the python implementation of the greetings tool::
             # but we can access it
             assert hasattr(self, 'tool_instance')
 
-            # and we habe the helpers directly available
+            # and we have the helpers directly available
             assert hasattr(self, 'args')
             assert hasattr(self, 'options')
             assert hasattr(self, 'check_file')
