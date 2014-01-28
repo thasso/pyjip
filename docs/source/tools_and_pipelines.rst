@@ -366,13 +366,13 @@ add a ``validate``  block like this::
     #%end
 
 Within the validate block, which is implemented in `python`, you have full 
-access to `the scripts' contetx <python_context>`, for example, to use the 
+access to `the scripts' context <python_context>`, for example, to use the 
 :py:meth:`~jip.tools.PythonBlockUtils.check_file` function. If you want to 
 fail your validation manually, you have to raise an
 :py:exc:`~jip.tools.ValidationError`. The easies way to do this is via the
-python contexts' :py:meth:`~jip.tools.PythonBlockUtils.validation_error`
+Python context' :py:meth:`~jip.tools.PythonBlockUtils.validation_error`
 function. Specify an error message and 
-the exaception will we raised. For example::
+the exaception will be raised. For example::
 
     #%begin validate
     ...
