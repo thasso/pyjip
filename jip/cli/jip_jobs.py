@@ -130,7 +130,12 @@ def _max_date(d1, d2):
 
 
 def _pipeline_job(job):
-    all_jobs = jip.jobs.get_subgraph(job)
+    parent_jobs = set([])
+    for c in jip.jobs.get_subgraph(job):
+        for cc in [j for j in jip.jobs.get_parents(c) if j not in parent_jobs]:
+            for ccc in [j for j in jip.jobs.get_subgraph(cc) if j not in parent_jobs]:
+                parent_jobs.add(ccc)
+    all_jobs = list(parent_jobs)
     count = float(len(all_jobs))
     counts = defaultdict(int)
     queues = set([job.queue])
@@ -186,6 +191,7 @@ def _pipeline_job(job):
         ))
 
     progress = "".join(progress)
+    job.deps = len(all_jobs)
     job.runtime = _pipeline_runtime(all_jobs)
     job.queue = ", ".join(q for q in queues if q)
     job.progress = progress
@@ -249,7 +255,8 @@ PIPE_HEADER = [
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
-    ("Dependencies", lambda j: j.progress),
+    ("Progress", lambda j: j.progress),
+    ("Dependencies", lambda j: j.deps),
     ("Threads", lambda j: j.threads),
     ("Hosts", lambda j: j.hosts),
     ("Account", lambda j: j.account),
@@ -282,6 +289,7 @@ DEFAULT_PIPE_COLUMNS = [
     "State",
     "Queue",
     "Dependencies",
+    "Progress",
     "Threads",
     "Runtime",
 ]
@@ -322,10 +330,21 @@ def main():
             # reduce to pipeline main jobs
             all_jobs = []
             stored = set([])
+            parent_jobs = {}
             for j in jobs:
                 if len(j.dependencies) == 0 and j not in stored:
-                    stored.add(j)
-                    all_jobs.append(j)
+                    parent = j
+                    for c in jip.jobs.get_subgraph(j):
+                        if c in parent_jobs:
+                            parent = parent_jobs[c]
+                            break
+                    else:
+                        ## add all to parent
+                        for c in jip.jobs.get_subgraph(j):
+                            parent_jobs[c] = parent
+                    if not parent in stored:
+                        stored.add(parent)
+                        all_jobs.append(parent)
             jobs = all_jobs
             #jobs = [j for j in jobs if len(j.dependencies) == 0]
         else:
@@ -333,17 +352,17 @@ def main():
                 # in expand mode, we have to get all the jobs of a pipeline
                 covered = set([])
                 all_jobs = []
-                for j in jobs:
+                for j in [jip.jobs.get_subgraph(x) for x in jobs]:
                     parents = jip.jobs.get_parents(j)
                     for p in parents:
                         if not p in covered:
                             all_for_j = jip.jobs.get_subgraph(p)
                             all_jobs.extend(
-                                jip.jobs.topological_order(all_for_j)
+                                [c for c in all_for_j if c not in covered]
                             )
                             for cj in all_for_j:
                                 covered.add(cj)
-                jobs = all_jobs
+                jobs = jip.jobs.topological_order(all_jobs)
     else:
         jobs = jip.db.query_by_files(inputs=inputs, outputs=outputs)
 
