@@ -995,6 +995,11 @@ class Pipeline(object):
                 self.excludes.extend(sub_pipe.excludes)
             check_fanout = sub_pipe.expand(validate=validate, _find_dup=False,
                                            _check_fanout=check_fanout)
+
+            # apply pipeline profile
+            node._job.apply_to_pipeline(sub_pipe)
+            _render_jobs(sub_pipe, list(sub_pipe.nodes()))
+
             # find all nodes in the sub_pipeline
             # with no incoming edges and connect
             # them to the current nodes incoming nodes
@@ -1045,9 +1050,6 @@ class Pipeline(object):
 
             self.remove(node, remove_links=False)
             self._cleanup_nodes.extend(sub_pipe._cleanup_nodes)
-
-            # apply pipeline profile
-            node._job.apply_to_pipeline(sub_pipe)
 
     def _expand_subpipe_resolve_outgoing(self, node, sub_pipe):
         """Find outgoing edges from the sub pipe node that link
@@ -2159,6 +2161,29 @@ def _render_nodes(pipeline, nodes):
     for node in nodes:
         for o in node._tool.options:
             _render_option(o, _create)
+
+
+def _render_jobs(pipeline, nodes):
+    # create the base dict that contains all ndoes
+    nds = {}
+    for n in pipeline.nodes():
+        nds[n.name] = n
+
+    # create a context for each node and set it for each option
+    ctxs = {}
+    for node in nodes:
+        ctx = _create_render_context(pipeline, node._tool, node, nds)
+        ctxs[node] = ctx
+
+    def _create(tool):
+        return _create_render_context(pipeline, tool, None, nds)
+
+    # render out all node options
+    for node in nodes:
+        # render working dir
+        if node._job.dir:
+            ctx = ctxs[node]
+            node._job.working_dir = render_template(node._job.dir, **ctx)
 
 
 def _render_option(option, create_fun):
