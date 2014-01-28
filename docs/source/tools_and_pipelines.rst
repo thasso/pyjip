@@ -816,11 +816,11 @@ The following filters are currently available:
 
     **else**
         Takes a single argument and outputs it if the passed in value is
-        either a file stream or evaluates to False.
+        either a file stream or it evaluates to False.
 
 
 .. note:: All input and output files paths are translated to absolute paths
-          in JIP. In order to get just the name of a file, ise the ``name``
+          in JIP. In order just to get the name of a file, use the ``name``
           filter. 
 
 The JIP `repository contains an example
@@ -840,7 +840,7 @@ that demonstrates the usage of the filters::
     #     -b, --boolean          A boolean option
 
     echo "========================================="
-    echo "Raw value are printed as they are, except"
+    echo "Raw values are printed as they are, except"
     echo "stream and boolean options."
     echo ""
     echo "RAW INPUT   : ${input}"
@@ -851,7 +851,7 @@ that demonstrates the usage of the filters::
     echo "========================================="
     echo "The 'arg' filter without any argument"
     echo "prefixs the value with its option if"
-    echo "the value is not a stream or evaluates to"
+    echo "the value is not a stream or it evaluates to"
     echo "true."
     echo ""
     echo "RAW INPUT   : ${input|arg}"
@@ -861,7 +861,7 @@ that demonstrates the usage of the filters::
 
     echo "========================================="
     echo "The 'arg' filter with arguments can be"
-    echo "used to add custom prefixes and suffixed"
+    echo "used to add custom prefixes and suffixes"
     echo "to the value is not a stream or evaluates"
     echo "to true."
     echo ""
