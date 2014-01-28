@@ -285,12 +285,12 @@ environment both in the tool implementation as well as on the command line.
 Modules
 ^^^^^^^
 In addition to JIP scripts, tools and pipeline can also be implemented in
-python modules directly, using the JIP API and the available :ref:`decorators
+Python modules directly, using the JIP API and the available :ref:`decorators
 <decorators>`. 
 
-Tool can be loaded from python modules directly. Here is an example of how you
-could implement a simple `hello world` example as a python function. Create a
-python module `hello_world.py` and add the following content::
+Tools can be loaded from Python modules directly. Here is how you
+could implement a simple `hello world` example as a Python function. Create a
+Python module `hello_world.py` and add the following content::
 
     #!/usr/bin/env python
     from jip import *
@@ -300,9 +300,9 @@ python module `hello_world.py` and add the following content::
         """Prints hello world in a python module"""
         print "Hello world"
 
-All we have to do here is decorate a function with the
+All we have to do here is to decorate a function with the
 :py:class:`jip.tools.pytool` decorator exported in the `jip` package. This
-allows us to treat a single python function as a tool implementation. In order
+allows us to treat a single Python function as a tool implementation. In order
 to integrate the module, we have to either configure the :ref:`jip_modules
 <jip_configuration>` jip configuration or export the :envvar:`JIP_MODULES`
 environment variable. For example::
