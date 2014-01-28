@@ -975,6 +975,7 @@ class Pipeline(object):
             # make the nodes options absolute (Issue #38)
             node._tool.options.make_absolute(node._job.working_dir)
             _render_nodes(self, [node])
+            node._tool.options.make_absolute(node._job.working_dir)
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:
                 continue
@@ -983,6 +984,7 @@ class Pipeline(object):
 
             # merge the nodes jobs with the sub-pipeline nodes
             for sub_node in sub_pipe.nodes():
+                node._job.apply_to_node(sub_node)
                 sub_node._job.merge(node._job)
 
             # render and apply the nodes name as pipeline
