@@ -695,7 +695,7 @@ An alternative implementation of the same pipeline might look like this::
     producer | (word_count + line_count)
 
 Granted, this is no longer a single line. But the goal is also not to use the
-least number of keystrokes (if your are interested in that, start playing 
+least number of keystrokes (if you are interested in that, start playing 
 `vimgolf <http://vimgolf.com/>`_). 
 
 The script above allows more flexibility and you will be able to update
@@ -703,11 +703,11 @@ the pipeline faster. The key line with respect to the streaming dispatcher is
 the last line of the script. This line enables the stream dispatching. If
 you remove it, your pipeline will still work, but the producer and the consumer
 jobs will no longer run in parallel. Without the last line, first the producer
-will be executed and it's output will be written to `producer_out.txt`. Then
+will be executed and its output will be written to `producer_out.txt`. Then
 the two consumer jobs will execute (potentially in parallel) and operate on the
-output file. If you decide you don't need the `producer_out.txt` file, you
+output file. If you decide that you don't need the `producer_out.txt` file, you
 can simply remove it from the producer definition. In that case you will end up
-again with a pipeline structure that executes a single job and all data is
+again with a pipeline structure that executes a single job and all data will be
 streamed. In this case you don't even need the last line, the streaming
 dependency is implicit.
 
