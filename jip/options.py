@@ -979,6 +979,10 @@ class Options(object):
         :param path: the parent path for output options
         :type path: string
         """
+        cwd = os.getcwd()
+        if path is None:
+            path = cwd
+        path = os.path.abspath(path)
         # make output absolute relative to the jobs working directory
         for opt in self.get_by_type(TYPE_OUTPUT):
             try:
@@ -988,7 +992,6 @@ class Options(object):
                          opt.name, str(e), exc_info=True)
 
         # make input options absolute relative to the current working directory
-        cwd = os.getcwd()
         for opt in self.get_by_type(TYPE_INPUT):
             try:
                 opt.make_absolute(cwd)
