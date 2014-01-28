@@ -6,6 +6,7 @@ import os
 import subprocess
 import signal
 import sys
+import logging
 
 import jip.cluster
 from jip.logger import getLogger
@@ -13,7 +14,9 @@ from jip.logger import getLogger
 
 class LocalCluster(jip.cluster.Cluster):
 
-    def __init__(self, _start=True, _remote_ids=False):
+    def __init__(self, _start=True,
+                 _remote_ids=False,
+                 cores=None, log_level=logging.INFO):
         self._current_id = 0
         self.log = getLogger("jip.grids.LocalCluster")
         self.master_requests = None
@@ -21,6 +24,10 @@ class LocalCluster(jip.cluster.Cluster):
         self.master_process = None
         self._current_id
         self._remote_ids = _remote_ids
+        self.cores = cores
+        self.loglevel = log_level
+        # set log level
+        self.log.setLevel(log_level)
         # start the mater process
         if _start:
             self.start()
@@ -47,6 +54,8 @@ class LocalCluster(jip.cluster.Cluster):
             self.master_process = multiprocessing.Process(
                 target=_GridMaster.create_master,
                 args=[self.master_requests, self.master_response],
+                kwargs={"cores": self.cores,
+                        "loglevel": self.loglevel},
                 name="grid-master"
             )
             self.master_process.start()
@@ -250,7 +259,7 @@ class _Job(object):
 
 class _GridMaster(object):
     """The grid master instance"""
-    def __init__(self, requests, response, cores=None):
+    def __init__(self, requests, response, cores=None, loglevel=logging.INFO):
         """Initialize a new grid master with the request and response
         queues and optionally the number of cores or slots available.
         If no cores are specified, the number of cores of the current
@@ -276,7 +285,8 @@ class _GridMaster(object):
         #: current id
         self._current_id = 0
 
-        self.log.info("Master | Initialized with %s available slots",
+        self.log.setLevel(loglevel)
+        self.log.info("Master | Initialized with %d available slots",
                       self.slots_available)
 
     def _next_id(self):
@@ -549,8 +559,9 @@ class _GridMaster(object):
         return len(self.queued) + len(self.running)
 
     @staticmethod
-    def create_master(request, response):
-        master = _GridMaster(request, response)
+    def create_master(request, response, cores=None, loglevel=logging.INFO):
+        master = _GridMaster(request, response, cores=cores,
+                             loglevel=loglevel)
         master.start()
 
 

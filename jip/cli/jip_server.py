@@ -15,16 +15,22 @@ file:
     }
 
 Usage:
-   jip-server--help|-h] [-p <port>]
+   jip-server--help|-h] [-p <port>] [-t <threads>] [-l <level>]
 
 Options:
-    -p, --port <port >  The port used for the server
-                        [default: 5556]
+    -p, --port <port >       The port used for the server
+                             [default: 5556]
+    -t, --threads <threads>  Number of available parallel slots.
+                             Defaults to the number of cpu's detected
+                             in the system.
+    -l, --loglevel <level>   The log level. On of DEBUG, INFO, WARN, ERROR
+                             [default: INFO]
 
 Other Options:
     -h --help             Show this help message
 """
 
+import logging
 
 from jip.logger import getLogger
 from . import parse_args
@@ -53,16 +59,27 @@ You can install zeroMQ using pip:
 
     try:
         port = args['--port']
-        log.info("Starting JIP grid server no port %s", port)
+        threads = args['--threads']
+        threads = threads if threads is None else int(threads)
+        level = args['--loglevel']
+        level = {"INFO": logging.INFO,
+                 "WARN": logging.WARN,
+                 "DEBUG": logging.DEBUG,
+                 "ERROR": logging.ERROR}.get(level.upper(), None)
+        if level is None:
+            print >>sys.stderr, "Unknown log level:", args['--level']
+            sys.exit(1)
+        log.setLevel(level)
+        log.info("Starting JIP grid server on port %s", port)
         context = zmq.Context()
         socket = context.socket(zmq.REP)
         socket.bind("tcp://*:%s" % port)
         log.info("Socket server started")
 
-        cluster = jip.grids.LocalCluster()
+        cluster = jip.grids.LocalCluster(cores=threads)
         while True:
             msg = socket.recv_json()
-            log.info("Received message: %s" % msg)
+            log.debug("Received message: %s" % msg)
             if msg['cmd'] == 'list':
                 jobs = cluster.list()
                 log.debug("Recevied cluster jobs: %s", jobs)
