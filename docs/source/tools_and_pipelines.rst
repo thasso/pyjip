@@ -742,7 +742,7 @@ bash environment variables without any problems.
 Template Filters
 ----------------
 Template filters can be a very powerful tool to simplify processing users
-input and reduce the number of ``if/else`` statements in templates.
+input and to reduce the number of ``if/else`` statements in templates.
 For example:
 
 .. code-block:: bash
