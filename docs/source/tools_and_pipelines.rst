@@ -435,7 +435,7 @@ options::
         touch $x
     done
 
-What happens here is that we register a new ``output`` options using the 
+What happens here is that we register a new ``output`` option using the 
 contexts :py:meth:`~jip.tools.PythonBlockUtils.add_output` function,
 pre-calculate the names of the files and set them as values. Note that you can
 pass converter functions like, ``str``, ``int``, or ``float`` to the options
@@ -444,7 +444,7 @@ pass converter functions like, ``str``, ``int``, or ``float`` to the options
 In fact, now that we have the options specified, we can also use it in the 
 `command` block and replace the bash sequence generation. This way, there is
 only one place where the names of the output files are generated. That means
-only one place where we have to look for bugs or change things.
+only one place exists where we have to look for bugs or to change things.
 
 .. note:: You can use the validation block for pre-processing, but keep in mind
           that the validation block will be called **more than once**. That
