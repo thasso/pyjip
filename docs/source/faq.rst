@@ -52,7 +52,7 @@ from a pipeline and assign options to it::
 
 The node has a ``set()`` function as a fall-back if direct assignment does not
 work, for example, if your option name conflicts with a function name of the
-Node object. In that case the Node function are preferred.
+Node object. In that case the Node functions are preferred.
 
 You can always access the tool options using the ``self.args`` and
 ``self.options`` properties. The ``args`` dict contains the raw values while
@@ -69,7 +69,7 @@ How can I access local variables within a pipeline?
 ***************************************************
 
 Rendering values with access to the local context is done explicitly for JIP
-scripts. If you want to access the local context in python you need to pass the
+scripts. If you want to access the local context in Python you need to pass the
 ``locals()`` to the pipeline.
 
 For example::
