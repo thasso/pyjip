@@ -5,7 +5,7 @@ Setup and configuration
 
 Dependencies and requirements
 -----------------------------
-JIP does not have a lot of dependencies and they should be installed with the
+JIP does have a bunch dependencies that should be installed with the
 system automatically. What is needed are the following libraries:
 
     * `SQLAlchemy <http://www.sqlalchemy.org/>`_ is used for the job database
@@ -17,25 +17,24 @@ system automatically. What is needed are the following libraries:
       open and close strings in the :ref:`JIP configuration 
       <config_templates>`.
 
-    * ``argparse`` is used for argument parsing. This is part of the python
-      standard library since version 2.7 but will be installed as a 
+    * ``argparse`` is used for argument parsing. This is part of the Python
+      standard library since version 2.7, but will be installed as a 
       dependency for older python versions.
 
 .. note:: The JIP job database uses an SQlite back-end, which is part of the
-          python standard library since version 2.5, but needs to be enabled
-          when python is compiled. Most of the bundled python installations
+          Python standard library since version 2.5, but needs to be enabled
+          when Python is compiled. Most of the bundled Python installations
           come with support for sqlite, but if you compiled your own version
-          of python, make sure you have sqlite support. You can check if your
-          python installation supports sqlite with the following command::
+          of Python, make sure you have sqlite support. You can check if your
+          Python installation supports sqlite with the following command::
             
               $> python -c 'import sqlite3'
 
-          If the command above does not raise an exception, you have sqlite
+          If the command above does not raise any exception, you have sqlite
           support.
 
 The current implementation uses the job database for simple communication. That
-requires a way to lock the database file and have it in a location that is 
-accessible from all nodes in your compute cluster. The default location
+requires a way to lock the database file and have it in a location accessible from all nodes in your compute cluster. The default location
 is ``$HOME/.jip/jobs.db``, but you can change the path in the JIP 
 configuration.
 
@@ -70,7 +69,7 @@ This will install into you home folder.
 
 Install from pypi
 ^^^^^^^^^^^^^^^^^
-The pypi python repository contains tools and libraries written in Python and
+The pypi Python repository contains tools and libraries written in Python and
 provides an easy way to install such packages. An easy way to install a package
 from pypi is using the `pip` package manager. You can install JIP system wide
 with `pip`::
@@ -98,7 +97,7 @@ is stored in two location on your system:
 `$INSTALL_DIR/jip.json`:
     You can put a global configuration just next to the `jip` executable. This
     configuration file will always be loaded and evaluated for all calls to the 
-    command line utilities. In case you use the Python API directly and, you 
+    command line utilities. In case you use the Python API directly, you 
     might have to specify the path to the global configuration file explicitly.
     To do this, set ``jip.configuration.install_path`` to the absolute path
     the directory that contains the ``jip.json`` **before** you make any other
@@ -113,7 +112,7 @@ is stored in two location on your system:
 `$HOME/.jip/jip.json`:
     In order to provide user-level configuration, you can create a `.jip` 
     folder in your :envvar:`$HOME` directory and put a `jip.json` configuration 
-    file there. This file will be evaluated automatically for both, calls to 
+    file there. This file will be evaluated automatically for both the calls to 
     the command line utilities as well as any calls done using the Python API
     directly. The file will extend and overwrite any global configuration.
 
@@ -154,7 +153,7 @@ JIP API:
         :envvar:`JIP_PATH` environment variable.
 
     `jip_modules`
-        List of python modules. Put a list of module names here to 
+        List of Python modules. Put a list of module names here to 
         specify locations of JIP tools that are implemented in a Python module. 
         For examples::
             
@@ -162,7 +161,7 @@ JIP API:
             "jip_modules":["my.tools"]
             ...
 
-        With this configuration, JIP will load the `my.tools` python module to 
+        With this configuration, JIP will load the `my.tools` Python module to 
         search for tools. Please note that `my.tools` module must be available
         on your :envvar:`PYTHONPATH`.  You can add module dynamically to the 
         list using the :envvar:`JIP_MODULES` environment variable.
@@ -192,18 +191,18 @@ JIP API:
             }
         
 
-In addition, other configuration blocks can be specified, that are interpreted
-by specific module. For example, the different cluster implementations can ask
+In addition, other configuration blocks, which are interpreted
+by specific module, can be specified. For example, the different cluster implementations can ask
 for specific configuration blocks.
 
 .. _cluster_config:
 
 Cluster Configuration
 ^^^^^^^^^^^^^^^^^^^^^
-The ``cluster`` configuration is loaded form your JIP configuration file.
+The ``cluster`` configuration is loaded from your JIP configuration file.
 The following base configurations are available. Please refer to the 
-implementation documentation for details on configuration parameters for
-each of the grid connectors.
+implementation documentation for details of the configuration parameters for
+each grid connectors.
 
 Grid engines
 ************
@@ -241,9 +240,8 @@ For a :class:`Platform LSF or Openlava <jip.cluster.LSF>` cluster::
 
 Local scheduler
 ***************
-If you don't have access to a compute grid or you want to use JIP and on your
-local machine to schedule jobs and run them in the background, JIP comes with
-a local scheduler implementations. For this to work, you have to configure
+If you don't have access to a compute grid or if you want to use JIP on your
+local machine to schedule jobs & run them in the background, JIP comes with local scheduler implementations. For this to work, you have to configure
 JIP to connect to a server process using the :class:`JIP local scheduler 
 connector <jip.grids.JIP>` in your JIP configuration::
 

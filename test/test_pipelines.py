@@ -1046,4 +1046,3 @@ def test_fanin_pipeline():
     merge = p.run('merger', input=align, output='result')
     jobs = jip.create_jobs(p, validate=False)
     assert len(jobs) == 3
-
