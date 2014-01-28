@@ -414,11 +414,14 @@ class Job(Base):
             # handle pseudo files
             sin = self.stream_in
             sout = self.stream_out
+            cwd = self.working_directory if self.working_directory \
+                else os.getcwd()
             try:
                 self._process = subprocess.Popen(
                     cmd + [script_file.name],
                     stdin=sin,
                     stdout=sout,
+                    cwd=cwd
                 )
             except ValueError as err:
                 if str(err) == "redirected Stdin is pseudofile, "\
