@@ -309,26 +309,26 @@ environment variable. For example::
 
     $> JIP_MODULES=hello_world.py jip tools
 
-Implementing tools in python modules allows you to group and organize your
-tools using standard python modules, but you are no longer able to have them
+Implementing tools in Python modules allows you to group and organize your
+tools using standard Python modules, but you are no longer able to have them
 exposed as single commands to your shell. You have to use the :ref:`jip run
-<jip_run>` command to execute a tool implemented in a python modules. To run
-the hello world example, try the following::
+<jip_run>` command to execute a tool implemented in Python modules. To run
+the "hello world" example, try the following::
 
     $> JIP_MODULES=hello_world.py jip run hello_world
 
-If you use python modules to organize your tools, you might encounter
-situations where it would be much easier to just execute a single line of bash
-rather than implementing the full execution in python. The latter can by quiet
-tricky sometimes and a lot of things from the python standard library might get
-involved. There is however a simpler way where you can use a python function
+If you use pPthon modules to organize your tools, you might encounter
+situations where it would be much easier just to execute a single line of bash
+rather than implementing the full execution in Python. The latter can by quiet
+tricky and a lot of things from the Python standard library might get
+involved. There is however a simpler way where you can use a Python function
 (or class, see :ref:`decorators <decorators>`) to create an interpreted script.
 For this purpose, jip contains the :py:class:`jip.tools.tool` decorator. You
 can decorate a function with ``@tool()`` and return a template string that is
 then treated in the same way jip script content would be interpreted. Your
 function can either return a single string, which will be interpreted using
 bash, or a tuple where you specify first the interpreter and then the actual
-script template. Take a look at the following examples::
+script template. Please take a look at the following examples::
 
     @tool()
     def hello_world():
