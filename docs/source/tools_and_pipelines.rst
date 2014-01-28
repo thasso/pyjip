@@ -464,7 +464,7 @@ instance into a jip tool or pipeline. The following decorators are available:
         Apply this to classes and functions that return a string (for
         functions) or implement a ``get_command`` method that returns a string
         (for classes). The returned string is interpreted as a jip script
-        template. The function can also return a tupel (``interpreter``,
+        template. The function can also return a tuple (``interpreter``,
         ``template``) to indicate an interpreter other than ``bash``.
 
     :class:`@pytool <jip.tools.pytool>`
