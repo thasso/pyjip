@@ -175,28 +175,31 @@ class Profile(object):
         :type pipeline: :class:`jip.pipeline.Pipeline`
         """
         for node in pipeline.nodes():
-            # check if there is a matching spec for the node
-            node_profile = self.specs.get(node.name, None)
-            if not node_profile:
-                node_profile = self.specs.get(node._name, None)
-            # check via regexp
-            for spec_name, spec in self.specs.iteritems():
-                if fnmatch.fnmatch(node.name, spec_name):
-                #if re.match(spec_name, node.name):
-                    if not node_profile:
-                        node_profile = spec
-                    else:
-                        node_profile.update(spec)
+            self.apply_to_node(node)
 
-            if node_profile:
-                node._job.update(node_profile)
-                if node._pipeline_profile:
-                    node._pipeline_profile.update(node_profile)
+    def apply_to_node(self, node):
+        # check if there is a matching spec for the node
+        node_profile = self.specs.get(node.name, None)
+        if not node_profile:
+            node_profile = self.specs.get(node._name, None)
+        # check via regexp
+        for spec_name, spec in self.specs.iteritems():
+            if fnmatch.fnmatch(node.name, spec_name):
+            #if re.match(spec_name, node.name):
+                if not node_profile:
+                    node_profile = spec
+                else:
+                    node_profile.update(spec)
 
-            # apply global profile, don't overwrite
-            node._job.update(self, overwrite=False)
+        if node_profile:
+            node._job.update(node_profile)
             if node._pipeline_profile:
-                node._pipeline_profile.update(self, overwrite=False)
+                node._pipeline_profile.update(node_profile)
+
+        # apply global profile, don't overwrite
+        node._job.update(self, overwrite=False)
+        if node._pipeline_profile:
+            node._pipeline_profile.update(self, overwrite=False)
 
     @property
     def err(self):
