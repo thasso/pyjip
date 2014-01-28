@@ -381,8 +381,8 @@ the exaception will be raised. For example::
     ...
     #%end
 
-Because the validation blocks run before the actual execution or submission of
-the pipeline. You can also use the validation block as a general pre-processor
+Since that the validation blocks run before the actual execution or submission of
+the pipeline, you can also use the validation block as a general pre-processor
 for your tool. This can be handy in various circumstances, but keep in mind
 that the idea is **not** to do the tools job while validating it. Keep your
 validation methods small and fast so speed up pipeline generation.
