@@ -1,0 +1,15 @@
+#!/usr/bin/env jip
+# The Foo pipeline
+# 
+# Usage:
+#     makeabs -i <input> [-o <output>]
+# 
+# Inputs:
+#     -i, --infile  the input
+# 
+# Outputs:
+#     -o, --output the output
+
+#%begin pipeline
+bash('cat ${infile}', output=output)
+

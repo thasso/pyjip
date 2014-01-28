@@ -567,6 +567,17 @@ class Scanner():
         self.jip_modules.append(path)
         self.__scanned = False
 
+    def add_folder(self, path):
+        """Add a folder to the list of folders that are
+        scanned for tools.
+
+        :param: path to the folder that will be added to the search path
+        """
+        self.jip_file_paths.add(path)
+        self.__scanned = False
+        self.__scanned_files = None
+        self.initialized = False
+
     def scan_modules(self):
         """Loads the python modules specified in the JIP configuration.
         This will register any functions and classes decorated with

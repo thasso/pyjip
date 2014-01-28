@@ -823,6 +823,7 @@ class Pipeline(object):
             cwd = self._cwd
             if cwd is None:
                 cwd = os.getcwd()
+
             for node in self.topological_order():
                 # ensure a working directory is set
                 if node._job.working_dir is None:
@@ -971,6 +972,8 @@ class Pipeline(object):
             if node._pipeline_profile:
                 node._pipeline_profile.update(node._job, overwrite=False)
                 node._job.update(node._pipeline_profile)
+            # make the nodes options absolute (Issue #38)
+            node._tool.options.make_absolute(node._job.working_dir)
             _render_nodes(self, [node])
             sub_pipe = node._tool.pipeline()
             if sub_pipe is None:

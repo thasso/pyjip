@@ -1046,3 +1046,13 @@ def test_fanin_pipeline():
     merge = p.run('merger', input=align, output='result')
     jobs = jip.create_jobs(p, validate=False)
     assert len(jobs) == 3
+
+
+def test_embedded_options_are_absolute():
+    jip.scanner.add_folder("test/data/makeabs")
+    p = jip.Pipeline()
+    p.run('makeabs', infile="Makefile", output="result")
+    jobs = jip.create_jobs(p)
+    assert len(jobs) == 1
+    cwd = os.getcwd()
+    assert jobs[0].command == "(cat %s/Makefile)> %s/result" % (cwd, cwd)
