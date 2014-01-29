@@ -59,6 +59,21 @@ requests.
 
 Changelog
 =========
+0.5:
+    * Enable rendering of log file location using pipeline and tools options [`Issue #39 <https://github.com/thasso/pyjip/issues/39>`_]
+    * Options embedded in command scripts are not made absolute [`Issue #38 <https://github.com/thasso/pyjip/issues/38>`_]
+    * Make sure that working directories of jobs are created when jobs are executed or submitted [`Issue #37 <https://github.com/thasso/pyjip/issues/37>`_]
+    * Allow for dynamic options when a tool is added to a pipeline [`Issue #35 <https://github.com/thasso/pyjip/issues/35>`_]
+    * Configuration is not picked up next to the binary [`Issue #34 <https://github.com/thasso/pyjip/issues/34>`_]
+    * The API example runs the jobs but a jip clear fails on the generated jobs [`Issue #30 <https://github.com/thasso/pyjip/issues/30>`_]
+    * Working directory is not passed on from profile to job [`Issue #29 <https://github.com/thasso/pyjip/issues/29>`_]
+    * Add a thread parameter to the server to control the number of slots [`Issue #28 <https://github.com/thasso/pyjip/issues/28>`_]
+    * Option value assignment through options attributes is does not set the value [`Issue #26 <https://github.com/thasso/pyjip/issues/26>`_]
+    * Option descriptions are not handling tabs at the beginning correctly [`Issue #24 <https://github.com/thasso/pyjip/issues/24>`_]
+    * JIP tools script with . in the name are not parsed correctly.  [`Issue #23 <https://github.com/thasso/pyjip/issues/23>`_]
+    * Restarting a single job pipeline and changeing the threads is not reflected in the job [`Issue #6 <https://github.com/thasso/pyjip/issues/6>`_]
+    * Make tool specs available to pipelines [`Issue #4 <https://github.com/thasso/pyjip/issues/4>`_]
+
 0.4:
     * Create a pipe command to write quick pipeline directly from the command line [`Issue 22 <https://github.com/thasso/pyjip/issues/22>`_]
     * Inconsistency between job().bash() and bash() usage in pipeline [`Issue 20 <https://github.com/thasso/pyjip/issues/20>`_]
