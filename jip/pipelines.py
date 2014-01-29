@@ -2183,9 +2183,16 @@ def _render_jobs(pipeline, nodes):
     # render out all node options
     for node in nodes:
         # render working dir
+        ctx = ctxs[node]
+        # update name and job
+        ctx['name'] = node._job.name
+        ctx['job'] = node._job
         if node._job.dir:
-            ctx = ctxs[node]
             node._job.working_dir = render_template(node._job.dir, **ctx)
+        if node._job.out:
+            node._job.out = render_template(node._job.out, **ctx)
+        if node._job.err:
+            node._job.err = render_template(node._job.err, **ctx)
 
 
 def _render_option(option, create_fun):

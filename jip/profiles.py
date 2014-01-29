@@ -355,6 +355,12 @@ class Profile(object):
         if self.working_dir is not None:
             job.working_directory = os.path.abspath(self.working_dir)
 
+        # make log files absolute
+        if job.stdout and not job.stdout.startswith("/"):
+            job.stdout = os.path.join(job.working_directory, job.stdout)
+        if job.stderr and not job.stderr.startswith("/"):
+            job.stderr = os.path.join(job.working_directory, job.stderr)
+
         # load environment
         if self.env:
             current = os.environ.copy()
@@ -418,6 +424,12 @@ class Profile(object):
             job.extra = self.extra
         if self.working_dir is not None and job.working_directory is None:
             job.working_directory = os.path.abspath(self.working_dir)
+
+        # make log files absolute
+        if job.stdout and not job.stdout.startswith("/"):
+            job.stdout = os.path.join(job.working_directory, job.stdout)
+        if job.stderr and not job.stderr.startswith("/"):
+            job.stderr = os.path.join(job.working_directory, job.stderr)
 
         # load environment
         if self.env:

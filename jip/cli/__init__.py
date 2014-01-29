@@ -188,6 +188,15 @@ def show_commands(jobs):
             colorize(job.interpreter, GREEN),
             ("Dependencies: " + colorize(",".join(deps), BLUE)) if deps else ""
         )
+        # print log files
+        print "%s   stdout: %s" % (
+            colorize("###", YELLOW),
+            colorize(job.stdout if job.stdout else "<default>", BLUE)
+        )
+        print "%s   stderr: %s" % (
+            colorize("###", YELLOW),
+            colorize(job.stderr if job.stderr else "<default>", BLUE)
+        )
         for i, j in enumerate(g):
             if i > 0:
                 if not j.group_from:
