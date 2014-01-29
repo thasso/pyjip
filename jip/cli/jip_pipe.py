@@ -73,7 +73,6 @@ def main():
     pipeline = jip.Pipeline()
     if not args['--cmd']:
         args['--cmd'] = "\n".join(sys.stdin.readlines())
-    cmd = args['--cmd']
     if not args['--cmd']:
         print >>sys.stderr, "No Command specified!"
         sys.exit(1)
@@ -86,14 +85,16 @@ def main():
             embedded [-i <input>] [-I <inputs>...]
 
         Inputs:
-            -i, --input <input>       Single input file [default: stdin]
+            -i, --input <input>       Single input file
+                                      [default: stdin]
             -I, --inputs <inputs>...  List of input files
         """
         return "\n".join(args['--cmd'])
-
     pipeline.job(
         args['--name'] if args['--name'] else 'pipeline'
-    ).run('embedded_pipeline', input=args['--input'], inputs=args['--inputs'])
+    ).run('embedded_pipeline',
+          input=[sys.stdin if a == 'stdin' else a for a in args['--input']],
+          inputs=args['--inputs'])
 
     if args['--dry'] or args['--show']:
         jip.cli.dry(pipeline, [],
