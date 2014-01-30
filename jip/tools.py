@@ -929,6 +929,17 @@ class PythonBlockUtils(object):
                     return str(self.option)
 
                 def __getattr__(self, name):
+                    # check that the option exists (Issue #43)
+                    opt = self.node._tool.options[name]
+                    if opt is None:
+                        log.info("Option '%s' not found in %s",
+                                 name, self.node, exc_info=True)
+                        raise ValidationError(
+                            self.node,
+                            "Option '%s' not found in node '%s'" % (
+                                name, self.node
+                            )
+                        )
                     return OptionWrapper(
                         self.node, self.node._tool.options[name]
                     )
