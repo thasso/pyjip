@@ -9,6 +9,7 @@ thought the :py:func:`render_template` function.
 """
 import os
 from jinja2 import Environment, Undefined, contextfilter
+from jinja2.exceptions import TemplateSyntaxError
 from jip.logger import getLogger
 from jip.options import Option
 
@@ -21,6 +22,42 @@ global_context = None
 environment = None
 
 log = getLogger('jip.templates')
+
+
+class RenderError(Exception):
+    """Exception raised in case a tempalte could not be rendered properly
+    """
+    def __init__(self, template, message, line=None):
+        """Create a new render error instance
+
+        :param template: the template string
+        :param message: the error message
+        :param line: optional line number
+        """
+        self.template = template
+        self.message = message
+        self.line = line
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        import jip.cli as c
+        split = self.template.split("\n")
+        n_len = len(len(split))
+        lines = [("%" + n_len + "d: %s") % (i + 1, s)
+                 for i, s in enumerate(split)]
+        if self.line and self.line < len(lines):
+            lines[self.line] = c.colorize(lines[self.line], c.YELLOW)
+
+        return "%s%s: %s\n\n:" % (
+            c.colorize("Temlate error", c.RED),
+            " " if not self.line else c.colorize(
+                "in line %d" % self.line, c.RED
+            ),
+            c.colorize(self.message, c.YELLOW),
+            "\n".join(lines)
+        )
 
 
 def set_global_context(global_ctx):
@@ -353,4 +390,7 @@ def render_template(template, **kwargs):
     ctx['_ctx'] = global_context
     if 'self' in ctx:
         del ctx['self']
-    return tmpl.render(**ctx)
+    try:
+        return tmpl.render(**ctx)
+    except TemplateSyntaxError as err:
+        raise RenderError(template, err.message, line=err.lineno)
