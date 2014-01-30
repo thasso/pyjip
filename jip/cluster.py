@@ -444,7 +444,7 @@ class SGE(Cluster):
         if job.working_directory:
             cmd.extend(["-wd", job.working_directory])
         if job.max_memory > 0:
-            cmd.extend(["-l", '%s=%s' % (self.mem_limit, str(job.max_memory))])
+            cmd.extend(["-l", '%s=%sM' % (self.mem_limit, str(job.max_memory))])
         if job.account:
             cmd.extend(["-A", str(job.account)])
         if job.extra is not None:
