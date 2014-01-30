@@ -883,7 +883,7 @@ def from_node(node, env=None, keep=False):
     tool = node._tool
     job.state = jip.db.STATE_HOLD
     #job.name = tool.name
-    log.debug("Jobs | Creating node %s", job.name)
+    log.debug("Jobs | Creating job for node %s", node.name)
 
     # get current user
     job.user = getpass.getuser()
