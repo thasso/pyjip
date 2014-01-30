@@ -25,6 +25,9 @@ from . import parse_args, parse_job_ids
 
 from subprocess import Popen
 from os.path import exists
+from jip.logger import getLogger
+
+log = getLogger("jip.cli.jip_logs")
 
 
 def main():
@@ -45,13 +48,17 @@ def main():
 def show_log(job, cluster, args):
     both = not args["--error"] and not args["--output"]
     if both or args["--output"]:
+        log.debug("Resolving stdout for %s : %s", job.name, job.stdout)
         stdout = cluster.resolve_log(job, job.stdout)
+        log.debug("Resolved stdout for %s : %s", job.name, stdout)
         if stdout and exists(stdout):
             _tail(job, stdout, lines=int(args["--lines"]),
                   cmd="tail" if not args["--head"] else "head")
 
     if both or args["--error"]:
+        log.debug("Resolving stderr for %s : %s", job.name, job.stderr)
         stderr = cluster.resolve_log(job, job.stderr)
+        log.debug("Resolved stderr for %s : %s", job.name, stdout)
         if stderr and exists(stderr):
             _tail(job, stderr, lines=int(args["--lines"]),
                   cmd="tail" if not args["--head"] else "head",
