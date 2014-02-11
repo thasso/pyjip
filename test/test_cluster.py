@@ -45,3 +45,28 @@ def test_sge_threads_pe_loading():
     }
     sge = cl.SGE()
     assert sge.threads_pe == 'threads'
+
+@pytest.mark.parametrize("unit,op", [
+    ('G','/ 1024'),
+    ('g','/ 1024'),
+    ('K','* 1024'),
+    ('k','* 1024'),
+    ('M',''),
+    ('m','')
+])
+
+def test_sge_mem_unit_loading(unit,op):
+    mem = 32768
+    jip.config.config['sge'] = {
+        "mem_unit": unit
+    }
+    sge = cl.SGE()
+    assert sge.mem_unit == unit.upper()
+    assert sge._sge_mem(mem) == ('%s%s' % (eval("%s%s" % (mem,op)), unit.upper()))
+
+def test_sge_mem_unit_default():
+    mem = 32768
+    sge = cl.SGE()
+    assert sge.mem_unit == 'M'
+    assert sge._sge_mem(mem) == '32768M'
+
