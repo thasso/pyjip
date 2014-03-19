@@ -187,7 +187,7 @@ class Profile(object):
             if fnmatch.fnmatch(node.name, spec_name):
             #if re.match(spec_name, node.name):
                 if not node_profile:
-                    node_profile = spec
+                    node_profile = spec()
                 else:
                     node_profile.update(spec)
 

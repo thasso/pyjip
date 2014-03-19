@@ -61,6 +61,7 @@ import jip.tools
 import jip.cli
 import jip.cluster
 import jip.configuration
+import jip.templates
 
 from jip.logger import getLogger, log_level
 from jip.vendor.docopt import docopt
@@ -84,6 +85,11 @@ def main():
         sys.exit(1)
     except jip.ValidationError as va:
         log.debug("validation error: %s", str(va), exc_info=True)
+        sys.stderr.write(str(va))
+        sys.stderr.write("\n")
+        sys.exit(1)
+    except jip.templates.RenderError as va:
+        log.debug("render error: %s", str(va), exc_info=True)
         sys.stderr.write(str(va))
         sys.stderr.write("\n")
         sys.exit(1)
