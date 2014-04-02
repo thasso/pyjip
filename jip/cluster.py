@@ -847,6 +847,8 @@ def get(name=None):
             "path is: $HOME/.jip/jip.json")
     try:
         return _from_name(name)
+    except ExecutableNotFoundError:
+        raise
     except:
         raise ClusterImplementationError(
             "Error while loading cluster implementation. "
