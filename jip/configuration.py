@@ -161,6 +161,7 @@ def _load(path):
     with open(path) as f:
         try:
             return json.load(f)
-        except ValueError as e:
+        except ValueError:
             log.error("Malformed json file %s", path)
+            raise jip.ValidationError('jip.configuration', "Malformed json file %s" % (path))
         
