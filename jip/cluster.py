@@ -116,6 +116,12 @@ class ClusterImplementationError(Exception):
     """Exception raised in case the cluster class could not be loaded"""
     pass
 
+class ExecutableNotFoundError(Exception):
+    def __init__(self, executable):
+        self.executable = executable
+        
+    def __str__(self):
+        return repr('Executable not found: ' + self.executable)
 
 class Cluster(object):
     """Base class for cluster integrations.
@@ -239,6 +245,13 @@ class Slurm(Cluster):
         self.sbatch = cfg.get('sbatch', 'sbatch')
         self.scancel = cfg.get('scancel', 'scancel')
         self.squeue = cfg.get('squeue', 'squeue')
+
+        if which(self.sbatch) is None:
+            raise ExecutableNotFoundError(self.sbatch)
+        if which(self.scancel) is None:
+            raise ExecutableNotFoundError(self.scancel)
+        if which(self.squeue) is None:
+            raise ExecutableNotFoundError(self.squeue)
 
     def submit(self, job):
         job_cmd = job.get_cluster_command()
@@ -383,6 +396,13 @@ class SGE(Cluster):
         self.mem_limit = sge_cfg.get('mem_limit', 'virtual_free')
         self.time_limit = sge_cfg.get('time_limit', 's_rt')
         self.mem_unit = sge_cfg.get('mem_unit','M').upper()
+
+        if which(self.qsub) is None:
+            raise ExecutableNotFoundError(self.qsub)
+        if which(self.qstat) is None:
+            raise ExecutableNotFoundError(self.qstat)
+        if which(self.qdel) is None:
+            raise ExecutableNotFoundError(self.qdel)
 
     def resolve_log(self, job, path):
         if path is None:
@@ -530,6 +550,13 @@ class PBS(Cluster):
         self.qsub = sge_cfg.get('qsub', 'qsub')
         self.qstat = sge_cfg.get('qstat', 'qstat')
         self.qdel = sge_cfg.get('qdel', 'qdel')
+
+        if which(self.qsub) is None:
+            raise ExecutableNotFoundError(self.qsub)
+        if which(self.qstat) is None:
+            raise ExecutableNotFoundError(self.qstat)
+        if which(self.qdel) is None:
+            raise ExecutableNotFoundError(self.qdel)
 
     def resolve_log(self, job, path):
         if path is None:
@@ -679,6 +706,13 @@ class LSF(Cluster):
             raise ValueError("Unknown memory limit format: %s. "
                              "Only [KB|MB|GB] are supported" % self.limits)
 
+        if which(self.bsub) is None:
+            raise ExecutableNotFoundError(self.bsub)
+        if which(self.bjobs) is None:
+            raise ExecutableNotFoundError(self.bjobs)
+        if which(self.bkill) is None:
+            raise ExecutableNotFoundError(self.bkill)
+
     def resolve_log(self, job, path):
         if path is None:
             return None
@@ -821,6 +855,8 @@ def get(name=None):
             "path is: $HOME/.jip/jip.json")
     try:
         return _from_name(name)
+    except ExecutableNotFoundError:
+        raise
     except:
         raise ClusterImplementationError(
             "Error while loading cluster implementation. "
@@ -845,3 +881,25 @@ def _from_name(name):
     _cluster_cache[name] = instance
     return instance
 
+def which(program):
+    """Given an executable file name, search for in in the PATH and
+    return the location of the executable.
+
+    :param program: name of the executable to search for
+    """
+    import os
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
