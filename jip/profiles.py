@@ -598,31 +598,28 @@ def get_specs(path=None):
 
     :param path: optional path to an additional spec file
     """
+    
+    def load_json(jf):
+        with open(jf) as of:
+            try:
+                data = json.load(of))
+            except ValueError:
+                log.error("Malformed json file %s", jf)
+                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (jf))
+        
+        return data
+    
     global specs
     cwd = os.path.join(os.getcwd(), "jip.specs")
     home = os.path.join(os.getenv("HOME", ""), ".jip/jip.specs")
     specs = {}
     if os.path.exists(home):
-        with open(home) as of:
-            try:
-                specs = _update(specs, json.load(of))
-            except ValueError:
-                log.error("Malformed json file %s", home)
-                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (home))
+        specs = _update(specs, load_json(home))
     if os.path.exists(cwd):
-        with open(cwd) as of:
-            try:
-                specs = _update(specs, json.load(of))
-            except ValueError:
-                log.error("Malformed json file %s", cwd)
-                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (cwd))
+        specs = _update(specs, load_json(cwd))
     if path and os.path.exists(path):
-        with open(path) as of:
-            try:
-                specs = _update(specs, json.load(of))
-            except ValueError:
-                log.error("Malformed json file %s", path)
-                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (path))
+        specs = _update(specs, load_json(path))
+        
     return specs
 
 
