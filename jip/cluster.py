@@ -382,6 +382,7 @@ class SGE(Cluster):
         self.threads_pe = sge_cfg.get('threads_pe', None)
         self.mem_limit = sge_cfg.get('mem_limit', 'virtual_free')
         self.time_limit = sge_cfg.get('time_limit', 's_rt')
+        self.mem_unit = sge_cfg.get('mem_unit','M').upper()
 
     def resolve_log(self, job, path):
         if path is None:
@@ -444,7 +445,7 @@ class SGE(Cluster):
         if job.working_directory:
             cmd.extend(["-wd", job.working_directory])
         if job.max_memory > 0:
-            cmd.extend(["-l", '%s=%sM' % (self.mem_limit, str(job.max_memory))])
+            cmd.extend(["-l", '%s=%s' % (self.mem_limit, self._sge_mem(job.max_memory))])
         if job.account:
             cmd.extend(["-A", str(job.account)])
         if job.extra is not None:
@@ -488,6 +489,13 @@ class SGE(Cluster):
         expr = 'Your job (?P<job_id>.+) .+ has been submitted'
         match = re.search(expr, out)
         job.job_id = match.group('job_id')
+
+    def _sge_mem(self, mem):
+        if self.mem_unit == 'G':
+            mem = mem / 1024
+        if self.mem_unit == 'K':
+            mem = mem * 1024
+        return "%s%s" % (mem, self.mem_unit)
 
 
 class PBS(Cluster):
