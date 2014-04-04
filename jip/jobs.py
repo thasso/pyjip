@@ -582,13 +582,13 @@ def submit_job(job, clean=False, force=False, save=True,
     ``jip.cluster.ClusterImplementationError`` in case no compute cluster is
     configured.
 
-    :param job: the job to be deleted
-    :param clean: if True, the job log files will be deleted
+    :param job: the job to be submitted
+    :param clean: if True, the job log files will be submitted
     :param force: force job submission
-    :param save: if True, jobs will be saved to the database
+    :param save: if True, job will be saved to the database
     :param cluster: the compute cluster instance. If ``None``, the default
                     cluster will be loaded from the jip configuration
-    :returns: True if the jobs was submitted
+    :returns: True if the job was submitted
     :raises jip.cluster.ClusterImplementationError: if no cluster could be
                                                     loaded
     """
@@ -676,10 +676,10 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
     """
     if len(job.pipe_from) > 0:
         return
-    # setup signal handeling
+    # setup signal handling
     _setup_signal_handler(job, save=save)
 
-    # createa the dispatcher graph
+    # create the dispatcher graph
     dispatcher_nodes = jip.executils.create_dispatcher_graph(job)
     log.info("%s | Dispatch graph: %s", job, dispatcher_nodes)
     # load job environment
@@ -706,8 +706,8 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
         db.update_job_states(all_jobs)
 
     success = True
-    # we collect the state of all job in the dispatcher first
-    # a single failure will case ALL nodes/jobs in that dispatcher
+    # we collect the state of all jobs in the dispatcher first
+    # a single failure will cause ALL nodes/jobs in that dispatcher
     # to be marked as failed
     for dispatcher_node in reversed(dispatcher_nodes):
         success &= dispatcher_node.wait()
@@ -867,14 +867,14 @@ def from_node(node, env=None, keep=False):
     """Create and return a :class:`jip.db.Job` instance from a
     :class:`~jip.pipelines.Node`.
 
-    A dictinary with the jobs environment can be passed here to avoid creating
+    A dictionary with the job environment can be passed here to avoid creating
     the environment for each job.
 
     :param node: the node
     :type node: :class:`jip.pipelines.Node`
     :param env: the environment stored for the job. If None, this will be
                 generated.
-    :param keep: keep the jobs output on failuer
+    :param keep: keep the job output on failure
     :type keep: bool
     :returns: the created job
     :rtype: :class:`jip.db.Job`
@@ -1009,7 +1009,7 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
 
     After all jobs are created, they are validated and a `ValidationError` is
     raised if a job is not valid.
-    Please not that the output files of the jobs are not checked automatically.
+    Please note that the output files of the jobs are not checked automatically.
     You might want to call :py:func:`~jip.jobs.check_output_files` after
     you created all your jobs.
 
@@ -1019,7 +1019,7 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
                  to tool instances
     :param excludes: excludes nodes by name. This removed the node and the
                      full subgraph after the node
-    :param skip: skip the node. This does not touch teh subgraph but tries
+    :param skip: skip the node. This does not touch the subgraph but tries
                  to connect the nodes input with the nodes output before the
                  node is removed
     :param keep: keep the jobs output on failure
@@ -1060,7 +1060,7 @@ def create_jobs(source, args=None, excludes=None, skip=None, keep=False,
         log.info("Jobs | Pipeline has %d nodes after skipping", len(pipeline))
 
     # create all jobs. We keep the list for the order and
-    # a dict to store the mapping from the node to teh job
+    # a dict to store the mapping from the node to the job
     log.debug("Jobs | Creating job environment for %d nodes", len(pipeline))
     nodes2jobs = {}
     jobs = []

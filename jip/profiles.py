@@ -6,7 +6,7 @@ job, such as the number of threads reserved for the job or the time limit.
 Profiles can be named and stored in the user configuration.
 
 In addition, hierarchical updates of profiles can be applied. For example, a
-default profile can be loaded from the configuration. This profile can than be
+default profile can be loaded from the configuration. This profile can then be
 refined by a pipeline script or command line options.
 
 This enable you to start with a *hard-coded* profile in your tool
@@ -572,8 +572,8 @@ class Profile(object):
 
 
 def get(name='default', tool=None):
-    """Load a profile by name. If tools is speciefied, the specs are
-    searched to the tool and if found, the spec is applied.
+    """Load a profile by name. If tool is specified, the specs are
+    searched to the tool and if found, the specs are applied.
     """
     # check the name for specs
     s = name.split(' ')
