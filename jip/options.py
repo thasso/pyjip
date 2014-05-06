@@ -705,13 +705,10 @@ class Option(object):
             >>> o = Option("input", "-i", "--long", value="data.csv")
             >>> assert o.to_cmd() == '-i data.csv'
 
-        Hidden options and boolean options where the value is False or None are
-        represented as empty string.
+        Options with False or None value are represented as empty string.
 
         :returns: the cull command line representation of this option
         """
-        if self.hidden:
-            return ""
         if self.nargs == 0:
             if len(self.value) == 0:
                 return ""

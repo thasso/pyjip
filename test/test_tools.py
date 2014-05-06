@@ -481,3 +481,31 @@ def test_tool_empty_list_options():
     assert tool.options['output'].raw() == []
 
 
+def test_tool_hidden_option():
+    @jip.tool("test")
+    class TestTool(object):
+        """\Test tool
+
+        Usage:
+            test [-a <opt_a>] [-b <opt_b>] [-c] -i <input> -o <output>
+
+        Inputs:
+            -i, --input <input>  The input
+
+        Outputs:
+            -o, --output <output>  The output
+
+        Options:
+            -a <opt_a>  Option a
+            -b <opt_b>  Option b
+            -c          Options c (a flag)
+        """
+        def setup(self):
+            self.opts['output'].hidden = True
+
+        def get_command(self):
+            return '${options()} ${output|arg(">")}'
+
+    tool = find('test')
+    tool.parse_args(['-i', 'input.txt', '-a', 'A', '-c', '-o', 'output.txt'])
+    assert tool.get_command() == ('bash', '-a A -c -i input.txt -o output.txt >output.txt')

@@ -36,6 +36,10 @@ def test_list_string_option():
     assert str(o) == "t1 t2"
     assert o.to_cmd() == "-t t1 t2"
 
+def test_hidden_option():
+    o = Option("output", short="-o", hidden=True, value='Test')
+    assert o.to_cmd() == '-o Test'
+
 
 def test_argparse_parser():
     from argparse import ArgumentParser
