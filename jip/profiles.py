@@ -549,7 +549,12 @@ class Profile(object):
         :param file_name: the name of the input file
         """
         with open(file_name) as of:
-            data = json.load(of)
+            try:
+                data = json.load(of)
+            except ValueError:
+                log.error("Malformed json file %s", file_name)
+                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (file_name))
+
             return cls.from_dict(data)
 
     @classmethod
@@ -599,13 +604,25 @@ def get_specs(path=None):
     specs = {}
     if os.path.exists(home):
         with open(home) as of:
-            specs = _update(specs, json.load(of))
+            try:
+                specs = _update(specs, json.load(of))
+            except ValueError:
+                log.error("Malformed json file %s", home)
+                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (home))
     if os.path.exists(cwd):
         with open(cwd) as of:
-            specs = _update(specs, json.load(of))
+            try:
+                specs = _update(specs, json.load(of))
+            except ValueError:
+                log.error("Malformed json file %s", cwd)
+                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (cwd))
     if path and os.path.exists(path):
         with open(path) as of:
-            specs = _update(specs, json.load(of))
+            try:
+                specs = _update(specs, json.load(of))
+            except ValueError:
+                log.error("Malformed json file %s", path)
+                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (path))
     return specs
 
 

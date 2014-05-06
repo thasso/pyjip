@@ -159,4 +159,9 @@ def _load(path):
     """Load configuration from given json file"""
     import json
     with open(path) as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except ValueError:
+            log.error("Malformed json file %s", path)
+            raise jip.ValidationError('jip.configuration', "Malformed json file %s" % (path))
+        
