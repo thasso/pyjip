@@ -335,3 +335,4 @@ def test_no_duplicated_jobs_after_file_query_direct(tmpdir):
 ])
 def test_mysql_init(mysql_db):
     jip.db.init(mysql_db)
+    assert not os.path.exists('mysql:')

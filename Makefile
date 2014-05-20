@@ -8,6 +8,9 @@ develop:
 tests:
 	py.test
 
+mysqltest:
+	py.test -m mysqltest
+
 doc:
 	$(MAKE) -C docs html
 
