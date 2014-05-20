@@ -3,6 +3,7 @@ import os
 import jip
 import jip.db
 import datetime
+import pytest
 
 
 def test_command_change_save(tmpdir):
@@ -326,3 +327,11 @@ def test_no_duplicated_jobs_after_file_query_direct(tmpdir):
     assert len(list(jip.db.get_all())) == 2
     # and the one we skipped has no ID
     assert jobs[0].id is None
+
+@pytest.mark.mysqltest
+@pytest.mark.parametrize("mysql_db", [
+    'mysql://admin:changeme@127.0.0.1/test',
+    'mysql:///test'
+])
+def test_mysql_init(mysql_db):
+    jip.db.init(mysql_db)
