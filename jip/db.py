@@ -88,7 +88,7 @@ job_groups = Table("job_groups", Base.metadata,
 class InputFile(Base):
     __tablename__ = 'files_in'
     id = Column(Integer, primary_key=True)
-    path = Column('path', String, index=True)
+    path = Column('path', String(256), index=True)
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
@@ -98,7 +98,7 @@ class InputFile(Base):
 class OutputFile(Base):
     __tablename__ = 'files_out'
     id = Column(Integer, primary_key=True)
-    path = Column('path', String, index=True)
+    path = Column('path', String(256), index=True)
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
@@ -156,7 +156,7 @@ class Job(Base):
     #: Finished data of the jobs
     finish_date = Column(DateTime)
     #: Current job state. See `job states <job_states>` for more information
-    state = Column(String, default=STATE_HOLD)
+    state = Column(String(128), default=STATE_HOLD)
     #: optional name of the host that executes this job. This has to be set
     #: by the cluster implementation at runtime. If the cluster implementation
     #: does not support this, the field might not be set.
@@ -605,7 +605,7 @@ def init(path=None, in_memory=False):
             raise LookupError("Database engine configuration not found")
 
     # make sure folders exists
-    path_split = path.split(":///")
+    path_split = path.split("://")
     if len(path_split) != 2:
         ## dynamically create an sqlite path
         if not path.startswith("/"):
@@ -614,7 +614,8 @@ def init(path=None, in_memory=False):
         path = "sqlite:///%s" % path
 
     type, folder = path_split
-    if not exists(folder) and not exists(dirname(folder)):
+    folder = folder.lstrip('/')
+    if type == "sqlite" and not exists(folder) and not exists(dirname(folder)):
         makedirs(dirname(folder))
     # logging cinfiguration
     #import logging
@@ -627,6 +628,8 @@ def init(path=None, in_memory=False):
     # create engine
     engine = slq_create_engine(path)
     # create tables
+    if type == "mysql":
+        create_tables = len(list(engine.connect().execute('SHOW TABLES;'))) != 6
     if create_tables:
         Base.metadata.create_all(engine)
     Session = sessionmaker(autoflush=False,
