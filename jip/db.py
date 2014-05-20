@@ -586,6 +586,14 @@ def init(path=None, in_memory=False):
     from os import makedirs, getenv
     global engine, Session, db_path, db_in_memory, global_session
 
+    _tables = [('files_in',),
+               ('files_out',),
+               ('job_dependencies',),
+               ('job_groups',),
+               ('job_pipes',),
+               ('jobs',)]
+
+
     if in_memory:
         log.debug("Initialize in-memory DB")
         db_in_memory = True
@@ -607,24 +615,29 @@ def init(path=None, in_memory=False):
     # parse connection string
     import re
     conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\w+)@)?(?P<host>\w+)?/(?P<db>.+)")
-    # make sure folders exists
     path_match = conn_re.match(path)
     if not path_match:
         ## dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
-        type = 'sqlite'
-        db = path
         path = "%s:///%s" % (type, path)
-    else:
-        type = path_match.group('type')
-        db = path_match.group('db')
-        if type == 'mysql':
-            user = path_match.group('user')
-            password = path_match.group('password')
-            host = path_match.group('host')
+
+    path_match = conn_re.match(path)
+    type = path_match.group('type')
+    db = path_match.group('db')
+    user = path_match.group('user')
+    password = path_match.group('password')
+    host = path_match.group('host')
+    query = {}
+    if type == 'mysql' and (not user or not password):
+        import jip
+        query['read_default_file'] = jip.config.get(
+            'mysql_config_file', '~/.my.cnf')
 
     if type == "sqlite":
+        # make sure folders exists
+        if not db.startswith("/"):
+            db = abspath(db)
         if not exists(db) and not exists(dirname(db)):
             makedirs(dirname(db))
         # check before because engine creation will create the file
@@ -633,14 +646,21 @@ def init(path=None, in_memory=False):
     #import logging
     #getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
-    db_path = path
+    # create connection url
+    from sqlalchemy.engine.url import URL
+    url = URL(type, username=user, password=password, host=host,
+              database=db, query=query)
+
+    db_path = str(url)
     db_in_memory = False
 
     # create engine
-    engine = slq_create_engine(path)
+    engine = slq_create_engine(url)
     # create tables
     if type == "mysql":
-        create_tables = len(list(engine.connect().execute('SHOW TABLES;'))) != 6
+        create_tables = list(
+            engine.connect().execute('SHOW TABLES;')
+        ) != _tables
     if create_tables:
         Base.metadata.create_all(engine)
     Session = sessionmaker(autoflush=False,
