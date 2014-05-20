@@ -31,7 +31,6 @@ from jip.tempfiles import create_temp_file
 
 log = getLogger('jip.db')
 
-
 # global instances
 engine = None
 Session = None
@@ -670,11 +669,16 @@ def commit_session(session):
     last_error = None
     log.info("DB | committing session")
 
+    import jip
+    db_retry_count = jip.config.get('db_retry_count', 5)
+    db_retry_timeout = jip.config.get('db_retry_timeout', 0.05)
+
     # store the dirty work
     dirty = session.dirty
     new = list(session.new)
     deleted = list(session.deleted)
-    for i in range(5):
+
+    for i in range(db_retry_count):
         try:
             log.debug("Committing session, attempt %d", i)
             session.commit()
@@ -689,7 +693,7 @@ def commit_session(session):
                      "Retrying", i, err)
             # recreate the session
             import time
-            time.sleep(0.05)
+            time.sleep(db_retry_timeout)
             log.debug("Reinitialize DB engine")
             init(db_path)
             log.debug("Recreate session")
@@ -742,21 +746,25 @@ def __singel_execute(i, stmt, values=None):
         conn.close()
 
 
-def _execute(stmt, values=None, attempts=5):
+def _execute(stmt, values=None):
     """Try to execute the given statement or list of
     statements n times.
     """
+    import jip
+    db_retry_count = jip.config.get('db_retry_count', 5)
+    db_retry_timeout = jip.config.get('db_retry_timeout', 0.05)
+
     if not isinstance(stmt, (list, tuple)):
         stmt = [stmt]
     error = None
-    for i in range(attempts):
+    for i in range(db_retry_count):
         try:
             __singel_execute(i, stmt, values)
             return
         except OperationalError as err:
             error = err
             import time
-            time.sleep(0.1)
+            time.sleep(db_retry_timeout)
     raise error
 
 
