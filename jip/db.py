@@ -620,7 +620,7 @@ def init(path=None, in_memory=False):
         ## dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
-        path = "%s:///%s" % (type, path)
+        path = "sqlite:///%s" % (path)
 
     path_match = conn_re.match(path)
     type = path_match.group('type')
