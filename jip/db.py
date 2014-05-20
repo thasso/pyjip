@@ -604,27 +604,38 @@ def init(path=None, in_memory=False):
         if path is None:
             raise LookupError("Database engine configuration not found")
 
+    # parse connection string
+    import re
+    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\w+)@)?(?P<host>\w+)?/(?P<db>.+)")
     # make sure folders exists
-    path_split = path.split("://")
-    if len(path_split) != 2:
+    path_match = conn_re.match(path)
+    if not path_match:
         ## dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
-        path_split = ["sqlite", path]
-        path = "sqlite:///%s" % path
+        type = 'sqlite'
+        db = path
+        path = "%s:///%s" % (type, path)
+    else:
+        type = path_match.group('type')
+        db = path_match.group('db')
+        if type == 'mysql':
+            user = path_match.group('user')
+            password = path_match.group('password')
+            host = path_match.group('host')
 
-    type, folder = path_split
-    folder = folder.lstrip('/')
-    if type == "sqlite" and not exists(folder) and not exists(dirname(folder)):
-        makedirs(dirname(folder))
+    if type == "sqlite":
+        if not exists(db) and not exists(dirname(db)):
+            makedirs(dirname(db))
+        # check before because engine creation will create the file
+        create_tables = not exists(db)
     # logging cinfiguration
     #import logging
     #getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
     db_path = path
     db_in_memory = False
-    # check before because engine creation will create the file
-    create_tables = not exists(folder) and type == "sqlite"
+
     # create engine
     engine = slq_create_engine(path)
     # create tables
