@@ -842,6 +842,7 @@ def update_job_states(jobs):
          } for j in jobs
     ]
     _execute(up, values)
+    save(jobs)
 
 
 def update_archived(jobs, state):
@@ -866,6 +867,7 @@ def update_archived(jobs, state):
     # convert the job values
     values = [{"_id": j.id} for j in jobs]
     _execute(up, values)
+    save(jobs)
 
 
 def save(jobs):
