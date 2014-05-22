@@ -12,11 +12,16 @@ import pytest
 def db(request):
     param = request.param
     def clean():
+        # the global session needs to be closed to use the engine
         session = jip.db.create_session()
-        session.query(jip.db.Job).delete()
-        session.commit()
         session.close()
         engine = jip.db.engine
+        engine.execute(jip.db.InputFile.__table__.delete())
+        engine.execute(jip.db.OutputFile.__table__.delete())
+        engine.execute(jip.db.job_dependencies.delete())
+        engine.execute(jip.db.job_groups.delete())
+        engine.execute(jip.db.job_pipes.delete())
+        engine.execute(jip.db.Job.__table__.delete())
         engine.execute('ALTER TABLE jobs AUTO_INCREMENT = 1')
     if 'mysql' in param:
         request.addfinalizer(clean)
