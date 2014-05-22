@@ -9,7 +9,7 @@ tests:
 	py.test
 
 mysqltest:
-	py.test -m mysqltest
+	py.test -m mysqltest --mysql "mysql:///test"
 
 doc:
 	$(MAKE) -C docs html
