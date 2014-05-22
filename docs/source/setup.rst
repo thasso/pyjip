@@ -157,6 +157,8 @@ JIP API:
             mysql://user:password@host/jip
             mysql:///jip (uses the user MySQL configuration in ~/.my.cnf)
 
+        For MySQL databases, :command:`jip` assumes that the specified database already exists. No database creation operation is performed.
+
     `jip_path`
         Colon separated path or locations for jip tools.  You can put a colon
         separated list of folder here. All folders in this list will be
