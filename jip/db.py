@@ -69,27 +69,27 @@ STATES = STATES_ACTIVE + STATES_FINISHED
 
 job_dependencies = Table("job_dependencies", Base.metadata,
                          Column("source", Integer,
-                                ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True),
+                                ForeignKey("jobs.id"), primary_key=True),
                          Column("target", Integer,
-                                ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True))
+                                ForeignKey("jobs.id"), primary_key=True))
 job_pipes = Table("job_pipes", Base.metadata,
                   Column("source", Integer,
-                         ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True),
+                         ForeignKey("jobs.id"), primary_key=True),
                   Column("target", Integer,
-                         ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True))
+                         ForeignKey("jobs.id"), primary_key=True))
 
 job_groups = Table("job_groups", Base.metadata,
                    Column("source", Integer,
-                          ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True),
+                          ForeignKey("jobs.id"), primary_key=True),
                    Column("target", Integer,
-                          ForeignKey("jobs.id", ondelete='CASCADE'), primary_key=True))
+                          ForeignKey("jobs.id"), primary_key=True))
 
 
 class InputFile(Base):
     __tablename__ = 'files_in'
     id = Column(Integer, primary_key=True)
     path = Column('path', String(256), index=True)
-    job_id = Column('job_id', Integer, ForeignKey('jobs.id', ondelete='CASCADE'))
+    job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
         return "Input: %s[%s]" % (self.path, str(self.job_id))
@@ -99,7 +99,7 @@ class OutputFile(Base):
     __tablename__ = 'files_out'
     id = Column(Integer, primary_key=True)
     path = Column('path', String(256), index=True)
-    job_id = Column('job_id', Integer, ForeignKey('jobs.id', ondelete='CASCADE'))
+    job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
         return "Output: %s[%s]" % (self.path, str(self.job_id))
@@ -240,10 +240,7 @@ class Job(Base):
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
                                 backref=backref('children', lazy='joined',
-                                                join_depth=1),
-                           cascade='all, delete-orphan',
-                           passive_deletes=True,
-                           single_parent=True)
+                                                join_depth=1))
     pipe_to = relationship("Job",
                            lazy="joined",
                            join_depth=1,
@@ -251,10 +248,7 @@ class Job(Base):
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
                            backref=backref('pipe_from', lazy='joined',
-                                           join_depth=1),
-                           cascade='all, delete-orphan',
-                           passive_deletes=True,
-                           single_parent=True)
+                                           join_depth=1))
 
     group_to = relationship("Job",
                             lazy="joined",
@@ -263,20 +257,13 @@ class Job(Base):
                             primaryjoin=id == job_groups.c.source,
                             secondaryjoin=id == job_groups.c.target,
                             backref=backref('group_from', lazy='joined',
-                                            join_depth=1),
-                           cascade='all, delete-orphan',
-                           passive_deletes=True,
-                           single_parent=True)
+                                            join_depth=1))
     #: input file references
     in_files = relationship('InputFile',
-                            backref='job',
-                            cascade='all, delete-orphan',
-                            passive_deletes=True)
+                            backref='job')
     #: output file references
     out_files = relationship('OutputFile',
-                             backref='job',
-                             cascade='all, delete-orphan',
-                             passive_deletes=True)
+                             backref='job')
 
     def __init__(self, tool=None):
         """Create a new Job instance.
@@ -783,7 +770,6 @@ def __singel_execute(i, stmt, values=None):
         trans = conn.begin()
         for s in stmt:
             if values:
-                print values
                 r = conn.execute(s, values)
             else:
                 r = conn.execute(s)
@@ -933,7 +919,6 @@ def delete(jobs):
     stmt.append(Job.__table__.delete().where(Job.id == bindparam("_id")))
     # convert the job values
     values = [{"_id": j.id} for j in jobs if j.id is not None]
-    print stmt
     if values:
         if _execute(stmt, values):
             save(jobs)
