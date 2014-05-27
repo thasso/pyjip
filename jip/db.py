@@ -617,7 +617,7 @@ def init(path=None, in_memory=False):
 
     # parse connection string
     import re
-    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\S+)@)?(?P<host>\S+)?/(?P<db>.+)")
+    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\S+)@)?(?P<host>[\w.-]+)?/(?P<db>.+)")
     path_match = conn_re.match(path)
     if not path_match:
         ## dynamically create an sqlite path
