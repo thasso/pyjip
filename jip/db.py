@@ -604,6 +604,7 @@ def init(path=None, in_memory=False):
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine, expire_on_commit=False)
         return
+
     if path is None:
         # check for environment
         path = getenv("JIP_DB", None)
@@ -616,7 +617,7 @@ def init(path=None, in_memory=False):
 
     # parse connection string
     import re
-    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\w+)@)?(?P<host>[\w.]+)?/(?P<db>.+)")
+    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\S+)@)?(?P<host>\S+)?/(?P<db>.+)")
     path_match = conn_re.match(path)
     if not path_match:
         ## dynamically create an sqlite path
@@ -630,6 +631,7 @@ def init(path=None, in_memory=False):
     user = path_match.group('user')
     password = path_match.group('password')
     host = path_match.group('host')
+
     query = {}
     if type == 'mysql' and (not user or not password):
         import jip
