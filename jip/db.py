@@ -234,29 +234,29 @@ class Job(Base):
     on_success = deferred(Column(PickleType))
     #: General job dependencies dependencies
     dependencies = relationship("Job",
-                                lazy="joined",
+                                lazy='select',
                                 join_depth=1,
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
-                                backref=backref('children', lazy='joined',
+                                backref=backref('children', lazy='select',
                                                 join_depth=1))
     pipe_to = relationship("Job",
-                           lazy="joined",
+                           lazy='select',
                            join_depth=1,
                            secondary=job_pipes,
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
-                           backref=backref('pipe_from', lazy='joined',
+                           backref=backref('pipe_from', lazy='select',
                                            join_depth=1))
 
     group_to = relationship("Job",
-                            lazy="joined",
+                            lazy='select',
                             join_depth=1,
                             secondary=job_groups,
                             primaryjoin=id == job_groups.c.source,
                             secondaryjoin=id == job_groups.c.target,
-                            backref=backref('group_from', lazy='joined',
+                            backref=backref('group_from', lazy='select',
                                             join_depth=1))
     #: input file references
     in_files = relationship('InputFile',
