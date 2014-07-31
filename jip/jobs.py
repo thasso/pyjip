@@ -346,6 +346,14 @@ def _setup_signal_handler(job, save=False):
     """
     def handle_signal(signum, frame):
         log.warn("Signal %s received, going to fail state", signum)
+        # Some signal arrived and maybe the job object is detached,
+        # we need to re-create the session and re-attach the object
+        from sqlalchemy import inspect
+        insp = inspect(job)
+        if insp.detached:
+            session = jip.db.create_session()
+            session.add(job)
+
         set_state(job, jip.db.STATE_FAILED, check_state=save)
         if save:
             db.update_job_states([job] + job.pipe_to)
