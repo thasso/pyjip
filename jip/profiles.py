@@ -598,17 +598,15 @@ def get_specs(path=None):
 
     :param path: optional path to an additional spec file
     """
-    
     def load_json(jf):
         with open(jf) as of:
             try:
-                data = json.load(of))
+                data = json.load(of)
             except ValueError:
                 log.error("Malformed json file %s", jf)
                 raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (jf))
-        
         return data
-    
+
     global specs
     cwd = os.path.join(os.getcwd(), "jip.specs")
     home = os.path.join(os.getenv("HOME", ""), ".jip/jip.specs")
@@ -619,7 +617,7 @@ def get_specs(path=None):
         specs = _update(specs, load_json(cwd))
     if path and os.path.exists(path):
         specs = _update(specs, load_json(path))
-        
+
     return specs
 
 
