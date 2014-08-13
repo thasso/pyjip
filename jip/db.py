@@ -584,6 +584,7 @@ def init(path=None, in_memory=False):
     """
     from sqlalchemy import create_engine as slq_create_engine
     from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import NullPool
     from os.path import exists, dirname, abspath
     from os import makedirs, getenv
     global engine, Session, db_path, db_in_memory, global_session
@@ -659,7 +660,7 @@ def init(path=None, in_memory=False):
     db_in_memory = False
 
     # create engine
-    engine = slq_create_engine(url)
+    engine = slq_create_engine(url, poolclass=NullPool)
     # create tables
     if type == "mysql":
         create_tables = list(

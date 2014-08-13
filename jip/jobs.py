@@ -705,6 +705,7 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
         if not os.path.exists(child.working_directory):
             os.makedirs(child.working_directory)
 
+    # Execute the commands
     for dispatcher_node in dispatcher_nodes:
         dispatcher_node.run(profiler=profiler)
 
@@ -714,11 +715,23 @@ def run_job(job, save=False, profiler=False, submit_embedded=False):
         db.update_job_states(all_jobs)
 
     success = True
+
+    # Close the DB connection for the execution of the commands,
+    # the job object gets the detached state
+    session=jip.db.create_session()
+    jip.db.commit_session(session)
+    session.close()
+
     # we collect the state of all jobs in the dispatcher first
     # a single failure will cause ALL nodes/jobs in that dispatcher
     # to be marked as failed
     for dispatcher_node in reversed(dispatcher_nodes):
         success &= dispatcher_node.wait()
+
+    # The commands finished their execution, re-attach the job object
+    session = jip.db.create_session()
+    session.add(job)
+
     # get the new state and update all jobs
     new_state = db.STATE_DONE if success else db.STATE_FAILED
     for dispatcher_node in reversed(dispatcher_nodes):
