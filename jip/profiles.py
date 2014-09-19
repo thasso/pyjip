@@ -410,8 +410,10 @@ class Profile(object):
             job.priority = self.priority
         if self.time is not None and job.max_time is None:
             job.max_time = jip.utils.parse_time(self.time)
-        if self.mem is not None and job.max_memory is None:
-            job.max_memory = jip.utils.parse_mem(self.mem)
+        if self.mem is not None:
+            if job.max_memory is None:
+                job.max_memory = 0
+            job.max_memory += jip.utils.parse_mem(self.mem)
         if self.log is not None and job.stderr is None:
             job.stderr = self._render(job, self.log)
         if self.out is not None and job.stdout is None:
@@ -598,6 +600,7 @@ def get_specs(path=None):
 
     :param path: optional path to an additional spec file
     """
+    
     def load_json(jf):
         with open(jf) as of:
             try:
@@ -605,8 +608,9 @@ def get_specs(path=None):
             except ValueError:
                 log.error("Malformed json file %s", jf)
                 raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (jf))
+        
         return data
-
+    
     global specs
     cwd = os.path.join(os.getcwd(), "jip.specs")
     home = os.path.join(os.getenv("HOME", ""), ".jip/jip.specs")
@@ -617,7 +621,7 @@ def get_specs(path=None):
         specs = _update(specs, load_json(cwd))
     if path and os.path.exists(path):
         specs = _update(specs, load_json(path))
-
+        
     return specs
 
 

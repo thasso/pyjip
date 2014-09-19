@@ -31,6 +31,7 @@ from jip.tempfiles import create_temp_file
 
 log = getLogger('jip.db')
 
+
 # global instances
 engine = None
 Session = None
@@ -88,7 +89,7 @@ job_groups = Table("job_groups", Base.metadata,
 class InputFile(Base):
     __tablename__ = 'files_in'
     id = Column(Integer, primary_key=True)
-    path = Column('path', String(256), index=True)
+    path = Column('path', String(length=767), index=True) # Length is 767 because MySQL does not support keys longer than 767 by default
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
@@ -98,7 +99,7 @@ class InputFile(Base):
 class OutputFile(Base):
     __tablename__ = 'files_out'
     id = Column(Integer, primary_key=True)
-    path = Column('path', String(256), index=True)
+    path = Column('path', String(length=767), index=True) # Length is 767 because MySQL does not support keys longer than 767 by default
     job_id = Column('job_id', Integer, ForeignKey('jobs.id'))
 
     def __repr__(self):
@@ -135,6 +136,8 @@ class Job(Base):
     project = Column(String(256))
     #: Optional pipeline name to group jobs
     pipeline = Column(String(256))
+    #: Optional pipeline user defined name to differentiate pipelines
+    pipeline_name = Column(String(256))
     #: Absolute path to the JIP script that created this job
     #: this is currently only set for JIP script, not for
     #: tools that are loaded from a python module
@@ -156,7 +159,7 @@ class Job(Base):
     #: Finished data of the jobs
     finish_date = Column(DateTime)
     #: Current job state. See `job states <job_states>` for more information
-    state = Column(String(128), default=STATE_HOLD)
+    state = Column(String(length=256), default=STATE_HOLD)
     #: optional name of the host that executes this job. This has to be set
     #: by the cluster implementation at runtime. If the cluster implementation
     #: does not support this, the field might not be set.
@@ -234,36 +237,34 @@ class Job(Base):
     on_success = deferred(Column(PickleType))
     #: General job dependencies dependencies
     dependencies = relationship("Job",
-                                lazy='select',
+                                lazy="joined",
                                 join_depth=1,
                                 secondary=job_dependencies,
                                 primaryjoin=id == job_dependencies.c.source,
                                 secondaryjoin=id == job_dependencies.c.target,
-                                backref=backref('children', lazy='select',
+                                backref=backref('children', lazy='joined',
                                                 join_depth=1))
     pipe_to = relationship("Job",
-                           lazy='select',
+                           lazy="joined",
                            join_depth=1,
                            secondary=job_pipes,
                            primaryjoin=id == job_pipes.c.source,
                            secondaryjoin=id == job_pipes.c.target,
-                           backref=backref('pipe_from', lazy='select',
+                           backref=backref('pipe_from', lazy='joined',
                                            join_depth=1))
 
     group_to = relationship("Job",
-                            lazy='select',
+                            lazy="joined",
                             join_depth=1,
                             secondary=job_groups,
                             primaryjoin=id == job_groups.c.source,
                             secondaryjoin=id == job_groups.c.target,
-                            backref=backref('group_from', lazy='select',
+                            backref=backref('group_from', lazy='joined',
                                             join_depth=1))
     #: input file references
-    in_files = relationship('InputFile',
-                            backref='job')
+    in_files = relationship('InputFile', backref='job')
     #: output file references
-    out_files = relationship('OutputFile',
-                             backref='job')
+    out_files = relationship('OutputFile', backref='job')
 
     def __init__(self, tool=None):
         """Create a new Job instance.
@@ -572,7 +573,7 @@ class Job(Base):
             return "JOB-%s" % (str(self.id) if self.id is not None else "0")
 
 
-def init(path=None, in_memory=False):
+def init(path=None, in_memory=False, pool=None):
     """Initialize the database.
 
     This takes a valid SQLAlchemy database URL or a path to a file
@@ -582,30 +583,27 @@ def init(path=None, in_memory=False):
     :param path: database url or path to a file
     :param in_memory: if set to True, an in-memory database is created
     """
-    from sqlalchemy import create_engine as slq_create_engine
+    from sqlalchemy import create_engine as sql_create_engine
     from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import NullPool
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.pool import NullPool, QueuePool
     from os.path import exists, dirname, abspath
     from os import makedirs, getenv
     global engine, Session, db_path, db_in_memory, global_session
 
-    _tables = [('files_in',),
-               ('files_out',),
-               ('job_dependencies',),
-               ('job_groups',),
-               ('job_pipes',),
-               ('jobs',)]
-
+    # Constants: DB errors (MySQL numbers)
+    DBAPIError_UNKNOWNDATABASE = 1049
+    DBAPIError_UNKNOWNHOST     = 2005
+    
 
     if in_memory:
         log.debug("Initialize in-memory DB")
         db_in_memory = True
         db_path = None
-        engine = slq_create_engine("sqlite://")
+        engine = sql_create_engine("sqlite://")
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine, expire_on_commit=False)
         return
-
     if path is None:
         # check for environment
         path = getenv("JIP_DB", None)
@@ -616,58 +614,75 @@ def init(path=None, in_memory=False):
         if path is None:
             raise LookupError("Database engine configuration not found")
 
-    # parse connection string
-    import re
-    conn_re = re.compile(r"(?P<type>\w+)://(?:(?P<user>\w+):(?P<password>\S+)@)?(?P<host>[\w.-]+)?/(?P<db>.+)")
-    path_match = conn_re.match(path)
-    if not path_match:
+    # make sure folders exists
+    path_split = path.split("://")
+    if len(path_split) != 2:
         ## dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
-        path = "sqlite:///%s" % (path)
+        path_split = ["sqlite", path]
+        path = "sqlite:///%s" % path
 
-    path_match = conn_re.match(path)
-    type = path_match.group('type')
-    db = path_match.group('db')
-    user = path_match.group('user')
-    password = path_match.group('password')
-    host = path_match.group('host')
-
-    query = {}
-    if type == 'mysql' and (not user or not password):
-        import jip
-        query['read_default_file'] = jip.config.get(
-            'mysql_config_file', '~/.my.cnf')
-
-    if type == "sqlite":
-        # make sure folders exists
-        if not db.startswith("/"):
-            db = abspath(db)
-        if not exists(db) and not exists(dirname(db)):
-            makedirs(dirname(db))
-        # check before because engine creation will create the file
-        create_tables = not exists(db)
     # logging cinfiguration
     #import logging
     #getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
-    # create connection url
-    from sqlalchemy.engine.url import URL
-    url = URL(type, username=user, password=password, host=host,
-              database=db, query=query)
+    # Pooling configuration
+    if pool is None:
+        # If nothing specific requested, use standard one
+        pool = QueuePool
 
-    db_path = str(url)
+    # Engine creation
+    type, folder = path_split
+    create_tables = False
+    if type == 'sqlite':
+        if not exists(folder) and not exists(dirname(folder)):
+            makedirs(dirname(folder))
+        # check before because engine creation will create the file
+        create_tables = not exists(folder)
+        # create engine
+        engine = sql_create_engine(path)
+    elif type == 'mysql':
+        import urlparse as up
+        
+        # Split connection string
+        dburl = up.urlsplit(path)
+        db_conn_string = up.urlunsplit((dburl.scheme, dburl.netloc, '', dburl.query, dburl.fragment))
+        db_database = dburl.path[1:] # Trim the forward slash
+        
+        # Prepare the connection to the DBMS, no DB selected
+        engine = sql_create_engine(db_conn_string, poolclass=pool)
+
+        # Now, try to use the connection and DB name to validate
+        # connection parameters (host, port, username...) and DB name
+        try:
+            # Test if the DB name exists. If not, the select fails
+            engine.execute("USE " + db_database)
+        except OperationalError as e:
+            # DB name not found, create DB name, set it as active
+            # and flag for table creation
+            if e.orig[0] == DBAPIError_UNKNOWNDATABASE:
+                engine.execute("CREATE DATABASE " + db_database)
+                create_tables = True
+            else:
+                raise e
+        finally:
+            # Tests and DB creation finished. Dispose the engine to
+            # create a new one with the full definition
+            engine.dispose()
+
+        # DB name already exists and connection is working, create one
+        # with the full connection string
+        engine = sql_create_engine(path, poolclass=pool)
+
+
+    db_path = path
     db_in_memory = False
-
-    # create engine
-    engine = slq_create_engine(url, poolclass=NullPool)
+    # check before because engine creation for SQLite will create the
+    # file, in MySQL we can always issue the table creation
     # create tables
-    if type == "mysql":
-        create_tables = list(
-            engine.connect().execute('SHOW TABLES;')
-        ) != _tables
-    if create_tables:
-        Base.metadata.create_all(engine)
+    if create_tables or type == 'mysql':
+        Base.metadata.create_all(bind=engine, checkfirst=True)
     Session = sessionmaker(autoflush=False,
                            expire_on_commit=False)
     #Session = sessionmaker(expire_on_commit=False)
@@ -708,16 +723,11 @@ def commit_session(session):
     last_error = None
     log.info("DB | committing session")
 
-    import jip
-    db_retry_count = jip.config.get('db_retry_count', 5)
-    db_retry_timeout = jip.config.get('db_retry_timeout', 0.05)
-
     # store the dirty work
     dirty = session.dirty
     new = list(session.new)
     deleted = list(session.deleted)
-
-    for i in range(db_retry_count):
+    for i in range(5):
         try:
             log.debug("Committing session, attempt %d", i)
             session.commit()
@@ -732,7 +742,7 @@ def commit_session(session):
                      "Retrying", i, err)
             # recreate the session
             import time
-            time.sleep(db_retry_timeout)
+            time.sleep(0.05)
             log.debug("Reinitialize DB engine")
             init(db_path)
             log.debug("Recreate session")
@@ -776,7 +786,6 @@ def __singel_execute(i, stmt, values=None):
                 r = conn.execute(s, values)
             else:
                 r = conn.execute(s)
-            status = r.rowcount != 0
             r.close()
         trans.commit()
     except OperationalError as err:
@@ -784,28 +793,23 @@ def __singel_execute(i, stmt, values=None):
         raise
     finally:
         conn.close()
-    return status
 
 
-def _execute(stmt, values=None):
+def _execute(stmt, values=None, attempts=5):
     """Try to execute the given statement or list of
     statements n times.
     """
-    import jip
-    db_retry_count = jip.config.get('db_retry_count', 5)
-    db_retry_timeout = jip.config.get('db_retry_timeout', 0.05)
-
     if not isinstance(stmt, (list, tuple)):
         stmt = [stmt]
     error = None
-    for i in range(db_retry_count):
+    for i in range(attempts):
         try:
-            s = __singel_execute(i, stmt, values)
-            return s
+            __singel_execute(i, stmt, values)
+            return
         except OperationalError as err:
             error = err
             import time
-            time.sleep(db_retry_timeout)
+            time.sleep(0.5)
     raise error
 
 
@@ -848,8 +852,7 @@ def update_job_states(jobs):
          "_hosts": j.hosts
          } for j in jobs
     ]
-    if _execute(up, values):
-        save(jobs)
+    _execute(up, values)
 
 
 def update_archived(jobs, state):
@@ -873,8 +876,7 @@ def update_archived(jobs, state):
     )
     # convert the job values
     values = [{"_id": j.id} for j in jobs]
-    if _execute(up, values):
-        save(jobs)
+    _execute(up, values)
 
 
 def save(jobs):
@@ -904,13 +906,8 @@ def delete(jobs):
     """
     if not isinstance(jobs, (list, tuple)):
         jobs = [jobs]
-    stmt = []
-    # delete entries in file tables
-    for relation_table in [InputFile.__table__, OutputFile.__table__]:
-        dep = relation_table.delete().where(
-            relation_table.c.job_id == bindparam("_id")
-        )
-        stmt.append(dep)
+    # create delete statement for the job
+    stmt = [Job.__table__.delete().where(Job.id == bindparam("_id"))]
     # delete entries in the relationship tables
     for relation_table in [job_dependencies, job_pipes, job_groups]:
         dep = relation_table.delete().where(
@@ -918,13 +915,17 @@ def delete(jobs):
             (relation_table.c.target == bindparam("_id"))
         )
         stmt.append(dep)
-    # create delete statement for the job
-    stmt.append(Job.__table__.delete().where(Job.id == bindparam("_id")))
+    # delete entries in file tables
+    for relation_table in [InputFile.__table__, OutputFile.__table__]:
+        dep = relation_table.delete().where(
+            relation_table.c.job_id == bindparam("_id")
+        )
+        stmt.append(dep)
+    
     # convert the job values
     values = [{"_id": j.id} for j in jobs if j.id is not None]
     if values:
-        if _execute(stmt, values):
-            save(jobs)
+        _execute(stmt[::-1], values) # Reverse the elements in the list to remove first the relations
 
 
 def get(job_id):
@@ -1039,7 +1040,7 @@ def query_by_files(inputs=None, outputs=None, and_query=False):
     return jobs
 
 
-def query(job_ids=None, cluster_ids=None, archived=False, fields=None):
+def query(job_ids=None, cluster_ids=None, archived=False, fields=None, pipeline_name=None):
     """Query the the database for jobs.
 
     You can limit the search to a specific set of job ids using either the
@@ -1047,7 +1048,7 @@ def query(job_ids=None, cluster_ids=None, archived=False, fields=None):
     queried.
 
     By default the search is limited to non-archived jobs. You can set the
-    ``archived`` paramter to True to query only archived jobs or to ``None``
+    ``archived`` parameter to True to query only archived jobs or to ``None``
     to query both.
 
     In addition, you can use the ``fields`` paramter to limit the fields that
@@ -1059,6 +1060,7 @@ def query(job_ids=None, cluster_ids=None, archived=False, fields=None):
     :param archived: set to True to query archived jobs and to None to query
                      all jobs
     :param fields: list of field names that should be retirieved
+    :param pipeline_name: name of the pipeline that should be retirieved
     :returns: iterator over the query results
     """
     job_ids = [] if job_ids is None else job_ids
@@ -1070,6 +1072,8 @@ def query(job_ids=None, cluster_ids=None, archived=False, fields=None):
         jobs = jobs.filter(Job.archived == archived)
     if job_ids is not None and len(job_ids) > 0:
         jobs = jobs.filter(Job.id.in_(job_ids))
-    if job_ids is not None and len(cluster_ids) > 0:
+    if cluster_ids is not None and len(cluster_ids) > 0:
         jobs = jobs.filter(Job.job_id.in_(cluster_ids))
+    if pipeline_name is not None:
+        jobs = jobs.filter(Job.pipeline_name.like("%%%s%%" % (pipeline_name)))
     return jobs

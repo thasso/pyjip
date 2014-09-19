@@ -344,8 +344,10 @@ def _setup_signal_handler(job, save=False):
     :type job: :class:`jip.db.Job`
     :param session: optional database session
     """
+
     def handle_signal(signum, frame):
         log.warn("Signal %s received, going to fail state", signum)
+
         # Some signal arrived and maybe the job object is detached,
         # we need to re-create the session and re-attach the object
         from sqlalchemy import inspect
@@ -358,6 +360,7 @@ def _setup_signal_handler(job, save=False):
         if save:
             db.update_job_states([job] + job.pipe_to)
         sys.exit(1)
+        
     log.debug("Setting up signal handler for %s", job)
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
@@ -665,7 +668,7 @@ def submit_job(job, clean=False, force=False, save=True,
     return True
 
 
-def run_job(job, save=False, profiler=False, submit_embedded=False):
+def run_job(job, save=False, profiler=False, submit_embedded=False, closeDB=False):
     """Execute the given job. This method returns immediately in case the
     job has a pipe source. Otherwise the job and all its dispatch jobs are
     executed.
@@ -923,6 +926,7 @@ def from_node(node, env=None, keep=False):
         node._job.apply(job)
     job.name = node.name
     job.pipeline = node._pipeline
+    job.pipeline_name = node._pipeline_name
 
     # update job defaults after the profile is applied
     if not job.threads:

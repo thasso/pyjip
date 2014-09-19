@@ -135,6 +135,7 @@ class Pipeline(object):
         self._node_index = 0  # unique steadily increasing number
         self._utils = None
         self._cwd = self._job.working_dir
+        self._pipeline_name = None
 
     def __getstate__(self):
         data = {}
@@ -202,6 +203,20 @@ class Pipeline(object):
         """
         return list(self._edges)
 
+    def pipeline_name(self, name):
+        """ Set the user defined name of the pipeline
+        
+        :param name: the user defined name of the pipeline
+        :type name: string
+        """
+        if name is None:
+            return
+        
+        self._pipeline_name = name
+        
+        for n in self.nodes():
+            n._pipeline_name = name
+        
     def name(self, name):
         """Set the name of the pipeline and ensures that all
         nodes in the pipeline reference the pipeline name.
@@ -357,6 +372,7 @@ class Pipeline(object):
             job = _job() if _job else self._current_job()
             n._tool._job = job
             n._pipeline = self._name
+            n._pipeline_name = self._pipeline_name
             n._job = job
             job._node = n
             self._nodes[tool] = n
@@ -991,6 +1007,7 @@ class Pipeline(object):
             # name
             node._name = node.job._render_name()
             sub_pipe.name(node.name)
+            node._pipeline_name = self._pipeline_name
 
             log.info("Expand | Expanding sub-pipeline from node %s", node)
             if sub_pipe.excludes:
@@ -1435,6 +1452,7 @@ class Node(object):
         self.__dict__['_name'] = graph._name
         self.__dict__['_pipeline'] = graph._name
         self.__dict__['_pipeline_profile'] = None
+        self.__dict__['_pipeline_name'] = None
         self.__dict__['_index'] = index
         # the _node_index is an increasing counter that indicates
         # the order in which nodes were added to the pipeline graph
@@ -1504,6 +1522,14 @@ class Node(object):
             return pipeline, node
         else:
             return pipeline
+
+    def pipeline_name(self, name):
+        """Set the user defined name for the pipeline this node belongs to
+        """
+        if name is None:
+            return
+        
+        _pipeline_name = name
 
     @property
     def name(self):
@@ -1904,7 +1930,7 @@ class Node(object):
     def __setattr__(self, name, value):
         if name in ["_job", "_index", "_pipeline",
                     "_node_index", "_name", "_graph", "_edges", '_tool',
-                    '_pipeline_profile']:
+                    '_pipeline_profile', '_pipeline_name']:
             self.__dict__[name] = value
         else:
             self.set(name, value, allow_stream=False)

@@ -6,6 +6,7 @@ Usage:
     jip-jobs [-s <state>...] [-o <out>...] [-e]
              [--show-archived] [-j <id>...] [-J <cid>...]
              [-N] [-q <queue>] [-I <inputs>...] [-O <outputs>...]
+             [-n <name>]
     jip-jobs [--help|-h]
 
 Options:
@@ -17,6 +18,7 @@ Options:
     -q, --queue <queue>          List jobs with a specified queue
     -j, --job <id>               List jobs with specified id
     -J, --cluster-job <cid>      List jobs with specified cluster id
+    -n, --name <name>            List jobs with specified pipeline name
     -I, --inputs <inputs>...     Query the database for jobs that take one
                                  of teh specified files as input
     -O, --outputs <outputs>...   Query the database for jobs that produce
@@ -24,23 +26,24 @@ Options:
     -h --help                    Show this help message
 
 Columns supported for output:
-    ID          The internal job id
-    C-ID        The job id assigned by the cluster
-    Name        The jobs name
-    Pipeline    The name of the pipeline
-    State       The jobs current state
-    Queue       The jobs queue
-    Priority    The jobs priority
-    Threads     Number of threads assigned to the job
-    Hosts       Host(s) where the job is executed
-    Account     The account used for the job
-    Memory      The jobs max memory setting
-    Timelimit   The jobs time limit
-    Runtime     The runtime of the job
-    Created     Create date of the job
-    Started     Execution start date of the job
-    Finished    Execution finish date of the job
-    Directory   The jobs working directory
+    ID            The internal job id
+    C-ID          The job id assigned by the cluster
+    Name          The jobs name
+    Pipeline      The type of the pipeline
+    PipelineName  The name of the pipeline
+    State         The jobs current state
+    Queue         The jobs queue
+    Priority      The jobs priority
+    Threads       Number of threads assigned to the job
+    Hosts         Host(s) where the job is executed
+    Account       The account used for the job
+    Memory        The jobs max memory setting
+    Timelimit     The jobs time limit
+    Runtime       The runtime of the job
+    Created       Create date of the job
+    Started       Execution start date of the job
+    Finished      Execution finish date of the job
+    Directory     The jobs working directory
 
 """
 from collections import defaultdict
@@ -49,7 +52,8 @@ import sys
 
 import jip.cluster
 from . import render_table, colorize, STATE_COLORS, parse_args, \
-    STATE_CHARS, parse_job_ids, YELLOW, BLUE
+    STATE_CHARS, parse_job_ids, YELLOW, BLUE, GREEN, RED, CYAN, \
+    MAGENTA, WHITE
 import jip.db
 
 
@@ -204,32 +208,49 @@ def _pipeline_job(job):
     job.hosts = ", ".join(hosts)
     return state
 
-LAST = None
-PIPELINE_COLOR = ""
+class ColorSwitcher():
+    
+    def __init__(self, attribute, color1=YELLOW, color2=GREEN):
+        self.attribute = attribute
+        self.color1 = color1
+        self.color2 = color2
+        self.actual_color = color1
+        self.last = None
+    
+    def _switch_color(self):
+        if self.actual_color == self.color1:
+            self.actual_color = self.color2
+        else:
+            self.actual_color = self.color1
+    
+    def colorize(self, actual):
+        if actual is None or not hasattr(actual, self.attribute):
+            return
 
+        act_attr = getattr(actual, self.attribute)
+        
+        if self.last is None or not hasattr(self.last, self.attribute):
+            self.last = actual
+            return colorize(act_attr, self.actual_color)
+        
+        last_attr = getattr(self.last, self.attribute)
+        
+        if last_attr != act_attr:
+            self._switch_color()
+            self.last = actual
+        
+        return colorize(act_attr, self.actual_color)
 
-def SWITCH_PIPELINE_COLOR():
-    global PIPELINE_COLOR
-    if PIPELINE_COLOR == YELLOW:
-        PIPELINE_COLOR = ""
-    else:
-        PIPELINE_COLOR = YELLOW
-
-
-def _pipeline_name(j):
-    if LAST and LAST.pipeline != j.pipeline:
-        SWITCH_PIPELINE_COLOR()
-    if j.pipeline:
-        return colorize(j.pipeline, PIPELINE_COLOR)
-    else:
-        return ""
+pipeline_type_colorswitcher = ColorSwitcher('pipeline', '', YELLOW)
+pipeline_name_colorswitcher = ColorSwitcher('pipeline_name', '', GREEN)
 
 
 JOB_HEADER = [
     ("Id", lambda j: j.id),
     ("C-Id", lambda j: j.job_id),
     ("Name", lambda j: j.name),
-    ("Pipeline", _pipeline_name),
+    ("Pipeline", pipeline_type_colorswitcher.colorize),
+    ("PipelineName", pipeline_name_colorswitcher.colorize),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
@@ -251,7 +272,8 @@ PIPE_HEADER = [
     ("Id", lambda j: j.id),
     ("C-Id", lambda j: "-"),
     ("Name", lambda j: "-"),
-    ("Pipeline", lambda j: j.pipeline if j.pipeline else j.name),
+    ("Pipeline", lambda j: pipeline_name_colorswitcher.colorize(j.pipeline if j.pipeline else j.name)),
+    ("PipelineName", pipeline_name_colorswitcher.colorize),
     ("State", lambda job: colorize(job.state, STATE_COLORS[job.state])),
     ("Queue", lambda j: j.queue),
     ("Priority", lambda j: j.priority),
@@ -274,6 +296,7 @@ DEFAULT_JOB_COLUMNS = [
     "C-Id",
     "Name",
     "Pipeline",
+    "PipelineName",
     "State",
     "Queue",
     "Dependencies",
@@ -286,6 +309,7 @@ DEFAULT_JOB_COLUMNS = [
 DEFAULT_PIPE_COLUMNS = [
     "Id",
     "Pipeline",
+    "PipelineName",
     "State",
     "Queue",
     "Dependencies",
@@ -320,7 +344,8 @@ def main():
     if not inputs and not outputs:
         job_ids, cluster_ids = parse_job_ids(args)
         jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
-                            archived=args['--show-archived'])
+                            archived=args['--show-archived'],
+                            pipeline_name=args['--name'])
         if not expand:
             if job_ids or cluster_ids:
                 all_jobs = []
