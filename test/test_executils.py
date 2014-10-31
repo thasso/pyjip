@@ -191,7 +191,7 @@ def test_job_hierarchy_execution_with_dispatching_fan_in(tmpdir):
     assert len(jobs[2].dependencies) == 0
     assert len(jobs[2].children) == 1
     assert len(jobs[3].dependencies) == 3
-    print jobs[3].command
+    print(jobs[3].command)
 
     # iterate the executions and pass the session so all jobs are stored
     execs = 0
@@ -253,7 +253,7 @@ def test_job_hierarchy_job_group(tmpdir):
     assert len(jobs[2].dependencies) == 1
     assert len(jobs[2].children) == 1
     assert len(jobs[3].dependencies) == 3
-    print jobs[3].command
+    print(jobs[3].command)
 
     # iterate the executions and pass the session so all jobs are stored
     execs = 0

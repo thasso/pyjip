@@ -26,7 +26,6 @@ environment variables. The :py:class:`Scanner` documentation covers both
 the environment variables that can be used as well as the configuration
 properties.
 """
-import cPickle
 import copy
 import inspect
 from textwrap import dedent
@@ -36,13 +35,21 @@ import os
 import sys
 import types
 import shutil
+import base64
 
 import jip.templates
 from jip.options import Options, TYPE_OUTPUT, TYPE_INPUT, Option
 from jip.templates import render_template, set_global_context
 from jip.utils import list_dir
 from jip.logger import getLogger
+from jip.six import iteritems, string_types, PY3, PY2
+from jip.six.moves import cPickle
 import jip.profiles
+
+if PY3:
+    from io import RawIOBase
+else:
+    RawIOBase = file
 
 log = getLogger('jip.tools')
 
@@ -50,14 +57,18 @@ log = getLogger('jip.tools')
 _pickel_template = """
 python -c '
 import sys
-import cPickle
+try:
+    import pickle
+except ImportError:
+    import cPickle as pickle
 import jip
 import jip.tools
 import types
+import base64
 
 jip._disable_module_search = True
-source="".join([l for l in sys.stdin]).decode("base64")
-data = cPickle.loads(source)
+source=base64.b64decode("".join([l for l in sys.stdin]))
+data = pickle.loads(source)
 deco = jip.tools.tool()
 tool = jip.tools.PythonTool(
     data["instance"],
@@ -213,7 +224,7 @@ class tool(object):
         log.debug("Decorated tool or pipeline: %s", cls)
         # check the name
         if self.name is None:
-            if isinstance(cls, types.FunctionType):
+            if isinstance(cls, types.FunctionType) and PY2:
                 self.name = cls.func_name
             else:
                 self.name = cls.__name__
@@ -274,7 +285,7 @@ class tool(object):
             'check_file': wrapper.check_file,
             'validation_error': wrapper.validation_error
         }
-        for k, v in helper_function.iteritems():
+        for k, v in iteritems(helper_function):
             if not hasattr(instance, k):
                 instance.__dict__[k] = v
 
@@ -355,7 +366,7 @@ class tool(object):
                     "options": wrapper.options
                 }
                 r = ('bash', _pickel_template %
-                     (cPickle.dumps(data).encode("base64")))
+                     (base64.b64encode(cPickle.dumps(data))))
                 return r
             else:
                 # this is not a python tool function but a function
@@ -471,7 +482,7 @@ class Scanner():
             tool = self.instances.get(name + ".jip", None)
         if tool is None:
             raise ToolNotFoundException("No tool named '%s' found!" % name)
-        if isinstance(tool, basestring):
+        if isinstance(tool, string_types):
             ## the tool is not loaded, load the script,
             ## and add it to the cache
             tool = ScriptTool.from_file(tool, is_pipeline=is_pipeline)
@@ -496,7 +507,7 @@ class Scanner():
             self.instances = {}
         self.scan_files(parent=path)
         self.scan_modules()
-        for n, m in Scanner.registry.iteritems():
+        for n, m in iteritems(Scanner.registry):
             self._register_tool(n, m)
         return self.instances
 
@@ -592,7 +603,7 @@ class Scanner():
                 if module:
                     log.debug("Importing module: %s", module)
                     __import__(module)
-            except ImportError, e:
+            except ImportError as e:
                 log.debug("Error while importing module: %s. "
                           "Trying file import", str(e))
                 if exists(module):
@@ -627,8 +638,7 @@ class Scanner():
         name = [base]
 
         def _load_package_name(current, module_name):
-            inits = filter(lambda x: x == '__init__.py', listdir(current))
-            if inits:
+            if '__init__.py' in listdir(current):
                 module_name.append(basename(current))
                 return _load_package_name(dirname(current), module_name)
             return module_name, current
@@ -673,7 +683,7 @@ class Block(object):
                 stdout=stdout
             )
             return self.process
-        except OSError, err:
+        except OSError as err:
             # catch the errno 2 No such file or directory, which indicates the
             # interpreter is not available
             if err.errno == 2:
@@ -897,7 +907,7 @@ class PythonBlockUtils(object):
 
     def _update_context(self, ctx, kwargs=None, base_node=None):
         if self._global_env:
-            for k, v in self._global_env.iteritems():
+            for k, v in iteritems(self._global_env):
                 if k not in ctx:
                     ctx[k] = v
         if kwargs:
@@ -1011,10 +1021,10 @@ class PythonBlock(Block):
         from jip import scanner
         from functools import partial
         scanner.scan_modules()
-        for name, cls in scanner.registry.iteritems():
+        for name, cls in iteritems(scanner.registry):
             if not name in env:
                 env[name] = partial(utils.run, name)
-        for name, path in scanner.scan_files().iteritems():
+        for name, path in iteritems(scanner.scan_files()):
             k = name
             if k.endswith(".jip"):
                 k = k[:-4]
@@ -1031,7 +1041,8 @@ class PythonBlock(Block):
         old_global_context = jip.templates.global_context
         set_global_context(env)
         try:
-            exec content in local_env, env
+            env.update(local_env)
+            exec(content, env)
         except Exception as e:
             if hasattr(e, 'lineno'):
                 e.lineno += self._lineno
@@ -1039,7 +1050,7 @@ class PythonBlock(Block):
 
         # auto naming for tools
         from jip.pipelines import Node
-        for k, v in env.iteritems():
+        for k, v in iteritems(env):
             if isinstance(v, Node):
                 if v._job.name is None:
                     v._job.name = k
@@ -1191,7 +1202,7 @@ class Tool(object):
         if options_source is None:
             raise Exception("No docstring or argument parser provided!")
         opts = None
-        if not isinstance(options_source, basestring):
+        if not isinstance(options_source, string_types):
             opts = Options.from_argparse(options_source, source=self,
                                          inputs=inputs, outputs=outputs)
         else:
@@ -1216,7 +1227,7 @@ class Tool(object):
         log.debug("Default options validation for %s", self)
         try:
             self.options.validate()
-        except Exception, e:
+        except Exception as e:
             log.debug("Validation error: %s", str(e).strip())
             raise ValidationError(self, str(e))
 
@@ -1226,7 +1237,7 @@ class Tool(object):
             if opt.is_dependency():
                 continue
             for value in opt._value:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     if not exists(value):
                         raise ValidationError(self,
                                               "Input file not found: %s" %
@@ -1266,7 +1277,7 @@ class Tool(object):
                       paramter and returns True if the value is valid
         """
         o = self.options[option_name]
-        if isinstance(check, basestring):
+        if isinstance(check, string_types):
             # regexp patter
             import re
             for v in o.value:
@@ -1286,7 +1297,7 @@ class Tool(object):
             else:
                 if not check(o.value):
                     self.validation_error(
-                        message if message else "check failed for %s" % str(v)
+                        message if message else "check failed for %s" % o.name
                     )
             return
         raise Exception("Ensure check paramter has to be a "
@@ -1361,7 +1372,7 @@ class Tool(object):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     import glob
                     globbed = glob.glob(value)
                     if globbed:
@@ -1385,7 +1396,7 @@ class Tool(object):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     yield value
 
     def help(self):
@@ -1491,7 +1502,7 @@ class PythonTool(Tool):
                                                 argparse.ZERO_OR_MORE]
                             if action.option_strings or \
                                action.nargs in defaulting_nargs:
-                                if isinstance(action.default, file):
+                                if isinstance(action.default, RawIOBase):
                                     if action.default == sys.stdout:
                                         help += ' (default: stdout)'
                                     elif action.default == sys.stdin:
@@ -1589,7 +1600,7 @@ class PythonTool(Tool):
                 r = self.instance(self)
             else:
                 r = self.instance()
-            if isinstance(r, basestring):
+            if isinstance(r, string_types):
                 # create a pipeline block and evaluate it
                 block = PythonBlock(r)
                 e = block.run(self)

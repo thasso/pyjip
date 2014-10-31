@@ -179,11 +179,11 @@ def test_gemtools_index_command_rendering_for_options():
     p.run('gem_index', input="Makefile", output_dir='test')
     p.expand(validate=True)
     node = p.get('gem_index')
-    print node._tool.options
+    print(node._tool.options)
     job = jip.create_jobs(p)[0]
     infile = os.path.abspath("Makefile")
     base = os.path.dirname(infile)
-    print ">>>", job.command
+    print(">>>", job.command)
     assert job.command == 'gemtools index -i %s -o %s.gem -t 1 ' % (
         infile, os.path.join(base, "test/Makefile"))
 
@@ -201,7 +201,7 @@ def test_gemtools_t_index_inputs():
     infile = os.path.abspath("Makefile")
     annotation = os.path.abspath("setup.py")
     base = os.path.dirname(infile)
-    print ">>>", job.command
+    print(">>>", job.command)
     assert job.command == 'gemtools t-index -i %s -a %s -o %s -t 1 -m 150' % (
         infile, annotation, os.path.join(base, "test/setup.py"))
 
@@ -446,8 +446,8 @@ def test_multiple_pipelines_with_delegated_outputs():
     node.genome = 'genome.fa'
     jobs = jip.create_jobs(p, validate=False)
     assert len(jobs) == 2
-    gem_job = filter(lambda x: x.name == 'gem', jobs)[0]
-    assert gem_job is not None
+    gem_job = list(filter(lambda x: x.name == 'gem', jobs))[0]
+    assert gem_job
     assert gem_job.configuration['index'].get().endswith('genome.gem')
 
 
@@ -482,8 +482,8 @@ def test_embedded_pipelines_stage_two(tmpdir):
     jobs = jip.create_jobs(p)
     assert len(jobs) == 8
     assert jobs[0].configuration['prefix'] == 'test'
-    print ">>>OUTPUT", jobs[0].configuration['output'].raw()
-    print ">>>TMPDIR", tmpdir
+    print(">>>OUTPUT", jobs[0].configuration['output'].raw())
+    print(">>>TMPDIR", tmpdir)
     assert jobs[0].configuration['output'] == [
         os.path.join(tmpdir, 'test.1'),
         os.path.join(tmpdir, 'test.2'),
@@ -496,7 +496,7 @@ def test_embedded_pipelines_stage_two(tmpdir):
     assert jobs[3].configuration['input'] == os.path.join(tmpdir, 'test.3')
     assert jobs[4].configuration['input'] == os.path.join(tmpdir, 'test.4')
     assert jobs[5].configuration['input'] == os.path.join(tmpdir, 'test.5')
-    print jobs[6].configuration['input'].raw()
+    print(jobs[6].configuration['input'].raw())
     assert jobs[6].configuration['input'] == [
         os.path.join(tmpdir, 'consumed_test.1'),
         os.path.join(tmpdir, 'consumed_test.2'),

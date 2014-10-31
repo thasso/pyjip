@@ -56,10 +56,13 @@ Options:
     -h --help                Show this help message
 
 """
+from __future__ import print_function
+
 import jip
 import jip.cluster
 import jip.cli
 import jip.profiles
+import jip.jobs
 from jip.logger import getLogger
 from . import parse_args, colorize, YELLOW, RED
 import sys
@@ -74,7 +77,7 @@ def main():
     if not args['--cmd']:
         args['--cmd'] = "\n".join(sys.stdin.readlines())
     if not args['--cmd']:
-        print >>sys.stderr, "No Command specified!"
+        print("No Command specified!", file=sys.stderr)
         sys.exit(1)
 
     @jip.pipeline()
@@ -118,11 +121,11 @@ def main():
             j.id = i + 1
         for exe in jip.jobs.create_executions(jobs):
             if exe.completed and not force:
-                print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
+                print(colorize("Skipping", YELLOW), exe.name, file=sys.stderr)
             else:
                 success = jip.jobs.run_job(exe.job)
                 if not success:
-                    print >>sys.stderr, colorize(exe.job.state, RED)
+                    print(colorize(exe.job.state, RED), file=sys.stderr)
                     sys.exit(1)
     else:
         try:
@@ -133,16 +136,16 @@ def main():
                                                   check_outputs=not force,
                                                   check_queued=not force):
                 if exe.completed and not force:
-                    print colorize("Skipping %s" % exe.name, YELLOW)
+                    print(colorize("Skipping %s" % exe.name, YELLOW))
                 else:
                     if jip.jobs.submit_job(exe.job, force=force):
-                        print "Submitted %s with remote id %s" % (
+                        print("Submitted %s with remote id %s" % (
                             exe.job.id, exe.job.job_id
-                        )
+                        ))
         except Exception as err:
             log.debug("Submission error: %s", err, exc_info=True)
-            print >>sys.stderr, colorize("Error while submitting job:", RED), \
-                colorize(str(err), RED)
+            print(colorize("Error while submitting job:", RED),
+                  colorize(str(err), RED), file=sys.stderr)
             ##################################################
             # delete all submitted jobs
             ##################################################
@@ -151,4 +154,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

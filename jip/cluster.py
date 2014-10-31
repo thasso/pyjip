@@ -90,14 +90,13 @@ instance and all implementation should avoid storing instance variables that
 are job dependent.
 
 """
-import collections
 import os
 import re
 from subprocess import Popen, PIPE
-import multiprocessing
 
 import jip
 from jip.logger import getLogger
+from jip.six import long
 
 
 #: internal cache to store the cluster instances
@@ -116,12 +115,14 @@ class ClusterImplementationError(Exception):
     """Exception raised in case the cluster class could not be loaded"""
     pass
 
+
 class ExecutableNotFoundError(Exception):
     def __init__(self, executable):
         self.executable = executable
-        
+
     def __str__(self):
         return repr('Executable not found: ' + self.executable)
+
 
 class Cluster(object):
     """Base class for cluster integrations.
@@ -310,7 +311,7 @@ class Slurm(Cluster):
         log.debug("Submitting job with: %s", cmd)
         out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
         try:
-            job.job_id = out.split("\n")[0].strip().split(" ")[-1]
+            job.job_id = out.decode().split("\n")[0].strip().split(" ")[-1]
             int(job.job_id)
         except:
             raise SubmissionError("%s\n"
@@ -395,7 +396,7 @@ class SGE(Cluster):
         self.threads_pe = sge_cfg.get('threads_pe', None)
         self.mem_limit = sge_cfg.get('mem_limit', 'virtual_free')
         self.time_limit = sge_cfg.get('time_limit', 's_rt')
-        self.mem_unit = sge_cfg.get('mem_unit','M').upper()
+        self.mem_unit = sge_cfg.get('mem_unit', 'M').upper()
 
         if which(self.qsub) is None:
             raise ExecutableNotFoundError(self.qsub)
@@ -416,7 +417,6 @@ class SGE(Cluster):
         Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
 
     def list(self):
-        jobs = {}
         params = [self.qstat, "-u", os.getenv('USER')]
         process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
         jobs = []
@@ -429,7 +429,7 @@ class SGE(Cluster):
             jobs.append(fields[0])
         err = "".join([l for l in process.stderr])
         if process.wait() != 0:
-            raise ValueError("Error while listing jobs:\n%s" % (err))
+            raise ValueError("Error while listing jobs:\n%s" % err)
         return jobs
 
     def update(self, job):
@@ -465,7 +465,8 @@ class SGE(Cluster):
         if job.working_directory:
             cmd.extend(["-wd", job.working_directory])
         if job.max_memory > 0:
-            cmd.extend(["-l", '%s=%s' % (self.mem_limit, self._sge_mem(job.max_memory))])
+            cmd.extend(["-l", '%s=%s' % (
+                self.mem_limit, self._sge_mem(job.max_memory))])
         if job.account:
             cmd.extend(["-A", str(job.account)])
         if job.extra is not None:
@@ -512,9 +513,9 @@ class SGE(Cluster):
 
     def _sge_mem(self, mem):
         if self.mem_unit == 'G':
-            mem = mem / 1024
+            mem /= 1024
         if self.mem_unit == 'K':
-            mem = mem * 1024
+            mem *= 1024
         return "%s%s" % (mem, self.mem_unit)
 
 
@@ -570,7 +571,6 @@ class PBS(Cluster):
         Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
 
     def list(self):
-        jobs = {}
         params = [self.qstat, "-u", os.getenv('USER')]
         process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
         jobs = []
@@ -583,7 +583,7 @@ class PBS(Cluster):
             jobs.append(fields[0])
         err = "".join([l for l in process.stderr])
         if process.wait() != 0:
-            raise ValueError("Error while listing jobs:\n%s" % (err))
+            raise ValueError("Error while listing jobs:\n%s" % err)
         return jobs
 
     def update(self, job):
@@ -725,7 +725,6 @@ class LSF(Cluster):
         Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
 
     def list(self):
-        jobs = {}
         params = [self.bjobs]
         process = Popen(params, stdout=PIPE, stderr=PIPE, shell=False)
         jobs = []
@@ -738,7 +737,7 @@ class LSF(Cluster):
             jobs.append(fields[0])
         err = "".join([l for l in process.stderr])
         if process.wait() != 0:
-            raise ValueError("Error while listing jobs:\n%s" % (err))
+            raise ValueError("Error while listing jobs:\n%s" % err)
         return jobs
 
     def update(self, job):
@@ -778,9 +777,9 @@ class LSF(Cluster):
         if job.max_memory > 0:
             limit = job.max_memory
             if self.limits == "KB":
-                limit = limit * 1024
+                limit *= 1024
             elif self.limits == "GB":
-                limit = limit * 1024 * 1024
+                limit *= 1024 * 1024
             cmd.extend(["-M", str(limit)])
         if job.max_time > 0:
             cmd.extend(["-W", str(job.max_time)])
@@ -881,6 +880,7 @@ def _from_name(name):
     _cluster_cache[name] = instance
     return instance
 
+
 def which(program):
     """Given an executable file name, search for in in the PATH and
     return the location of the executable.
@@ -888,8 +888,9 @@ def which(program):
     :param program: name of the executable to search for
     """
     import os
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    def is_exe(f_path):
+        return os.path.isfile(f_path) and os.access(f_path, os.X_OK)
 
     fpath, fname = os.path.split(program)
     if fpath:

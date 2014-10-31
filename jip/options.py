@@ -91,7 +91,11 @@ import re
 import os
 from os.path import exists
 import logging
-from StringIO import StringIO
+from jip.six import StringIO, string_types, PY3, iteritems
+
+if PY3:
+    from io import RawIOBase
+    file = RawIOBase
 
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
@@ -350,7 +354,7 @@ class Option(object):
             # only make strings absolute that content content
             # do not start with / and do not contain a ${. The ${ check
             # is there to avoid making things absolute too early
-            if isinstance(v, basestring) and v and len(v) > 0 and\
+            if isinstance(v, string_types) and v and len(v) > 0 and\
                     not v.startswith('/') and "${" not in v:
                 log.debug("Make option %s absolute to %s",
                           self.name, path)
@@ -365,7 +369,7 @@ class Option(object):
         values = []
         import glob
         for v in self._value:
-            if isinstance(v, basestring) and v and len(v) > 0 and\
+            if isinstance(v, string_types) and v and len(v) > 0 and\
                     "${" not in v:
                 log.debug("Globbing option %s", self.name)
                 v = sorted(glob.glob(v))
@@ -398,7 +402,7 @@ class Option(object):
             rendered = []
             ctx = self.render_context
             for value in values:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     v = render_template(value, **ctx)
                     rendered.append(v)
                 elif isinstance(value, Option):
@@ -412,7 +416,7 @@ class Option(object):
                     rendered.append(value)
             # update default
             if self.default is not None and\
-                    isinstance(self.default, basestring):
+                    isinstance(self.default, string_types):
                 self.default = render_template(self.default, **ctx)
             self.render_context = None
             self._value = rendered
@@ -674,7 +678,7 @@ class Option(object):
         self.validate()
         if not self.is_dependency():
             for v in self._value:
-                if isinstance(v, basestring) and not exists(v):
+                if isinstance(v, string_types) and not exists(v):
                     raise ValueError("File not found: %s" % v)
 
     def check_files(self):
@@ -740,6 +744,9 @@ class Option(object):
     def __nonzero__(self):
         return bool(self.raw())
 
+    def __bool__(self):
+        return self.__nonzero__()
+
     def __hash__(self):
         if self.source is None:
             return self.name.__hash__()
@@ -762,7 +769,7 @@ class Options(object):
     option instances, i.e.::
 
         for o in options:
-            print o.name
+            print(o.name)
 
     In addition, :py:func:`get_default_input` and
     :py:func:`get_default_output()` can be used to access the default options
@@ -772,7 +779,7 @@ class Options(object):
     specified type::
 
         for inopt in options.get_by_type(TYPE_INPUT):
-            print inopt.name
+            print(inopt.name)
 
     Option values can also be set directly using the dictionary notation. For
     example::
@@ -1168,7 +1175,7 @@ class Options(object):
 
     def validate(self):
         """Validate all options"""
-        map(Option.validate, self.options)
+        list(map(Option.validate, self.options))
 
     def parse(self, args):
         """Parse the given arguments and full the options values.
@@ -1210,7 +1217,7 @@ class Options(object):
                 user_specified[self.dest] = True
             action.__call__ = _action_delegate
 
-        for k, v in parser._registries['action'].iteritems():
+        for k, v in iteritems(parser._registries['action']):
             if hasattr(v, "__call__"):
                 _create_action_delegate(v)
 
@@ -1302,7 +1309,7 @@ class Options(object):
         if "help" in parsed:
             del parsed['help']
         ## apply the values
-        for k, v in parsed.iteritems():
+        for k, v in iteritems(parsed):
             opt = self[k]
             opt.user_specified = user_specified.get(k, False)
             if opt.user_specified:
@@ -1330,8 +1337,6 @@ class Options(object):
         :returns: a new Options instance
         :rtype: :class:`Options`
         """
-        from StringIO import StringIO
-
         opts = cls(source=source)
         buf = StringIO()
         parser.print_usage(buf)
@@ -1449,10 +1454,10 @@ class Options(object):
         options = docopt.parse_defaults(doc)
         type_inputs = docopt.parse_defaults(doc, "inputs:")
         options += type_inputs
-        inputs += map(to_name, type_inputs)
+        inputs += list(map(to_name, type_inputs))
         type_outputs = docopt.parse_defaults(doc, "outputs:")
         options += type_outputs
-        outputs += map(to_name, type_outputs)
+        outputs += list(map(to_name, type_outputs))
         pattern = docopt.parse_pattern(docopt.formal_usage(usage_sections[0]),
                                        options)
 

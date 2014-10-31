@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """
+q
 Edit jip job commands
 
 Usage:
@@ -10,6 +11,8 @@ Options:
     -j, --job <id>  List jobs with specified id
     -h --help       Show this help message
 """
+from __future__ import print_function
+
 import os
 import subprocess
 import sys
@@ -23,12 +26,12 @@ def main():
     args = parse_args(__doc__, options_first=False)
     job = jip.db.get(args['--job'])
     if not job:
-        print >>sys.stderr, colorize("No job found!", RED)
+        print(colorize("No job found!", RED), file=sys.stderr)
         sys.exit(1)
     editor = os.getenv("EDITOR", 'vim')
     if job.state in jip.db.STATES_ACTIVE:
-        print >>sys.stderr, "You can not edit a job that is " \
-            "currently queued or running!"
+        print("You can not edit a job that is currently queued or running!",
+              file=sys.stderr)
         sys.exit(1)
     tmp = create_temp_file()
     tmp.write(job.command)
@@ -38,10 +41,11 @@ def main():
         with open(tmp.name) as f:
             job.command = "".join(f.readlines())
         jip.db.save(job)
-        print colorize("Job updated", GREEN)
-        print "You can restart the change job with:", colorize(
+        print(colorize("Job updated", GREEN))
+        print("You can restart the change job with:", colorize(
             "jip restart -j %s" % (str(job.id)), YELLOW
-        )
+        ))
+
 
 if __name__ == "__main__":
     main()

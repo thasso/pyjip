@@ -102,6 +102,8 @@ Options:
 Other Options:
     -h --help             Show this help message
 """
+from __future__ import print_function
+
 import os
 import sys
 import json
@@ -113,6 +115,7 @@ import jip.tools
 import jip.options
 import jip.profiles
 import jip.pipelines
+from jip.six import iteritems
 from jip.logger import getLogger
 
 log = getLogger('jip.cli.jip_specs')
@@ -147,8 +150,8 @@ def main(argv=None):
     script_args = args["<args>"]
     try:
         script = jip.find(script_file)
-    except LookupError, e:
-        print >>sys.stderr, str(e)
+    except LookupError as e:
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
     # disable required checks
@@ -166,7 +169,7 @@ def main(argv=None):
     ]
     for j in jobs:
         job_env = {}
-        for k, v in j.env.iteritems():
+        for k, v in iteritems(j.env):
             if not k in env_exckludes and v and v != default_env.get(k, None):
                 job_env[k] = v
         spec = sorted_dict({
@@ -181,7 +184,7 @@ def main(argv=None):
         })
         specs[j.name] = spec
 
-    print json.dumps({"jobs": specs}, indent=4, sort_keys=False)
+    print(json.dumps({"jobs": specs}, indent=4, sort_keys=False))
 
 
 if __name__ == "__main__":

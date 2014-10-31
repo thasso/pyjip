@@ -17,6 +17,7 @@ import jip.pipelines
 import jip.tools
 import jip.executils
 import jip.options
+from jip.six import string_types, iteritems
 
 log = jip.logger.getLogger("jip.jobs")
 
@@ -171,30 +172,10 @@ def __sort_children(jobs):
         2. the job name
         3. job id
 
-    :param children: the list of jobs
+    :param jobs: the list of jobs
     :returns: sorted list of jobs
     """
-    def _cmp_names(a, b):
-        if a.name < b.name:
-            return -1
-        elif a.name > b.name:
-            return 1
-        return 0
-
-    def _cmp(a, b):
-        la = len(a.children)
-        lb = len(b.children)
-        if la < lb:
-            return 1
-        elif la > lb:
-            return -1
-        elif a.name and b.name:
-            return _cmp_names(a, b)
-        elif a.id and b.id:
-            return a.id - b.id
-        return 0
-
-    return sorted(jobs, cmp=_cmp)
+    return sorted(jobs, key=lambda x: (-len(x.children), x.name, x.id))
 
 
 def create_groups(jobs):
@@ -213,7 +194,7 @@ def create_groups(jobs):
     def _recursive_add(job, group=None):
         group = [] if group is None else group
         group.append(job)
-        map(lambda j: _recursive_add(j, group), job.pipe_to)
+        list(map(lambda j: _recursive_add(j, group), job.pipe_to))
         return group
 
     groups = []
@@ -222,7 +203,7 @@ def create_groups(jobs):
         if j in done or j.is_stream_target():
             continue
         group = _recursive_add(j)
-        map(done.add, group)
+        list(map(done.add, group))
         groups.append(group)
     return groups
 
@@ -360,7 +341,7 @@ def _setup_signal_handler(job, save=False):
         if save:
             db.update_job_states([job] + job.pipe_to)
         sys.exit(1)
-        
+
     log.debug("Setting up signal handler for %s", job)
     signal(SIGTERM, handle_signal)
     signal(SIGINT, handle_signal)
@@ -660,7 +641,7 @@ def submit_job(job, clean=False, force=False, save=True,
         child.job_id = job.job_id
         for c in child.pipe_to:
             _set_id(c)
-    map(_set_id, job.pipe_to)
+    list(map(_set_id, job.pipe_to))
 
     if save:
         # save updates to job_id and dates for all_jobs
@@ -696,7 +677,7 @@ def run_job(job, save=False, profiler=False, submit_embedded=False, closeDB=Fals
     # load job environment
     env = job.env
     if env is not None:
-        for k, v in env.iteritems():
+        for k, v in iteritems(env):
             log.info("Loading job environment %s:%s", k, v)
             os.environ[k] = str(v)
 
@@ -868,7 +849,7 @@ def _create_jobs_for_group(nodes, nodes2jobs):
                 # to all targets and the output file(s)
                 out_option = source_job.tool.options.get_default_output()
                 out_values = [v for v in out_option.value
-                              if isinstance(v, basestring)]
+                              if isinstance(v, string_types)]
                 if len(out_values) > 0:
                     source_job.pipe_targets = out_values
                     out_option.set(sys.stdout)
@@ -945,7 +926,7 @@ def from_node(node, env=None, keep=False):
 
     try:
         from py._io.capture import DontReadFromInput, EncodedFile
-        from StringIO import StringIO
+        from jip.six import StringIO
         for o in job.configuration:
             if isinstance(o.raw(), (DontReadFromInput, EncodedFile, StringIO)):
                 log.error("pseudo file found as option! We work around "

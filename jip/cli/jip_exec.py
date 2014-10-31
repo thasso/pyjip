@@ -16,6 +16,7 @@ Other Options:
 from jip.logger import getLogger
 import jip.jobs
 import jip.db
+from jip.six import iteritems
 from . import parse_args
 import sys
 import os
@@ -49,7 +50,7 @@ def main():
         # load job environment
         env = job.env
         if env is not None:
-            for k, v in env.iteritems():
+            for k, v in iteritems(env):
                 log.info("Loading job environment %s:%s", k, v)
                 os.environ[k] = str(v)
 

@@ -12,6 +12,8 @@ Options:
     -J, --cluster-job <cid>...  List jobs with specified cluster id
     -h --help                   Show this help message
 """
+from __future__ import print_function
+
 import jip.db
 import jip.jobs
 from . import parse_args, parse_job_ids, confirm
@@ -34,11 +36,11 @@ def main():
     if confirm("Are you sure you want "
                "to cancel %d jobs" % len(jobs),
                False):
-        print >>sys.stderr, "Cancelling %s jobs" % len(jobs)
+        print("Cancelling %s jobs" % len(jobs), file=sys.stderr)
         for job in jobs:
             if jip.jobs.cancel(job, clean_logs=args['--clean'],
                                save=True, cancel_children=False):
-                print >>sys.stderr, "Canceled %s" % job.id
+                print("Canceled %s" % job.id, file=sys.stderr)
 
 
 if __name__ == "__main__":

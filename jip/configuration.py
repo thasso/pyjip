@@ -27,6 +27,9 @@ from os import getenv
 from os.path import join, exists
 import copy
 
+import jip
+from jip.six import iteritems
+
 
 log = logging.getLogger("jip.configuration")
 
@@ -55,7 +58,7 @@ class Config(object):
     the dotted access works if you request it as a single key::
 
         >>> c = Config()
-        >>> print c['profiles.default']
+        >>> print(c['profiles.default'])
         {}
 
     But it will **not** work recursively through all attribute (
@@ -146,7 +149,7 @@ class Config(object):
 
 def _update(config, other):
     """Recursively update the given config dict with the other dict"""
-    for k, v in other.iteritems():
+    for k, v in iteritems(other):
         if isinstance(v, collections.Mapping):
             r = _update(config.get(k, {}), v)
             config[k] = r
@@ -163,5 +166,5 @@ def _load(path):
             return json.load(f)
         except ValueError:
             log.error("Malformed json file %s", path)
-            raise jip.ValidationError('jip.configuration', "Malformed json file %s" % (path))
-        
+            raise jip.ValidationError(
+                'jip.configuration', "Malformed json file %s" % path)

@@ -4,6 +4,7 @@ import os
 import jip
 import jip.db
 import jip.grids as cl
+import jip.jobs
 import time
 
 
@@ -11,10 +12,10 @@ def test_sorting_local_jobs():
     jobs = [
         cl._Job(job_id=4),
         cl._Job(job_id=1),
-        cl._Job(job_id=2, dependencies=set([1])),
+        cl._Job(job_id=2, dependencies={1}),
         cl._Job(job_id=3),
-        cl._Job(job_id=5, dependencies=set([1, 2, 3])),
-        cl._Job(job_id=6, dependencies=set([1, 2])),
+        cl._Job(job_id=5, dependencies={1, 2, 3}),
+        cl._Job(job_id=6, dependencies={1, 2}),
     ]
     sorted_jobs = sorted(jobs)
     assert [j.job_id for j in sorted_jobs] == [1, 3, 4, 2, 6, 5]
@@ -103,10 +104,10 @@ def test_single_job_master_termination(tmpdir):
     # we do the query with a fresh session though
     job = jip.db.get(1)
     # print the log files
-    print ">>>STD ERR LOG"
-    print open(c.resolve_log(job, job.stderr)).read()
-    print ">>>STD OUT LOG"
-    print open(c.resolve_log(job, job.stdout)).read()
+    print(">>>STD ERR LOG")
+    print(open(c.resolve_log(job, job.stderr)).read())
+    print(">>>STD OUT LOG")
+    print(open(c.resolve_log(job, job.stdout)).read())
     assert job is not None
     assert job.state == jip.db.STATE_FAILED
 
@@ -138,7 +139,7 @@ def test_job_cancelation(tmpdir):
     time.sleep(0.1)
 
     # cancel the job
-    print jobs, jobs[0].id
+    print(jobs, jobs[0].id)
     job = jip.db.get(1)
     jip.jobs.cancel(job, cluster=c, save=True)
 
@@ -149,17 +150,17 @@ def test_job_cancelation(tmpdir):
     job_1 = jip.db.get(1)
     job_2 = jip.db.get(2)
     # print the log files
-    print ">>>JOB 1 STD ERR LOG"
-    print open(c.resolve_log(job, job_1.stderr)).read()
-    print ">>>JOB 1 STD OUT LOG"
-    print open(c.resolve_log(job, job_1.stdout)).read()
+    print(">>>JOB 1 STD ERR LOG")
+    print(open(c.resolve_log(job, job_1.stderr)).read())
+    print(">>>JOB 1 STD OUT LOG")
+    print(open(c.resolve_log(job, job_1.stdout)).read())
 
     assert job_1.state == jip.db.STATE_CANCELED
     assert job_2.state == jip.db.STATE_CANCELED
 
 
 def test_job_hierarchy_execution(tmpdir):
-    print ">>>", tmpdir
+    print(">>>", tmpdir)
     tmpdir = str(tmpdir)
     target_file = os.path.join(tmpdir, 'result')
     db_file = os.path.join(tmpdir, "test.db")
@@ -215,7 +216,7 @@ def test_job_hierarchy_execution(tmpdir):
 
 
 def test_job_hierarchy_execution_with_pipes_and_dispatching(tmpdir):
-    print ">>>", tmpdir
+    print(">>>", tmpdir)
     tmpdir = str(tmpdir)
     target_file = os.path.join(tmpdir, 'result')
     db_file = os.path.join(tmpdir, "test.db")

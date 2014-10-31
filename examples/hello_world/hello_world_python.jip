@@ -1,5 +1,6 @@
 #!/usr/bin/env jip
 
 #%begin command python
-print "Hello world"
+from __future__ import print_function
+print("Hello world")
 #end

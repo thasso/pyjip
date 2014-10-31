@@ -5,6 +5,8 @@ quickly get a module level logger
 from os import getenv
 import logging
 
+from jip.six import string_types
+
 
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 #The background is set with 40 plus the number of the color, and the foreground with 30
@@ -54,7 +56,7 @@ def getLogger(name):
 def _get_level(level):
     """Translate a string into a logging level"""
     numeric_level = level
-    if isinstance(level, basestring):
+    if isinstance(level, string_types):
         try:
             numeric_level = int(level)
         except:

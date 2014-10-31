@@ -22,6 +22,7 @@ from jip.logger import getLogger
 import jip.db
 import jip.cluster
 import jip.executils
+import jip.jobs
 from . import parse_args
 
 log = getLogger("jip.cli.jip_check")

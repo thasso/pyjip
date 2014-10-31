@@ -46,23 +46,23 @@ Columns supported for output:
     Directory     The jobs working directory
 
 """
+from __future__ import print_function
+
 from collections import defaultdict
 from datetime import timedelta, datetime
 import sys
 
 import jip.cluster
 from . import render_table, colorize, STATE_COLORS, parse_args, \
-    STATE_CHARS, parse_job_ids, YELLOW, BLUE, GREEN, RED, CYAN, \
-    MAGENTA, WHITE
+    STATE_CHARS, parse_job_ids, YELLOW, GREEN
 import jip.db
-
+import jip.jobs
 
 def _time(minutes):
     return timedelta(seconds=60 * minutes)
 
 
 def _runtime(job):
-    runtime = None
     if job.start_date is not None:
         runtime = (job.finish_date if job.finish_date is not None
                    else datetime.now()) - job.start_date
@@ -142,7 +142,7 @@ def _pipeline_job(job):
     all_jobs = list(parent_jobs)
     count = float(len(all_jobs))
     counts = defaultdict(int)
-    queues = set([job.queue])
+    queues = {job.queue}
     hosts = set([])
     max_time = job.max_time
     max_memory = job.max_memory
@@ -190,9 +190,7 @@ def _pipeline_job(job):
         line_sum += length
         if i == last_with_value and line_sum < line:
             length += int(line - line_sum)
-        progress.append("".join(
-            [colorize(STATE_CHARS[s], STATE_COLORS[s]) * length]
-        ))
+        progress.append(colorize(STATE_CHARS[s], STATE_COLORS[s]) * length)
 
     progress = "".join(progress)
     job.deps = len(all_jobs)
@@ -208,37 +206,37 @@ def _pipeline_job(job):
     job.hosts = ", ".join(hosts)
     return state
 
+
 class ColorSwitcher():
-    
     def __init__(self, attribute, color1=YELLOW, color2=GREEN):
         self.attribute = attribute
         self.color1 = color1
         self.color2 = color2
         self.actual_color = color1
         self.last = None
-    
+
     def _switch_color(self):
         if self.actual_color == self.color1:
             self.actual_color = self.color2
         else:
             self.actual_color = self.color1
-    
+
     def colorize(self, actual):
         if actual is None or not hasattr(actual, self.attribute):
             return
 
         act_attr = getattr(actual, self.attribute)
-        
+
         if self.last is None or not hasattr(self.last, self.attribute):
             self.last = actual
             return colorize(act_attr, self.actual_color)
-        
+
         last_attr = getattr(self.last, self.attribute)
-        
+
         if last_attr != act_attr:
             self._switch_color()
             self.last = actual
-        
+
         return colorize(act_attr, self.actual_color)
 
 pipeline_type_colorswitcher = ColorSwitcher('pipeline', '', YELLOW)
@@ -331,7 +329,7 @@ def main():
     # check the columns
     for column in columns:
         if not column in headers:
-            print >>sys.stderr, "Unknown output property:", column
+            print("Unknown output property:", column, file=sys.stderr)
             sys.exit(1)
 
     ####################################################################
@@ -404,11 +402,11 @@ def main():
             if not direct:
                 rows.append([headers[column](job) for column in columns])
             else:
-                print "\t".join([str(headers[column](job))
-                                 for column in columns])
+                print("\t".join([str(headers[column](job))
+                                 for column in columns]))
         LAST = job
     if not direct:
-        print render_table(columns, rows)
+        print(render_table(columns, rows))
 
 
 if __name__ == "__main__":

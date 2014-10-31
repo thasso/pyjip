@@ -36,8 +36,8 @@ def main():
     dry = args['--dry']
 
     if not logs and not data:
-        print colorize("Neither --logs nor --data selected."
-                       "\nNothing to delete", RED)
+        print(colorize("Neither --logs nor --data selected."
+                       "\nNothing to delete", RED))
         return
 
     if data and not confirm("You are about to delete job output!\n" +
@@ -53,13 +53,13 @@ def main():
         cluster = jip.cluster.get()
         for job in jobs:
             if logs:
-                print "Removing logs for", job
+                print("Removing logs for", job)
                 stdout = cluster.resolve_log(job, job.stdout)
                 _remove(stdout, dry=dry)
                 stderr = cluster.resolve_log(job, job.stderr)
                 _remove(stderr, dry=dry)
             if data:
-                print "Removing data for", job
+                print("Removing data for", job)
                 files = job.get_output_files()
                 for f in files:
                     _remove(f, dry=dry)
@@ -69,9 +69,9 @@ def _remove(f, dry=True):
     if not f or not os.path.exists(f):
         return
     if dry:
-        print f
+        print(f)
     else:
-        print "Removing", f
+        print("Removing", f)
         os.remove(f)
 
 

@@ -45,7 +45,7 @@ def test_job_names_after_multiplexing_with_name_template():
         n._tool.validate = lambda: True
 
     jobs = jip.create_jobs(p)
-    print jobs
+    print(jobs)
     assert len(jobs) == 3
     assert jobs[0].name == "A"
     assert jobs[1].name == "B"
@@ -422,7 +422,7 @@ def test_job_input_order():
     assert [os.path.basename(f) for f in job.configuration['input'].raw()] == [
         "out.1", "out.2", "out.3"
     ]
-    print job.command
+    print(job.command)
 
 
 def test_embedded_pipelines():

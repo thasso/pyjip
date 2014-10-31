@@ -49,7 +49,7 @@ x = ${x}
     p = jip.Pipeline()
     p.run('simple', myopt='testval')
     jobs = jip.create_jobs(p)
-    print jobs[0].command
+    print(jobs[0].command)
     assert jobs[0].command == """
 CONTENT
 myval = testval

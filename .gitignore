@@ -11,3 +11,4 @@ distribute-0.6.34*
 examples/bwa/reference.fa.*
 .coverage
 htmlcov/
+venv*

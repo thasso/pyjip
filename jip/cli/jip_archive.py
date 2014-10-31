@@ -35,7 +35,7 @@ def main():
                 if clean:
                     jip.jobs.clean(job)
                 jip.db.update_archived(job, True)
-                print "%d archived" % job.id
+                print("%d archived" % job.id)
 
 
 if __name__ == "__main__":

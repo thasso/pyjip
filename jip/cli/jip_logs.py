@@ -25,6 +25,8 @@ from . import parse_args, parse_job_ids
 
 from subprocess import Popen
 from os.path import exists
+
+import jip.db
 from jip.logger import getLogger
 
 log = getLogger("jip.cli.jip_logs")
@@ -34,7 +36,7 @@ def main():
     args = parse_args(__doc__, options_first=False)
     job_ids, cluster_ids = parse_job_ids(args)
     if not job_ids and not cluster_ids:
-        print __doc__.strip("\n")
+        print(__doc__.strip("\n"))
         return
     jobs = jip.db.query(job_ids=job_ids, cluster_ids=cluster_ids,
                         archived=None, fields=['stdout', 'stderr',
@@ -58,7 +60,7 @@ def show_log(job, cluster, args):
     if both or args["--error"]:
         log.debug("Resolving stderr for %s : %s", job.name, job.stderr)
         stderr = cluster.resolve_log(job, job.stderr)
-        log.debug("Resolved stderr for %s : %s", job.name, stdout)
+        log.debug("Resolved stderr for %s : %s", job.name, stderr)
         if stderr and exists(stderr):
             _tail(job, stderr, lines=int(args["--lines"]),
                   cmd="tail" if not args["--head"] else "head",
@@ -66,14 +68,14 @@ def show_log(job, cluster, args):
 
 
 def _tail(job, file, lines=10, cmd="tail", is_error=False):
-    print "==> [%s] %s [%s] -- %s <==" % \
+    print("==> [%s] %s [%s] -- %s <==" % \
         (colorize(str(job.id), GREEN),
          colorize(str(job.name), BLUE),
          colorize(job.state, STATE_COLORS[job.state]),
-         colorize(file, RED if is_error else GREEN))
+         colorize(file, RED if is_error else GREEN)))
     p = Popen([cmd, "-n", str(lines), str(file)])
     p.wait()
-    print ""
+    print("")
 
 
 if __name__ == "__main__":

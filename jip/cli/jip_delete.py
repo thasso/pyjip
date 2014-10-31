@@ -12,6 +12,7 @@ Options:
     -c, --clean              Remove job logs
     -h --help                Show this help message
 """
+from __future__ import print_function
 
 import jip.db
 import jip.jobs
@@ -36,7 +37,7 @@ def main():
                "to delete %d jobs" % len(jobs),
                False):
         for job in jobs:
-            print >>sys.stderr, "Deleting %s" % (job.id)
+            print("Deleting %s" % job.id, file=sys.stderr)
             jip.jobs.delete(job, clean_logs=args['--clean'])
 
 

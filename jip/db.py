@@ -28,6 +28,8 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from jip.logger import getLogger
 from jip.tempfiles import create_temp_file
+from jip.six import string_types, StringIO, iteritems
+from jip.six.moves.urllib.parse import urlsplit, urlunsplit
 
 log = getLogger('jip.db')
 
@@ -321,7 +323,7 @@ class Job(Base):
         if not self.pipe_targets:
             return self.configuration
         for ot in self.pipe_targets:
-            if isinstance(ot, basestring):
+            if isinstance(ot, string_types):
                 try:
                     def_out = self.configuration.get_default_output()
                     log.debug('%s | restoring configuration, setting %s=%s',
@@ -379,7 +381,7 @@ class Job(Base):
         """Load the job environment"""
         env = self.env
         if env is not None:
-            for k, v in env.iteritems():
+            for k, v in iteritems(env):
                 os.environ[k] = str(v)
         os.environ["JIP_ID"] = str(self.id) if self.id is not None else ""
         os.environ["JIP_JOB"] = str(self.job_id) if self.job_id else ""
@@ -403,10 +405,10 @@ class Job(Base):
             if self.interpreter == 'bash':
                 log.debug("Setting up default bash environment "
                           "and enable pipefail")
-                script_file.write("set -o pipefail\n\n")
+                script_file.write(b"set -o pipefail\n\n")
 
             log.debug("Writing command: %s", self.command)
-            script_file.write(self.command)
+            script_file.write(self.command.encode('utf-8'))
             script_file.close()
             cmd = [self.interpreter if self.interpreter else "bash"]
             #if self.interpreter_args:
@@ -435,8 +437,7 @@ class Job(Base):
                               "if you reach this message outside of a doctest "
                               "please let us now and we have to find another "
                               "workaround!")
-                    import StringIO
-                    if isinstance(sout, StringIO.StringIO):
+                    if isinstance(sout, StringIO):
                         self._process = subprocess.Popen(
                             cmd + [script_file.name])
                     else:
@@ -446,7 +447,7 @@ class Job(Base):
                 else:
                     raise
             return self._process
-        except OSError, err:
+        except OSError as err:
             # catch the errno 2 No such file or directory, which indicates the
             # interpreter is not available
             if err.errno == 2:
@@ -462,7 +463,7 @@ class Job(Base):
         :returns: the command send to the cluster
         """
         if db_in_memory or db_path is None:
-            return """jip exec %d""" % (self.id)
+            return """jip exec %d""" % self.id
         else:
             return "jip exec --db %s %d" % (db_path, self.id)
 
@@ -490,7 +491,7 @@ class Job(Base):
             return True
         ## in case this is a temp job, with stream out check the children
         if self.temp and len(self.pipe_to) > 0:
-            for target in [c for c in self.children if not c.is_done()]:
+            for _ in [c for c in self.children if not c.is_done()]:
                 return False
             return True
 
@@ -530,7 +531,7 @@ class Job(Base):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     import glob
                     globbed = glob.glob(value)
                     if globbed:
@@ -540,7 +541,7 @@ class Job(Base):
                         yield value
         if self.pipe_targets:
             for value in self.pipe_targets:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     import glob
                     globbed = glob.glob(value)
                     if globbed:
@@ -563,7 +564,7 @@ class Job(Base):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             for value in values:
-                if isinstance(value, basestring):
+                if isinstance(value, string_types):
                     yield value
 
     def __repr__(self):
@@ -594,7 +595,7 @@ def init(path=None, in_memory=False, pool=None):
     # Constants: DB errors (MySQL numbers)
     DBAPIError_UNKNOWNDATABASE = 1049
     DBAPIError_UNKNOWNHOST     = 2005
-    
+
 
     if in_memory:
         log.debug("Initialize in-memory DB")
@@ -643,13 +644,11 @@ def init(path=None, in_memory=False, pool=None):
         # create engine
         engine = sql_create_engine(path)
     elif type == 'mysql':
-        import urlparse as up
-        
         # Split connection string
-        dburl = up.urlsplit(path)
-        db_conn_string = up.urlunsplit((dburl.scheme, dburl.netloc, '', dburl.query, dburl.fragment))
+        dburl = urlsplit(path)
+        db_conn_string = urlunsplit((dburl.scheme, dburl.netloc, '', dburl.query, dburl.fragment))
         db_database = dburl.path[1:] # Trim the forward slash
-        
+
         # Prepare the connection to the DBMS, no DB selected
         engine = sql_create_engine(db_conn_string, poolclass=pool)
 
@@ -674,7 +673,6 @@ def init(path=None, in_memory=False, pool=None):
         # DB name already exists and connection is working, create one
         # with the full connection string
         engine = sql_create_engine(path, poolclass=pool)
-
 
     db_path = path
     db_in_memory = False
@@ -921,7 +919,7 @@ def delete(jobs):
             relation_table.c.job_id == bindparam("_id")
         )
         stmt.append(dep)
-    
+
     # convert the job values
     values = [{"_id": j.id} for j in jobs if j.id is not None]
     if values:
@@ -1075,5 +1073,5 @@ def query(job_ids=None, cluster_ids=None, archived=False, fields=None, pipeline_
     if cluster_ids is not None and len(cluster_ids) > 0:
         jobs = jobs.filter(Job.job_id.in_(cluster_ids))
     if pipeline_name is not None:
-        jobs = jobs.filter(Job.pipeline_name.like("%%%s%%" % (pipeline_name)))
+        jobs = jobs.filter(Job.pipeline_name.like("%%%s%%" % pipeline_name))
     return jobs

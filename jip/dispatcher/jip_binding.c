@@ -1,13 +1,22 @@
 #include "Python.h"
 #include "jip_dispatcher.h"
 
+#if PY_MAJOR_VERSION >= 3
+#define PyString_Check PyUnicode_Check
+#define PyString_AsString PyUnicode_AsUnicode
+#endif
+
 
 bool _update_files(PyObject* list, FILE** target, uint64_t elements){
   PyObject* item;
   FILE* current;
   uint64_t i = 0;
+  int fd1 ;
+  PyObject *mode_obj1 ;
+  PyObject *mode_byte_obj1;
+  char *mode1;
   for (i = 0; i < elements; i++) {
-    item = PySequence_Fast_GET_ITEM(list, i);    
+    item = PySequence_Fast_GET_ITEM(list, i);
     if(Py_None == item){
       target[i] = NULL;
     }else{
@@ -20,7 +29,17 @@ bool _update_files(PyObject* list, FILE** target, uint64_t elements){
           return false;
         }
       }else{
+#if PY_MAJOR_VERSION >= 3
+        fd1 = PyObject_AsFileDescriptor(item);
+        mode_obj1 = PyObject_GetAttrString(item, "mode");
+        mode_byte_obj1 = PyUnicode_AsUTF8String(mode_obj1);
+        mode1 = PyBytes_AsString(mode_byte_obj1);
+        current = fdopen(fd1, mode1);
+        Py_XDECREF(mode_obj1);
+        Py_XDECREF(mode_byte_obj1);
+#else
         current = PyFile_AsFile(item);
+#endif
       }
       target[i] = current;
     }
@@ -31,7 +50,7 @@ bool _update_files(PyObject* list, FILE** target, uint64_t elements){
 PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, FILE **, FILE **, uint64_t)){
   /* Parse argument tuple and open FILE* for input and
    * output. This should raise an exception if something fails
-   */  
+   */
   PyObject* seq = PySequence_Fast(args, "Expected the argument list");
   long num_sources = 0;
   long num_targets_1 = 0;
@@ -68,7 +87,7 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
   FILE** source_f = malloc(num_sources * sizeof(FILE*));
   FILE** target_f_1 = malloc(num_targets_1 * sizeof(FILE*));
   FILE** target_f_2 = malloc(num_targets_2 * sizeof(FILE*));
-  
+
   bool error = false;
   if(!_update_files(py_sources, source_f, num_sources)){
     error = true;
@@ -101,7 +120,7 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
     }
 
   }
-  // cleanup 
+  // cleanup
   Py_DECREF(seq);
   if(error) return NULL;
   Py_RETURN_NONE;
@@ -120,15 +139,15 @@ static PyObject* dispatch_streams_fanin(PyObject *self, PyObject *args){
 }
 
 static PyMethodDef DispatchMethods[] = {
-    {"dispatch",  dispatch_streams, METH_VARARGS, 
+    {"dispatch",  dispatch_streams, METH_VARARGS,
      "Dispatch data from source to all targets. The method "
      "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
-    {"dispatch_fanout",  dispatch_streams_fanout, METH_VARARGS, 
+    {"dispatch_fanout",  dispatch_streams_fanout, METH_VARARGS,
      "Dispatch data from source to all targets. The method "
      "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
-    {"dispatch_fanin",  dispatch_streams_fanin, METH_VARARGS, 
+    {"dispatch_fanin",  dispatch_streams_fanin, METH_VARARGS,
      "Dispatch data from source to all targets. The method "
      "excepts strings and open file handles you have to specify at least "
      "one source and one target."},
@@ -136,6 +155,24 @@ static PyMethodDef DispatchMethods[] = {
 };
 
 
+#if PY_MAJOR_VERSION >= 3
+static struct PyModuleDef moduledef = {
+    PyModuleDef_HEAD_INIT,
+    "dispatcher",        /* m_name */
+    "JIP Dispatcher",    /* m_doc */
+    -1,                  /* m_size */
+    DispatchMethods,     /* m_methods */
+    NULL,                /* m_reload */
+    NULL,                /* m_traverse */
+    NULL,                /* m_clear */
+    NULL,                /* m_free */
+};
+
+PyMODINIT_FUNC PyInit_dispatcher(void) {
+    (void) PyModule_Create(&moduledef);
+}
+#else
 PyMODINIT_FUNC initdispatcher(void){
       (void) Py_InitModule("dispatcher", DispatchMethods);
 }
+#endif

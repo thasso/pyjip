@@ -12,6 +12,7 @@ from jinja2 import Environment, Undefined, contextfilter
 from jinja2.exceptions import TemplateSyntaxError
 from jip.logger import getLogger
 from jip.options import Option
+from jip.six import string_types, iteritems
 
 # contains global variable that
 # will be added to any render context
@@ -50,11 +51,10 @@ class RenderError(Exception):
         if self.line and self.line < len(lines):
             lines[self.line] = c.colorize(lines[self.line], c.YELLOW)
 
-        return "%s%s: %s\n\n:" % (
+        return "%s%s: %s\n\n: %s" % (
             c.colorize("Temlate error", c.RED),
-            " " if not self.line else c.colorize(
-                "in line %d" % self.line, c.RED
-            ),
+            "" if not self.line
+                else c.colorize(" in line %d" % self.line, c.RED),
             c.colorize(self.message, c.YELLOW),
             "\n".join(lines)
         )
@@ -63,7 +63,7 @@ class RenderError(Exception):
 def set_global_context(global_ctx):
     global global_context
     if not global_ctx:
-        raise
+        raise Exception
     global_context = global_ctx
 
 
@@ -74,6 +74,9 @@ class JipUndefined(Undefined):
     def __unicode__(self):
         log.info("Unknown context variable: %s", self._undefined_name)
         return "${%s}" % (self._undefined_name)
+
+    def __str__(self):
+        return self.__unicode__()
 
 
 def __resolve_options(ctx, value):
@@ -224,7 +227,7 @@ def abs_filter(ctx, value, base=None):
         if base is None:
             base = os.getcwd()
 
-        if isinstance(v, basestring) and v and len(v) > 0 and\
+        if isinstance(v, string_types) and v and len(v) > 0 and\
                 not v.startswith('/'):
             v = os.path.join(os.path.abspath(base), v)
         return v
@@ -358,12 +361,12 @@ def render_values(options, ctx):
         if isinstance(value, (list, tuple)):
             resolved = []
             for v in value:
-                if isinstance(v, basestring):
+                if isinstance(v, string_types):
                     resolved.append(render_template(v, **ctx))
                 else:
                     resolved.append(v)
         else:
-            if isinstance(value, basestring):
+            if isinstance(value, string_types):
                 resolved = render_template(value, **ctx)
             else:
                 resolved = value
@@ -378,12 +381,12 @@ def render_template(template, **kwargs):
     :type template: string
     :param kwargs: the context
     """
-    if template is None or not isinstance(template, basestring):
+    if template is None or not isinstance(template, string_types):
         return template
     tmpl = _get_environment().from_string(template)
     ctx = dict(kwargs)
     if global_context is not None:
-        for k, v in global_context.iteritems():
+        for k, v in iteritems(global_context):
             if not k in ctx:
                 ctx[k] = v
     # expose the global context
