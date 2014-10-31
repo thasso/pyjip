@@ -163,6 +163,10 @@ class Argument(LeafPattern):
 
 
 class Command(Argument):
+
+    def __init__(self, name, value=False):
+        self.name, self.value = name, value
+
     def single_match(self, left):
         for n, pattern in enumerate(left):
             if type(pattern) is Argument:
@@ -174,6 +178,7 @@ class Command(Argument):
 
 
 class Option(LeafPattern):
+
     def __init__(self, short=None, long=None, argcount=0, value=False):
         assert argcount in (0, 1)
         self.short, self.long, self.argcount = short, long, argcount
@@ -563,7 +568,7 @@ def docopt(doc, argv=None, help=True, version=None, options_first=False):
 
     Example
     -------
-    >>> from docopt import docopt
+    >>> from jip.vendor.docopt import docopt
     >>> doc = '''
     ... Usage:
     ...     my_program tcp <host> <port> [--timeout=<seconds>]

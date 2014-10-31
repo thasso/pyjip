@@ -12,3 +12,4 @@ examples/bwa/reference.fa.*
 .coverage
 htmlcov/
 venv*
+.venv*

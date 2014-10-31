@@ -94,6 +94,6 @@ function before you return the pipeline or do anything with it::
     >>> p.context(locals())
     >>> b = jip.create_jobs(p)[0]
     >>> assert b is not None
-    >>> print b.command
+    >>> print(b.command)
     (wc -l Makefile)
     >>> assert str(b.command) == '(wc -l Makefile)', b.command + "haha"

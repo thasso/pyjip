@@ -42,14 +42,11 @@ in order to add custom search paths (see :ref:`api_scanner` on how to
 customize the search paths)::
 
     >>> p = Pipeline()
-    >>> p.run("unknown")
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-      File "jip/pipelines.py", line 180, in run
-          tool = find(_tool_name)
-      File "jip/tools.py", line 410, in find
-          raise ToolNotFoundException("No tool named '%s' found!" % name)
-    ToolNotFoundException: No tool named 'unknown' found!
+    >>> try:
+    ...     p.run("unknown")
+    ... except Exception as exc:
+    ...     print(exc)
+    No tool named 'unknown' found!
 
 In case you want to be sure, catch and handle the ``ToolNotFoundException``,
 but typically this is a serious issue and the exception should be raised up.
@@ -60,7 +57,7 @@ to the pipeline::
     >>> p = Pipeline()
     >>> p.bash('ls')
     bash
-    >>> print len(p)
+    >>> print(len(p))
     1
 
 We now have a pipeline graph with exactly one :class:`~jip.pipelines.Node`.
@@ -101,16 +98,17 @@ We are trying to implement one of these common ones, running a pipeline.
 Therefore we are lucky and can leverage some of the helpers::
 
     >>> for exe in create_executions(jobs, check_outputs=True):
-    ...     print "Running %s:" % exe.name,
+    ...     print("Running %s:" % exe.name)
     ...     if exe.completed:
-    ...         print "Skipped"
+    ...         print("Skipped")
     ...     elif run_job(exe.job):
-    ...         print "Success"
+    ...         print("Success")
     ...     else:
-    ...         print "Failure"
+    ...         print("Failure")
     ...         break
     ...     
-    Running bash: Success
+    Running bash:
+    Success
     >>> 
 
 What happens is that we iterate over all available execution and run all
@@ -145,12 +143,12 @@ use ``submit_job`` rather than ``run_job``:
 .. code-block:: python
 
     for exe in create_executions(jobs, check_outputs=True):
-        print "Submitting %s:" % exe.name,
+        print("Submitting %s:" % exe.name)
         if exe.completed:
-            print "Skipped"
+            print("Skipped")
         elif submit_job(exe.job):
-            print "Submitted job %s with remote id %s" % (exe.job.id,
-                exe.job.cluster_id)
+            print("Submitted job %s with remote id %s" % (exe.job.id,
+                exe.job.cluster_id))
         else:
             print "Failure"
             break

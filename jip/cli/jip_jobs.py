@@ -142,7 +142,7 @@ def _pipeline_job(job):
     all_jobs = list(parent_jobs)
     count = float(len(all_jobs))
     counts = defaultdict(int)
-    queues = {job.queue}
+    queues = set([job.queue])
     hosts = set([])
     max_time = job.max_time
     max_memory = job.max_memory
