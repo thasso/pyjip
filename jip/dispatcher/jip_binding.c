@@ -169,7 +169,7 @@ static struct PyModuleDef moduledef = {
 };
 
 PyMODINIT_FUNC PyInit_dispatcher(void) {
-    (void) PyModule_Create(&moduledef);
+    return PyModule_Create(&moduledef);
 }
 #else
 PyMODINIT_FUNC initdispatcher(void){
