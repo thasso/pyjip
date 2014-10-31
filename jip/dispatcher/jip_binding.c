@@ -52,29 +52,33 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
    * output. This should raise an exception if something fails
    */
   PyObject* seq = PySequence_Fast(args, "Expected the argument list");
+  PyObject* py_sources = PySequence_Fast_GET_ITEM(seq, 0);
+  PyObject* py_targets_1 = PySequence_Fast_GET_ITEM(seq, 1);
+  PyObject* py_targets_2 = PySequence_Fast_GET_ITEM(seq, 2);
   long num_sources = 0;
   long num_targets_1 = 0;
   long num_targets_2 = 0;
   uint64_t len = PySequence_Size(args);
+  FILE** source_f;
+  FILE** target_f_1;
+  FILE** target_f_2;
+  bool error;
+
   if(seq == NULL || len != 3){
     PyErr_SetString(PyExc_ValueError, "Expected exactly three arguments!");
     Py_DECREF(seq);
     return NULL;
   }
-
-  PyObject* py_sources = PySequence_Fast_GET_ITEM(seq, 0);
   if(!PySequence_Check(py_sources)){
     PyErr_SetString(PyExc_ValueError, "Argument 0 is not a list!");
     Py_DECREF(seq);
     return NULL;
   }
-  PyObject* py_targets_1 = PySequence_Fast_GET_ITEM(seq, 1);
   if(!PySequence_Check(py_targets_1)){
     PyErr_SetString(PyExc_ValueError, "Argument 1 is not a list!");
     Py_DECREF(seq);
     return NULL;
   }
-  PyObject* py_targets_2 = PySequence_Fast_GET_ITEM(seq, 2);
   if(!PySequence_Check(py_targets_2)){
     PyErr_SetString(PyExc_ValueError, "Argument 2 is not a list!");
     Py_DECREF(seq);
@@ -84,11 +88,11 @@ PyObject* dispatch_streams_(PyObject *self, PyObject *args, int (*fun)(FILE**, F
   num_targets_1 = PySequence_Size(py_targets_1);
   num_targets_2 = PySequence_Size(py_targets_2);
 
-  FILE** source_f = malloc(num_sources * sizeof(FILE*));
-  FILE** target_f_1 = malloc(num_targets_1 * sizeof(FILE*));
-  FILE** target_f_2 = malloc(num_targets_2 * sizeof(FILE*));
+  source_f = malloc(num_sources * sizeof(FILE*));
+  target_f_1 = malloc(num_targets_1 * sizeof(FILE*));
+  target_f_2 = malloc(num_targets_2 * sizeof(FILE*));
 
-  bool error = false;
+  error = false;
   if(!_update_files(py_sources, source_f, num_sources)){
     error = true;
   }
