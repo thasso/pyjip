@@ -283,7 +283,7 @@ class Texttable:
 
         self._check_row_size(array)
         try:
-            array = map(int, array)
+            array = list(map(int, array))
             if reduce(min, array) <= 0:
                 raise ValueError
         except ValueError:
@@ -468,7 +468,7 @@ class Texttable:
         s = "%s%s%s" % (horiz, [horiz, self._char_corner][self._has_vlines()],
             horiz)
         # build the line
-        l = string.join([horiz * n for n in self._width], s)
+        l = s.join([horiz * n for n in self._width])
         # add border if needed
         if self._has_border():
             l = "%s%s%s%s%s\n" % (self._char_corner, horiz, l, horiz,
@@ -495,7 +495,7 @@ class Texttable:
             for part, i in zip(parts, range(1, len(parts) + 1)):
                 length = length + len(part)
                 if i < len(parts):
-                    length = (length/8 + 1) * 8
+                    length = (length//8 + 1) * 8
             maxi = max(maxi, length)
         return maxi
 
@@ -521,7 +521,7 @@ class Texttable:
         items = len(maxi)
         length = reduce(lambda x,y: x+y, maxi)
         if self._max_width and length + items * 3 + 1 > self._max_width:
-            maxi = [(self._max_width - items * 3 -1) / items \
+            maxi = [(self._max_width - items * 3 -1) // items \
                 for n in range(items)]
         self._width = maxi
 
@@ -573,8 +573,8 @@ class Texttable:
                 if align == "r":
                     out += "%s " % (fill * space + cell_line)
                 elif align == "c":
-                    out += "%s " % (fill/2 * space + cell_line \
-                            + (fill/2 + fill%2) * space)
+                    out += "%s " % (fill//2 * space + cell_line \
+                            + (fill//2 + fill%2) * space)
                 else:
                     out += "%s " % (cell_line + fill * space)
                 if length < len(line):
@@ -626,8 +626,8 @@ class Texttable:
                 valign = "t"
             if valign == "m":
                 missing = max_cell_lines - len(cell)
-                cell[:0] = [""] * (missing / 2)
-                cell.extend([""] * (missing / 2 + missing % 2))
+                cell[:0] = [""] * (missing // 2)
+                cell.extend([""] * (missing // 2 + missing % 2))
             elif valign == "b":
                 cell[:0] = [""] * (max_cell_lines - len(cell))
             else:

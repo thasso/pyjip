@@ -46,10 +46,8 @@ from jip.six import iteritems, string_types, PY3, PY2
 from jip.six.moves import cPickle
 import jip.profiles
 
-if PY3:
-    from io import RawIOBase
-else:
-    RawIOBase = file
+from io import IOBase
+
 
 log = getLogger('jip.tools')
 
@@ -1502,7 +1500,7 @@ class PythonTool(Tool):
                                                 argparse.ZERO_OR_MORE]
                             if action.option_strings or \
                                action.nargs in defaulting_nargs:
-                                if isinstance(action.default, RawIOBase):
+                                if isinstance(action.default, IOBase):
                                     if action.default == sys.stdout:
                                         help += ' (default: stdout)'
                                     elif action.default == sys.stdin:

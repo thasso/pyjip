@@ -33,15 +33,14 @@ import jip.logger
 import jip.profiles
 import jip.tools
 
-from jip.six import PY3, string_types
+from jip.six import PY2, string_types
 
 log = jip.logger.getLogger('job.cli')
 
-if PY3:
-    from io import RawIOBase
-else:
+from io import IOBase
+
+if PY2:
     input = raw_input
-    RawIOBase = file
 
 
 ##############################################################################
@@ -387,7 +386,7 @@ def show_job_tree(jobs, title="Job hierarchy"):
         if len(other_deps) > 0:
             label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
         # print the separator and the label
-        print("%s%s" % (sep, label)).encode('utf-8')
+        print("%s%s" % (sep, label))
 
         # update levels used by the children
         # and do the recursive call
@@ -446,10 +445,10 @@ def _clean_value(v):
         return s
 
     if isinstance(v, (list, tuple)):
-        v = [__cl(x) if not isinstance(x, RawIOBase) else "<<STREAM>>"
+        v = [__cl(x) if not isinstance(x, IOBase) else "<<STREAM>>"
              for x in v]
     else:
-        v = __cl(v) if not isinstance(v, RawIOBase) else "<<STREAM>>"
+        v = __cl(v) if not isinstance(v, IOBase) else "<<STREAM>>"
 
     return v
 

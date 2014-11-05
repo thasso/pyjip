@@ -93,9 +93,8 @@ from os.path import exists
 import logging
 from jip.six import StringIO, string_types, PY3, iteritems
 
-if PY3:
-    from io import RawIOBase
-    file = RawIOBase
+from io import IOBase
+
 
 TYPE_OPTION = "option"
 TYPE_INPUT = "input"
@@ -636,7 +635,7 @@ class Option(object):
             pass
         if cached is not None:
             return cached
-        if v and (isinstance(v, (file, StringIO)) or hasattr(v, 'fileno'))\
+        if v and (isinstance(v, IOBase) or hasattr(v, 'fileno'))\
            or hasattr(v, 'write') or hasattr(v, 'read'):
             self.__add_to_stream_cache(v, True)
             return True
