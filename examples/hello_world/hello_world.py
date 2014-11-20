@@ -22,7 +22,7 @@ def fun_hello_world_perl():
 @pytool()
 def fun_hello_world_py():
     """Prints hello world in a python module"""
-    print "Hello python"
+    print("Hello python")
 
 
 ####################################################
@@ -46,4 +46,4 @@ class cls_hello_world_perl(object):
 @pytool()
 class cls_hello_world_py(object):
     def run(self):
-        print "Hello World"
+        print("Hello World")

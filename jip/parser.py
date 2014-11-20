@@ -7,6 +7,7 @@ from collections import defaultdict
 from textwrap import dedent
 
 from jip.tools import Block, ScriptTool
+from jip.six import string_types, iteritems
 
 #currently supported block type
 VALIDATE_BLOCK = "validate"
@@ -39,7 +40,7 @@ def split_header(lines):
     """Split lines into header and content lines removing the
     shebang.
     """
-    if isinstance(lines, basestring):
+    if isinstance(lines, string_types):
         lines = lines.split("\n")
     header = []
     content = []
@@ -173,7 +174,7 @@ def load(content, script_class=None, is_pipeline=False):
     init_block = None
     if sum([len(b) for b in blocks.values()]) == 0:
         raise Exception("No blocks found!")
-    for block_type, blocks in blocks.iteritems():
+    for block_type, blocks in iteritems(blocks):
         if len(blocks) > 1:
             raise Exception("Multiple blocks of type %s currently "
                             "not supported" % (block_type))

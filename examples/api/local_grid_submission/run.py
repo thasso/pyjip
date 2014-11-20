@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # create the pipeline
 
     for i in range(num_runs):
-        print "### CREATE RUN", i
+        print("### CREATE RUN", i)
         target_file = "result.%d" % i
         p = jip.Pipeline()
         a = p.bash('echo "hello world" > ${outfile}; sleep 1',
@@ -35,12 +35,12 @@ if __name__ == "__main__":
 
         # iterate the executions and pass the session so all jobs are stored
         for e in jip.create_executions(jobs, save=True):
-            print "### STORED", i
+            print("### STORED", i)
             if not e.completed:
                 jip.submit_job(e.job, save=True, cluster=c)
-        #print "### QUEUED", len(c.list())
+        #print("### QUEUED", len(c.list()))
     c.wait()
 
     session = jip.db.create_session()
     for j in session.query(Job):
-        print ">>>", j.id, j.state
+        print(">>>", j.id, j.state)

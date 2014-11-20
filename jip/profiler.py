@@ -27,6 +27,8 @@ in the specified order:
     19) box physical memory free
     20) box total memory
 """
+from __future__ import print_function
+
 import os
 import multiprocessing
 import logging
@@ -96,7 +98,7 @@ class Profiler(object):
             box_data = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         data.extend(box_data)
         # write data
-        print >>writer, "\t".join([str(s) for s in data])
+        print("\t".join([str(s) for s in data]), file=writer)
         # process children
         for child in process.get_children():
             self._collect_and_write(child, writer, ts=ts)
@@ -121,13 +123,11 @@ class Profiler(object):
         netstat = psutil.net_io_counters()
         with open(stats_file, 'w') as writer:
             # write header
-            print >>writer, "#time\tpid\tname\tcpu_percent\tcpu_user" \
-                            "\tcpu_system\t" \
-                            "mem_percent\tmem_rss\tmem_vms\t" \
-                            "box_cpu_user\tbox_cpu_system\tbox_cpu_idle\t" \
-                            "disk_read\tdisk_write\tnet_read\tnet_write\t" \
-                            "box_mem_used\tbox_mem_free\tbox_phy_mem_free\t" \
-                            "box_mem_tot"
+            print("#time\tpid\tname\tcpu_percent\tcpu_user\tcpu_system\t"
+                  "mem_percent\tmem_rss\tmem_vms\tbox_cpu_user\t"
+                  "box_cpu_system\tbox_cpu_idle\tdisk_read\tdisk_write\t"
+                  "net_read\tnet_write\tbox_mem_used\tbox_mem_free\t"
+                  "box_phy_mem_free\tbox_mem_tot", file=writer)
 
             while True:
                 try:

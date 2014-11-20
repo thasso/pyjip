@@ -53,6 +53,8 @@ Documentation: http://pyjip.rtfd.org
 Source Code  : https://github.com/thasso/pyjip/
 Issue Tracker: https://github.com/thasso/pyjip/issues
 """
+from __future__ import print_function
+
 import os
 import sys
 import jip
@@ -81,34 +83,32 @@ def main():
         _main()
     except jip.options.ParserException as err:
         log.debug("parser error: %s", str(err), exc_info=True)
-        sys.stderr.write(str(err))
+        print(str(err), file=sys.stderr)
         sys.exit(1)
     except jip.ValidationError as va:
         log.debug("validation error: %s", str(va), exc_info=True)
-        sys.stderr.write(str(va))
-        sys.stderr.write("\n")
+        print(str(va), file=sys.stderr)
         sys.exit(1)
     except jip.templates.RenderError as va:
         log.debug("render error: %s", str(va), exc_info=True)
-        sys.stderr.write(str(va))
-        sys.stderr.write("\n")
+        print(str(va), file=sys.stderr)
         sys.exit(1)
     except jip.tools.ToolNotFoundException as notFound:
         log.debug("Tool not found: %s", str(notFound), exc_info=True)
-        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
-        print >>sys.stderr, """\
+        print(jip.cli.colorize(str(notFound), jip.cli.RED), file=sys.stderr)
+        print("""\
 
 Check your search paths and your jip configuration to include and
 find tool definitions that are not in any default paths.
-"""
+""", file=sys.stderr)
         sys.exit(1)
     except jip.cluster.ClusterImplementationError as notFound:
         log.debug("Cluster not found: %s", str(notFound), exc_info=True)
-        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
+        print(jip.cli.colorize(str(notFound), jip.cli.RED), file=sys.stderr)
         sys.exit(1)
     except jip.cluster.SubmissionError as notFound:
         log.debug("Submission error: %s", str(notFound), exc_info=True)
-        print >>sys.stderr, jip.cli.colorize(str(notFound), jip.cli.RED)
+        print(jip.cli.colorize(str(notFound), jip.cli.RED), file=sys.stderr)
         sys.exit(1)
 
 
@@ -142,7 +142,7 @@ def _main():
             sys.argv = argv  # reset options
             runpy.run_module("jip.cli.jip_interpreter", run_name="__main__")
         else:
-            sys.stderr.write("\nCommand %s not found\n\n" % (cmd))
+            print("\nCommand %s not found\n" % cmd, file=sys.stderr)
             docopt(__doc__, version=version, options_first=True,
                    argv=['--help'], help=True)
             sys.exit(0)

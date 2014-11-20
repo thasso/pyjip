@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from os import walk, listdir
 from os.path import abspath, join
 
+from jip.six import iteritems
+
 
 #################################################################
 # Context manager utilities
@@ -31,7 +33,7 @@ def list_dir(base, recursive=True):
     recursively and yields all files.
 
     :param base: the base directory
-    :param recursively: if true, only the content of the top level directory
+    :param recursive: if true, only the content of the top level directory
                         will be yield
     """
     if recursive:
@@ -62,9 +64,10 @@ def flat_list(source):
     if not isinstance(source, (list, tuple)):
         source = [source]
     r = []
-    map(lambda x: r.extend(x)
+    list(map(lambda x: r.extend(x)
         if isinstance(x, (list, tuple))
-        else r.append(x), source)
+        else r.append(x), source))
+
     return r
 
 
@@ -139,7 +142,6 @@ def parse_time(time):
             'minutes': minutes,
         }
         if len(s) > 2:
-            seconds = int(s[2])
             parts['seconds'] = int(s[2])
     else:
         regex = re.compile(r'((?P<days>\d+?)d)?((?P<hours>\d+?)h)'
@@ -149,14 +151,14 @@ def parse_time(time):
             raise ValueError("Unable to parse time format %s" % time)
         parts = parts.groupdict()
     time_params = {}
-    for (name, param) in parts.iteritems():
+    for name, param in iteritems(parts):
         if param:
             time_params[name] = int(param)
     delta = timedelta(**time_params)
 
     seconds = delta.seconds
-    hours = seconds / 3600
-    minutes = (seconds % 3600) / 60
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
     if (seconds % 60) > 0:
         minutes += 1
     r = (delta.days * 1440) + (60 * hours) + minutes
@@ -183,9 +185,9 @@ def parse_mem(mem):
         lc = mem[-1].upper()
         m = int(mem[:-1])
         if lc == "G":
-            m = m * 1024
+            m *= 1024
         elif lc == "K":
-            m = m / 1024
+            m /= 1024
         return m
     except:
         raise ValueError("Unable to parse %s to memory", mem)

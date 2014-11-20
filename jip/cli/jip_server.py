@@ -29,6 +29,7 @@ Options:
 Other Options:
     -h --help             Show this help message
 """
+from __future__ import print_function
 
 import logging
 
@@ -46,15 +47,15 @@ def main():
 
     try:
         import zmq
-    except:
-        print >>sys.stderr, """
+    except ImportError:
+        print("""
 Unable to import the python ZeroMQ binding.
 Please make sure that zeromq is installed on your system.
 
 You can install zeroMQ using pip:
 
     pip intall pyzmq
-"""
+""", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -67,7 +68,7 @@ You can install zeroMQ using pip:
                  "DEBUG": logging.DEBUG,
                  "ERROR": logging.ERROR}.get(level.upper(), None)
         if level is None:
-            print >>sys.stderr, "Unknown log level:", args['--level']
+            print("Unknown log level: %s" % args['--level'], file=sys.stderr)
             sys.exit(1)
         log.setLevel(level)
         log.info("Starting JIP grid server on port %s", port)

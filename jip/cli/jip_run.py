@@ -26,11 +26,14 @@ Other Options:
     -h --help             Show this help message
 
 """
+from __future__ import print_function
+
 import sys
 
 from . import parse_args, dry, colorize, YELLOW, GREEN, RED, BLUE
 import jip
 import jip.jobs
+import jip.profiles
 from jip.logger import getLogger
 from datetime import datetime, timedelta
 
@@ -43,8 +46,8 @@ def main(argv=None):
     script_args = args["<args>"]
     try:
         script = jip.find(script_file, is_pipeline=args['--pipeline'])
-    except LookupError, e:
-        print >>sys.stderr, str(e)
+    except LookupError as e:
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
     if args['--dry'] or args['--show']:
@@ -72,32 +75,27 @@ def main(argv=None):
         for exe in jip.jobs.create_executions(jobs):
             if exe.completed and not force:
                 if not silent:
-                    print >>sys.stderr, colorize("Skipping", YELLOW), exe.name
+                    print(colorize("Skipping", YELLOW), exe.name,
+                          file=sys.stderr)
             else:
                 if not silent:
-                    sys.stderr.write(colorize("Running", YELLOW) +
-                                     " {name:30} ".format(
-                                         name=colorize(exe.name, BLUE)
-                                     ))
+                    print(colorize("Running", YELLOW),
+                          " {name:30} ".format(name=colorize(exe.name, BLUE)),
+                          file=sys.stderr)
                     sys.stderr.flush()
                 start = datetime.now()
                 success = jip.jobs.run_job(exe.job, profiler=profiler)
                 end = timedelta(seconds=(datetime.now() - start).seconds)
                 if success:
                     if not silent:
-                        print >>sys.stderr, colorize(exe.job.state, GREEN),\
-                            "[%s]" % (end)
+                        print(colorize(exe.job.state, GREEN), "[%s]" % end,
+                              file=sys.stderr)
                 else:
                     if not silent:
-                        print >>sys.stderr, colorize(exe.job.state, RED)
+                        print(colorize(exe.job.state, RED), file=sys.stderr)
                     sys.exit(1)
-    except jip.ValidationError as va:
-        sys.stderr.write(str(va))
-        sys.stderr.write("\n")
-        sys.exit(1)
-    except jip.ParserException as va:
-        sys.stderr.write(str(va))
-        sys.stderr.write("\n")
+    except (jip.ValidationError, jip.ParserException) as va:
+        print(str(va), file=sys.stderr)
         sys.exit(1)
     except Exception as va:
         raise

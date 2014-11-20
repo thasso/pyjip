@@ -28,6 +28,8 @@ Options:
                              executed
     -h --help                Show this help message
 """
+from __future__ import print_function
+
 import os
 import sys
 
@@ -97,13 +99,13 @@ def main():
                                               save=True):
             if exe.job.state in [jip.db.STATE_DONE] and \
                not args['--force']:
-                print >>sys.stderr, colorize("Skipped", YELLOW), exe.job
+                print(colorize("Skipped", YELLOW), exe.job, file=sys.stderr)
                 continue
             if jip.jobs.submit_job(exe.job,
                                    clean=not args['--no-clean'],
                                    force=args['--force']):
-                print "Submitted %s with remote id %s" % (exe.job.id,
-                                                          exe.job.job_id)
+                print("Submitted %s with remote id %s" % (exe.job.id,
+                                                          exe.job.job_id))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from jip.tools import Tool
 from jip.profiles import Profile
 from jip.logger import getLogger
 from jip.templates import render_template
+from jip.six import string_types, iteritems, itervalues
 import jip.tools
 
 log = getLogger('jip.pipelines')
@@ -205,18 +206,18 @@ class Pipeline(object):
 
     def pipeline_name(self, name):
         """ Set the user defined name of the pipeline
-        
+
         :param name: the user defined name of the pipeline
         :type name: string
         """
         if name is None:
             return
-        
+
         self._pipeline_name = name
-        
+
         for n in self.nodes():
             n._pipeline_name = name
-        
+
     def name(self, name):
         """Set the name of the pipeline and ensures that all
         nodes in the pipeline reference the pipeline name.
@@ -287,7 +288,7 @@ class Pipeline(object):
                     opts.add_option(name, **kwargs)
 
             if option_type in kwargs:
-                for name, value in kwargs[option_type].iteritems():
+                for name, value in iteritems(kwargs[option_type]):
                     opts = node._tool.options
                     if isinstance(value, dict):
                         # get and remove any value set here,
@@ -312,7 +313,7 @@ class Pipeline(object):
         _add_opts("_outputs")
         _add_opts("_options")
 
-        for k, v in kwargs.iteritems():
+        for k, v in iteritems(kwargs):
             node.set(k, v, allow_stream=False)
         return node
 
@@ -466,7 +467,7 @@ class Pipeline(object):
         :returns: node name
         :raises LookupError: if no such node exists
         """
-        for k, v in self._nodes.iteritems():
+        for k, v in iteritems(self._nodes):
             if v.name == name:
                 return v
         raise LookupError("Node with name %s not found" % name)
@@ -507,7 +508,7 @@ class Pipeline(object):
         :returns nodes: the nodes of this pipeline
         :rtype: list of Node
         """
-        for node in self._nodes.itervalues():
+        for node in itervalues(self._nodes):
             yield node
 
     def __resolve_node_tool(self, source, target=None):
@@ -667,8 +668,8 @@ class Pipeline(object):
             parents = list(node.parents())
             if force or len(parents) <= 1:
                 children = list(node.children())
-                map(lambda n: _recursive_remove(n, False),
-                    children)
+                list(map(lambda n: _recursive_remove(n, False), children))
+
                 try:
                     log.info("Excluding node %s", node)
                     self.remove(node)
@@ -690,7 +691,7 @@ class Pipeline(object):
             if not name in names2nodes:
                 log.warn("Node marked for exclusing not found: %s", name)
             else:
-                if isinstance(name, basestring) and not name in names2nodes:
+                if isinstance(name, string_types) and not name in names2nodes:
                     node = names2nodes[name]
                 else:
                     node = name
@@ -716,10 +717,10 @@ class Pipeline(object):
                 names2nodes[node._job.name] = node
 
         for name in excludes:
-            if isinstance(name, basestring) and not name in names2nodes:
+            if isinstance(name, string_types) and not name in names2nodes:
                 log.warn("Node marked for skip not found: %s", name)
             else:
-                if isinstance(name, basestring):
+                if isinstance(name, string_types):
                     node = names2nodes[name]
                 else:
                     node = name
@@ -1144,7 +1145,7 @@ class Pipeline(object):
         """
         if self.utils and self.utils._global_env:
             log.info("Expand | Applying node names from context")
-            for k, v in self.utils._global_env.iteritems():
+            for k, v in iteritems(self.utils._global_env):
                 if isinstance(v, Node):
                     if v._job.name is None:
                         v._job.name = k
@@ -1174,7 +1175,7 @@ class Pipeline(object):
                 tools_2_nodes[n._tool._name].add(n)
         ## index all nodes without an incoming stream by their tool name
         merged = 0
-        for nodes in [n for k, n in tools_2_nodes.iteritems()
+        for nodes in [n for k, n in iteritems(tools_2_nodes)
                       if len(n) > 1]:
             # the nodes set contains all nodes that reference the
             # same tool
@@ -1372,8 +1373,8 @@ class Pipeline(object):
         """
         if not isinstance(node._tool, Tool):
             return []
-        fan_out = filter(lambda o: not o.is_list() and len(o) > 1,
-                         node._tool.options)
+        fan_out = list(filter(lambda o: not o.is_list() and len(o) > 1,
+                       node._tool.options))
         return fan_out
 
     def _check_fanout_options(self, node, fanout_options):
@@ -1528,7 +1529,7 @@ class Node(object):
         """
         if name is None:
             return
-        
+
         _pipeline_name = name
 
     @property

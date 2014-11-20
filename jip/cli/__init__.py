@@ -19,6 +19,8 @@ them as general API calls. Most of the output generation functions print to
           according to the needs of the internal command line utilities.
 
 """
+from __future__ import print_function
+
 from datetime import timedelta, datetime
 import os
 import sys
@@ -29,23 +31,31 @@ import jip.db
 import jip.jobs
 import jip.logger
 import jip.profiles
+import jip.tools
+
+from jip.six import PY2, string_types
 
 log = jip.logger.getLogger('job.cli')
+
+from io import IOBase
+
+if PY2:
+    input = raw_input
 
 
 ##############################################################################
 # Color definitions
 ##############################################################################
 NORMAL = ''
-BLACK   = '\033[90m'
-RED     = '\033[91m'
-GREEN   = '\033[92m'
-YELLOW  = '\033[93m'
-BLUE    = '\033[94m'
+BLACK = '\033[90m'
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
 MAGENTA = '\033[95m'
-CYAN    = '\033[96m'
-WHITE   = '\033[97m'
-ENDC    = '\033[0m'
+CYAN = '\033[96m'
+WHITE = '\033[97m'
+ENDC = '\033[0m'
 
 #: Maps job states to colors
 STATE_COLORS = {
@@ -178,35 +188,35 @@ def show_commands(jobs):
     :param jobs: list of jobs
     :type jobs: list of :class:`jip.db.Job`
     """
-    print ""
-    print "Job commands"
-    print "------------"
+    print("")
+    print("Job commands")
+    print("------------")
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
         deps = [str(d) for j in g
                 for d in j.dependencies if d not in g]
         name = "|".join(str(j) for j in g)
-        print "%s %s -- Interpreter: %s %s" % (
+        print("%s %s -- Interpreter: %s %s" % (
             colorize("###", YELLOW),
             colorize(name, BLUE),
             colorize(job.interpreter, GREEN),
             ("Dependencies: " + colorize(",".join(deps), BLUE)) if deps else ""
-        )
+        ))
         # print log files
-        print "%s   stdout: %s" % (
+        print("%s   stdout: %s" % (
             colorize("###", YELLOW),
             colorize(job.stdout if job.stdout else "<default>", BLUE)
-        )
-        print "%s   stderr: %s" % (
+        ))
+        print("%s   stderr: %s" % (
             colorize("###", YELLOW),
             colorize(job.stderr if job.stderr else "<default>", BLUE)
-        )
+        ))
         for i, j in enumerate(g):
             if i > 0:
                 if not j.group_from:
-                    print "|"
-            print j.command
-        print colorize("###", YELLOW)
+                    print("|")
+            print(j.command)
+        print(colorize("###", YELLOW))
 
 
 def show_options(options, title=None, excludes=None, show_defaults=True):
@@ -221,8 +231,8 @@ def show_options(options, title=None, excludes=None, show_defaults=True):
                           value will be included
     """
     if title is not None:
-        print "#" * 87
-        print "| {name:^91}  |".format(name=colorize(title, BLUE))
+        print("#" * 87)
+        print("| {name:^91}  |".format(name=colorize(title, BLUE)))
     rows = []
     excludes = excludes if excludes is not None else ['help']
     for o in options:
@@ -230,10 +240,10 @@ def show_options(options, title=None, excludes=None, show_defaults=True):
         o.render_context = None
         if (show_defaults or o.raw() != o.default) and o.name not in excludes:
             rows.append([o.name, _clean_value(o.raw())])
-    print render_table(["Name", "Value"], rows, widths=[30, 50],
+    print(render_table(["Name", "Value"], rows, widths=[30, 50],
                        deco=Texttable.VLINES |
-                       Texttable.BORDER |
-                       Texttable.HEADER)
+                            Texttable.BORDER |
+                            Texttable.HEADER))
 
 
 def show_job_states(jobs, title="Job states"):
@@ -244,9 +254,9 @@ def show_job_states(jobs, title="Job states"):
     :param title: a title for the table
     """
     if title is not None:
-        print "#" * 149
-        print "| {name:^153}  |".format(
-            name=colorize(title, BLUE)
+        print("#" * 149)
+        print("| {name:^153}  |".format(
+            name=colorize(title, BLUE))
         )
     rows = []
     for g in jip.jobs.create_groups(jobs):
@@ -259,11 +269,11 @@ def show_job_states(jobs, title="Job states"):
                 ins.append(_clean_value(a.raw()))
         state = colorize(job.state, STATE_COLORS[job.state])
         rows.append([name, state, ", ".join(ins), ", ".join(outs)])
-    print render_table(["Name", "State", "Inputs", "Outputs"], rows,
+    print(render_table(["Name", "State", "Inputs", "Outputs"], rows,
                        widths=[30, 6, 50, 50],
                        deco=Texttable.VLINES |
                        Texttable.BORDER |
-                       Texttable.HEADER)
+                       Texttable.HEADER))
 
 
 def show_job_profiles(jobs, title="Job profiles"):
@@ -301,8 +311,8 @@ def show_job_profiles(jobs, title="Job profiles"):
     :param title: a title for the table
     """
     if title is not None:
-        print "#" * 149
-        print "| {name:^153}  |".format(name=colorize(title, BLUE))
+        print("#" * 149)
+        print("| {name:^153}  |".format(name=colorize(title, BLUE)))
     rows = []
     for g in jip.jobs.create_groups(jobs):
         job = g[0]
@@ -317,7 +327,7 @@ def show_job_profiles(jobs, title="Job profiles"):
             job.account,
             os.path.relpath(job.working_directory)
         ])
-    print render_table([
+    print(render_table([
         "Name",
         "Queue",
         "Priority",
@@ -331,7 +341,7 @@ def show_job_profiles(jobs, title="Job profiles"):
         deco=Texttable.VLINES |
         Texttable.BORDER |
         Texttable.HEADER
-    )
+    ))
 
 
 def show_job_tree(jobs, title="Job hierarchy"):
@@ -342,9 +352,9 @@ def show_job_tree(jobs, title="Job hierarchy"):
     :param title: a title for the table
     """
     if title is not None:
-        print "#" * 21
-        print "| {name:^25}  |".format(name=colorize(title, BLUE))
-        print "#" * 21
+        print("#" * 21)
+        print("| {name:^25}  |".format(name=colorize(title, BLUE)))
+        print("#" * 21)
 
     done = set([])
     counts = {}
@@ -361,7 +371,7 @@ def show_job_tree(jobs, title="Job hierarchy"):
                       if level > 0 else [])
         # reduce the lecel counter
         if level > 0:
-            levels[level - 1] = levels[level - 1] - 1
+            levels[level - 1] -= 1
         # build the edge and the label
         edge = "" if not level else (u'\u2514\u2500' if last
                                      else u'\u251C\u2500')
@@ -376,12 +386,12 @@ def show_job_tree(jobs, title="Job hierarchy"):
         if len(other_deps) > 0:
             label = "%s <- %s" % (colorize(label, YELLOW), other_deps)
         # print the separator and the label
-        print ("%s%s" % (sep, label)).encode('utf-8')
+        print("%s%s" % (sep, label))
 
         # update levels used by the children
         # and do the recursive call
         num = counts[job]
-        levels = levels + [num]
+        levels += [num]
 
         i = 0
         for child in job.children:
@@ -409,18 +419,19 @@ def show_job_tree(jobs, title="Job hierarchy"):
     for job in jobs:
         if len(job.dependencies) == 0:
             draw_node(job, levels=[], parents=set([]), level=0)
-    print "#" * 21
-    print "| Tasks: {j:>18}  |".format(j=colorize(len(jobs), BLUE))
-    print "| Jobs: {g:>19}  |".format(
+    print("#" * 21)
+    print("| Tasks: {j:>18}  |".format(j=colorize(len(jobs), BLUE)))
+    print("| Jobs: {g:>19}  |".format(
         g=colorize(len(jip.jobs.create_groups(jobs)), BLUE)
-    )
-    print "| Named Groups: {g:>11}  |".format(
+    ))
+    print("| Named Groups: {g:>11}  |".format(
         g=colorize(len(set(map(lambda x: x.pipeline, jobs))), BLUE)
-    )
-    print "| Job Groups: {g:>13}  |".format(
-        g=colorize(len(filter(lambda x: len(x.dependencies) == 0, jobs)), BLUE)
-    )
-    print "#" * 21
+    ))
+    print("| Job Groups: {g:>13}  |".format(
+        g=colorize(
+            len(list(filter(lambda x: len(x.dependencies) == 0, jobs))), BLUE)
+    ))
+    print("#" * 21)
 
 
 def _clean_value(v):
@@ -429,15 +440,15 @@ def _clean_value(v):
     # make the printed option relative to cwd
     # to avoid extreme long paths
     def __cl(s):
-        if isinstance(s, basestring) and len(s) > 0 and s.startswith(cwd):
+        if isinstance(s, string_types) and len(s) > 0 and s.startswith(cwd):
             return os.path.relpath(s)
         return s
 
     if isinstance(v, (list, tuple)):
-        v = [__cl(x) if not isinstance(x, file) else "<<STREAM>>"
+        v = [__cl(x) if not isinstance(x, IOBase) else "<<STREAM>>"
              for x in v]
     else:
-        v = __cl(v) if not isinstance(v, file) else "<<STREAM>>"
+        v = __cl(v) if not isinstance(v, IOBase) else "<<STREAM>>"
 
     return v
 
@@ -487,7 +498,7 @@ def create_table(header, rows, empty="", to_string=table_to_string,
     :param empty: string representation for ``None`` values
     :param to_string: function reference to the converter function that
                       creates string representation for row values
-    :param width: optional list of columns widths
+    :param widths: optional list of columns widths
     :param deco: Texttable decorations
     :returns: Texttable table instance
     """
@@ -497,8 +508,8 @@ def create_table(header, rows, empty="", to_string=table_to_string,
         t.header(header)
     if widths is not None:
         t.set_cols_width(widths)
-    map(t.add_row, [[to_string(x, empty=empty) for x in r]
-                    for r in rows])
+    for y in [[to_string(x, empty=empty) for x in r] for r in rows]:
+        t.add_row(y)
     return t
 
 
@@ -512,7 +523,7 @@ def render_table(header, rows, empty="", widths=None,
     :param empty: string representation for ``None`` values
     :param to_string: function reference to the converter function that
                       creates string representation for row values
-    :param width: optional list of columns widths
+    :param widths: optional list of columns widths
     :returns: string representation of the table
     """
     return create_table(header, rows, empty=empty,
@@ -537,17 +548,16 @@ def confirm(msg, default=True):
         prompt = "[y/N]"
 
     question = "%s %s:" % (msg, prompt)
-    sys.stdout.write(question)
+    print(question, end='')
     while True:
-        choice = raw_input()
+        choice = input()
         if default is not None and choice == '':
             return default
         elif choice in valid:
             return valid[choice]
         else:
-            sys.stdout.write("\nPlease respond with 'yes' or 'no' "
-                             "(or 'y' or 'n').\n\n")
-            sys.stdout.write(question)
+            print("\nPlease respond with 'yes' or 'no' (or 'y' or 'n').\n")
+            print(question, end='')
 
 
 def read_ids_from_pipe():
@@ -586,6 +596,6 @@ def dry(script, script_args, dry=True, show=False):
         jip.jobs.check_output_files(jobs)
         jip.jobs.check_queued_jobs(jobs)
     except Exception as err:
-        print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-        print >>sys.stderr, str(err)
+        print(colorize("Validation error!", RED), file=sys.stderr)
+        print(str(err), file=sys.stderr)
         sys.exit(1)

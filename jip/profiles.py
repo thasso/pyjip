@@ -125,6 +125,7 @@ import logging
 
 import jip.utils
 from jip.templates import render_template
+from jip.six import iteritems
 
 log = logging.getLogger("jip.profile")
 #: global specs
@@ -183,7 +184,7 @@ class Profile(object):
         if not node_profile:
             node_profile = self.specs.get(node._name, None)
         # check via regexp
-        for spec_name, spec in self.specs.iteritems():
+        for spec_name, spec in iteritems(self.specs):
             if fnmatch.fnmatch(node.name, spec_name):
             #if re.match(spec_name, node.name):
                 if not node_profile:
@@ -278,7 +279,7 @@ class Profile(object):
         """Update this profile from the given dictionary of command line
         arguments. The argument names must match the profile attributes
         """
-        for k, v in args.iteritems():
+        for k, v in iteritems(args):
             k = re.sub("^-+", "", k)
             k = re.sub("-", "_", k)
             if v and hasattr(self, k):
@@ -367,7 +368,7 @@ class Profile(object):
             if job.env:
                 current.update(job.env)
             rendered = {}
-            for k, v in self.env.iteritems():
+            for k, v in iteritems(self.env):
                 rendered[k] = render_template(v, **current)
             job.env.update(rendered)
 
@@ -375,7 +376,7 @@ class Profile(object):
             for child in job.pipe_to:
                 self.apply_overwrite(child)
         # check specs
-        for spec_name, spec in self.specs.iteritems():
+        for spec_name, spec in iteritems(self.specs):
             if fnmatch.fnmatch(job.name, spec_name):
                 spec.apply_overwrite(job)
 
@@ -439,7 +440,7 @@ class Profile(object):
             if job.env:
                 current.update(job.env)
             rendered = {}
-            for k, v in self.env.iteritems():
+            for k, v in iteritems(self.env):
                 rendered[k] = render_template(v, **current)
             job.env.update(rendered)
 
@@ -510,7 +511,7 @@ class Profile(object):
             else self.description,
             _load=False
         )
-        for name, spec in self.specs.iteritems():
+        for name, spec in iteritems(self.specs):
             clone.specs[name] = spec()
         return clone
 
@@ -564,11 +565,11 @@ class Profile(object):
         """Load a profile from a dictionary"""
         profile = cls()
         # apply all the params
-        for k, v in data.iteritems():
+        for k, v in iteritems(data):
             if k != 'jobs':
                 profile.__setattr__(k, v)
         if "jobs" in data:
-            for name, spec in data["jobs"].iteritems():
+            for name, spec in iteritems(data["jobs"]):
                 profile.specs[name] = cls.from_dict(spec)
         return profile
 
@@ -600,17 +601,18 @@ def get_specs(path=None):
 
     :param path: optional path to an additional spec file
     """
-    
+
     def load_json(jf):
         with open(jf) as of:
             try:
                 data = json.load(of)
             except ValueError:
                 log.error("Malformed json file %s", jf)
-                raise jip.ValidationError('jip.profiles', "Malformed json file %s" % (jf))
-        
-        return data
-    
+                raise jip.ValidationError(
+                    'jip.profiles', "Malformed json file %s" % (jf))
+            else:
+                return data
+
     global specs
     cwd = os.path.join(os.getcwd(), "jip.specs")
     home = os.path.join(os.getenv("HOME", ""), ".jip/jip.specs")
@@ -621,12 +623,12 @@ def get_specs(path=None):
         specs = _update(specs, load_json(cwd))
     if path and os.path.exists(path):
         specs = _update(specs, load_json(path))
-        
+
     return specs
 
 
 def _update(config, other):
-    for k, v in other.iteritems():
+    for k, v in iteritems(other):
         if isinstance(v, collections.Mapping):
             r = _update(config.get(k, {}), v)
             config[k] = r

@@ -31,7 +31,7 @@ def main():
         for j in jobs:
             jip.jobs.hold(j, clean_job=False, clean_logs=True,
                           hold_children=False)
-            print "Hold", j.id
+            print("Hold", j.id)
 
 
 if __name__ == "__main__":

@@ -43,6 +43,7 @@ import jip.cluster
 import jip.jobs
 import jip.profiler
 
+from jip.six import itervalues, iteritems
 
 log = getLogger('jip.executils')
 
@@ -80,7 +81,7 @@ def create_dispatcher_graph(job, _nodes=None):
         # node exists, skip it
         return None
     # search for a new with the same target
-    for n in _nodes.itervalues():
+    for n in itervalues(_nodes):
         if set(job.pipe_to) == n.targets:
             node = n
             break
@@ -102,13 +103,13 @@ def create_dispatcher_graph(job, _nodes=None):
     if _initialized:
         # I am the first iteration
         # and we create edges between the nodes based on source/target
-        for k, node in _nodes.iteritems():
+        for k, node in iteritems(_nodes):
             for target in node.targets:
-                for k, other in _nodes.iteritems():
+                for k, other in iteritems(_nodes):
                     if target in other.sources:
                         other.depends_on.append(node)
                         node.children.append(other)
-        return _sort_dispatcher_nodes(set(_nodes.itervalues()))
+        return _sort_dispatcher_nodes(set(itervalues(_nodes)))
     return None
 
 
@@ -163,8 +164,8 @@ class DispatcherNode(object):
         from jip.db import STATE_RUNNING
         num_sources = len(self.sources)
         num_targets = len(self.targets)
-        has_groups = len(filter(lambda x: len(x.group_to) > 0,
-                                self.sources)) > 0
+        has_groups = len(list(filter(lambda x: len(x.group_to) > 0,
+                         self.sources))) > 0
         if has_groups:
             for job in self.sources:
                 default_in = None
@@ -272,7 +273,7 @@ class _FanDirect(object):
         processes = []
         direct_outs = jip.utils.flat_list([job.get_pipe_targets()
                                            for job in self.sources])
-        if len(filter(lambda x: x is not None, direct_outs)) == 0:
+        if len(list(filter(lambda x: x is not None, direct_outs))) == 0:
             # no extra output file dispatching is needed,
             # we can just create the pipes directly
             for source, target in zip(self.sources, self.targets):

@@ -53,9 +53,12 @@ Other Options:
     -h --help             Show this help message
 
 """
+from __future__ import print_function
+
 import sys
 
 import jip
+import jip.db
 import jip.profiles
 from . import parse_args, show_dry, show_commands, colorize, RED, \
     YELLOW
@@ -71,8 +74,8 @@ def main(argv=None):
     script_args = args["<args>"]
     try:
         script = jip.find(script_file)
-    except LookupError, e:
-        print >>sys.stderr, str(e)
+    except LookupError as e:
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
     # load profile
@@ -103,8 +106,8 @@ def main(argv=None):
         if args['--show']:
             show_commands(jobs)
         if error:
-            print >>sys.stderr, "%s\n" % (colorize("Validation error!", RED))
-            print >>sys.stderr, str(error)
+            print("%s\n" % colorize("Validation error!", RED), file=sys.stderr)
+            print(str(error), file=sys.stderr)
             sys.exit(1)
         return
 
@@ -122,7 +125,7 @@ def main(argv=None):
         # Only save the jobs and let them stay on hold
         #####################################################
         jip.db.save(jobs)
-        print "Jobs stored and put on hold"
+        print("Jobs stored and put on hold")
     else:
         try:
             #####################################################
@@ -132,16 +135,16 @@ def main(argv=None):
                                                   check_outputs=not force,
                                                   check_queued=not force):
                 if exe.completed and not force:
-                    print colorize("Skipping %s" % exe.name, YELLOW)
+                    print(colorize("Skipping %s" % exe.name, YELLOW))
                 else:
                     if jip.jobs.submit_job(exe.job, force=force):
-                        print "Submitted %s with remote id %s" % (
+                        print("Submitted %s with remote id %s" % (
                             exe.job.id, exe.job.job_id
-                        )
+                        ))
         except Exception as err:
             log.debug("Submission error: %s", err, exc_info=True)
-            print >>sys.stderr, colorize("Error while submitting job:", RED), \
-                colorize(str(err), RED)
+            print(colorize("Error while submitting job:", RED),
+                  colorize(str(err), RED), file=sys.stderr)
             ##################################################
             # delete all submitted jobs
             ##################################################

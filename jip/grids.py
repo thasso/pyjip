@@ -10,6 +10,7 @@ import logging
 
 import jip.cluster
 from jip.logger import getLogger
+from jip.six import iteritems
 
 
 class LocalCluster(jip.cluster.Cluster):
@@ -385,7 +386,7 @@ class _GridMaster(object):
                 # not all dependencies are resolved
                 self.log.info("Master | No jobs without dependencies found")
                 break
-            if job.threads <= self.slots_available:
+            if job.threads is None or job.threads <= self.slots_available:
                 self.log.info("Master | Submitting job for execution %s",
                               job.job_id)
                 # start this one
@@ -406,7 +407,7 @@ class _GridMaster(object):
     def _handle_exit(self, *args):
         """The EXIT handler"""
         self.log.info("Master | EXIT request, shutting down")
-        for job_id, p in self.running.iteritems():
+        for job_id, p in iteritems(self.running):
             self.log.warn("Master | Terminating %s", job_id)
             p.process.terminate()
             p.process.join()
@@ -630,4 +631,4 @@ def _terminate_process(process, log):
             else:
                 # nothing worked, kill the job
                 log.info("Exec | Processes still running, sending SIGKILL")
-                os.kill(process._popen.pid, signal.SIGKILL)
+                os.kill(process.pid, signal.SIGKILL)

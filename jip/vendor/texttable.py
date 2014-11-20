@@ -28,7 +28,7 @@ Example:
     table.add_rows([ ["Name", "Age", "Nickname"],
                      ["Mr\\nXavier\\nHuon", 32, "Xav'"],
                      ["Mr\\nBaptiste\\nClement", 1, "Baby"] ])
-    print table.draw() + "\\n"
+    print(table.draw() + "\\n")
 
     table = Texttable()
     table.set_deco(Texttable.HEADER)
@@ -43,7 +43,7 @@ Example:
                     ["efghijk", 67.5434, .654,  89.6,  12800000000000000000000.00023],
                     ["lmn",     5e-78,   5e-78, 89.4,  .000000000000128],
                     ["opqrstu", .023,    5e+78, 92.,   12800000000000000000000]])
-    print table.draw()
+    print(table.draw())
 
 Result:
 
@@ -66,6 +66,7 @@ Result:
     ijkl   0.000    5.000e-78   89    0.000
     mnop   0.023    5.000e+78   92    1.280e+22
 """
+from __future__ import print_function
 
 __all__ = ["Texttable", "ArraySizeError"]
 
@@ -93,6 +94,10 @@ Brian Peterson:
 import sys
 import string
 
+from functools import reduce
+
+from jip.six import u
+
 try:
     if sys.version >= '2.3':
         import textwrap
@@ -101,13 +106,9 @@ try:
     else:
         from optik import textwrap
 except ImportError:
-    sys.stderr.write("Can't import textwrap module!\n")
+    print("Can't import textwrap module!", file=sys.stderr)
     raise
 
-try:
-    True, False
-except NameError:
-    (True, False) = (1, 0)
 
 def len(iterable):
     """Redefining len here so it will be able to work with non-ASCII characters
@@ -116,9 +117,10 @@ def len(iterable):
         return iterable.__len__()
 
     try:
-        return len(unicode(iterable, 'utf'))
+        return len(u(iterable))
     except:
         return iterable.__len__()
+
 
 class ArraySizeError(Exception):
     """Exception raised when specified rows don't fit the required size
@@ -130,6 +132,7 @@ class ArraySizeError(Exception):
 
     def __str__(self):
         return self.msg
+
 
 class bcolors:
     PURPLE = '\033[95m'
@@ -146,6 +149,7 @@ __bcols = list(name for name in dir(bcolors) if not name.startswith('_'))
 def bcolors_public_props():
     return __bcols
     #return (name for name in dir(bcolors) if not name.startswith('_'))
+
 
 def get_color_string(type, string):
     end = bcolors.ENDC
@@ -201,8 +205,8 @@ class Texttable:
         """
 
         if len(array) != 4:
-            raise ArraySizeError, "array should contain 4 characters"
-        array = [ x[:1] for x in [ str(s) for s in array ] ]
+            raise ArraySizeError("array should contain 4 characters")
+        array = [x[:1] for x in [str(s) for s in array]]
         (self._char_horiz, self._char_vert,
             self._char_corner, self._char_header) = array
 
@@ -279,11 +283,12 @@ class Texttable:
 
         self._check_row_size(array)
         try:
-            array = map(int, array)
+            array = list(map(int, array))
             if reduce(min, array) <= 0:
                 raise ValueError
         except ValueError:
-            sys.stderr.write("Wrong argument in column width specification\n")
+            print("Wrong argument in column width specification",
+                  file=sys.stderr)
             raise
         self._width = array
 
@@ -304,7 +309,7 @@ class Texttable:
         """
 
         self._check_row_size(array)
-        self._header = map(str, array)
+        self._header = list(map(str, array))
 
     def add_row(self, array):
         """Add a row in the rows stack
@@ -318,7 +323,7 @@ class Texttable:
             self._dtype = ["a"] * self._row_size
 
         cells = []
-        for i,x in enumerate(array):
+        for i, x in enumerate(array):
             cells.append(self._str(i,x))
         self._rows.append(cells)
 
@@ -411,8 +416,8 @@ class Texttable:
         if not self._row_size:
             self._row_size = len(array)
         elif self._row_size != len(array):
-            raise ArraySizeError, "array should contain %d elements" \
-                % self._row_size
+            raise ArraySizeError(
+                "array should contain %d elements" % self._row_size)
 
     def _has_vlines(self):
         """Return a boolean, if vlines are required or not
@@ -463,7 +468,7 @@ class Texttable:
         s = "%s%s%s" % (horiz, [horiz, self._char_corner][self._has_vlines()],
             horiz)
         # build the line
-        l = string.join([horiz * n for n in self._width], s)
+        l = s.join([horiz * n for n in self._width])
         # add border if needed
         if self._has_border():
             l = "%s%s%s%s%s\n" % (self._char_corner, horiz, l, horiz,
@@ -490,7 +495,7 @@ class Texttable:
             for part, i in zip(parts, range(1, len(parts) + 1)):
                 length = length + len(part)
                 if i < len(parts):
-                    length = (length/8 + 1) * 8
+                    length = (length//8 + 1) * 8
             maxi = max(maxi, length)
         return maxi
 
@@ -516,7 +521,7 @@ class Texttable:
         items = len(maxi)
         length = reduce(lambda x,y: x+y, maxi)
         if self._max_width and length + items * 3 + 1 > self._max_width:
-            maxi = [(self._max_width - items * 3 -1) / items \
+            maxi = [(self._max_width - items * 3 -1) // items \
                 for n in range(items)]
         self._width = maxi
 
@@ -568,8 +573,8 @@ class Texttable:
                 if align == "r":
                     out += "%s " % (fill * space + cell_line)
                 elif align == "c":
-                    out += "%s " % (fill/2 * space + cell_line \
-                            + (fill/2 + fill%2) * space)
+                    out += "%s " % (fill//2 * space + cell_line \
+                            + (fill//2 + fill%2) * space)
                 else:
                     out += "%s " % (cell_line + fill * space)
                 if length < len(line):
@@ -598,14 +603,15 @@ class Texttable:
                         lost_color = attr
             for c in cell.split('\n'):
                 try:
-                    c = unicode(c, 'utf')
-                except UnicodeDecodeError, strerror:
-                    sys.stderr.write("UnicodeDecodeError exception for string '%s': %s\n" % (c, strerror))
-                    c = unicode(c, 'utf', 'replace')
+                    c = u(c)
+                except UnicodeDecodeError as strerror:
+                    print("UnicodeDecodeError exception for string '%s': %s" % (
+                        c, strerror), file=sys.stderr)
+                    c = u(c)
                 try:
-                    nl = [get_color_string(
-                            getattr(bcolors, lost_color),x
-                            ) for x in  textwrap.wrap(c, width)
+                    nl = [
+                        get_color_string(getattr(bcolors, lost_color), x)
+                        for x in textwrap.wrap(c, width)
                     ]
                     if len(nl) == 1:
                         array.extend([original_cell])
@@ -620,8 +626,8 @@ class Texttable:
                 valign = "t"
             if valign == "m":
                 missing = max_cell_lines - len(cell)
-                cell[:0] = [""] * (missing / 2)
-                cell.extend([""] * (missing / 2 + missing % 2))
+                cell[:0] = [""] * (missing // 2)
+                cell.extend([""] * (missing // 2 + missing % 2))
             elif valign == "b":
                 cell[:0] = [""] * (max_cell_lines - len(cell))
             else:
@@ -635,7 +641,7 @@ if __name__ == '__main__':
     table.add_rows([ [get_color_string(bcolors.GREEN, "Name Of Person"), "Age", "Nickname"],
                      ["Mr\nXavier\nHuon", 32, "Xav'"],
                      [get_color_string(bcolors.BLUE,"Mr\nBaptiste\nClement"), 1, get_color_string(bcolors.RED,"Baby")] ])
-    print table.draw() + "\n"
+    print(table.draw() + "\n")
 
     table = Texttable()
     table.set_deco(Texttable.HEADER)
@@ -650,4 +656,4 @@ if __name__ == '__main__':
                     ["efghijk", 67.5434, .654,  89.6,  12800000000000000000000.00023],
                     ["lmn",     5e-78,   5e-78, 89.4,  .000000000000128],
                     ["opqrstu", .023,    5e+78, 92.,   12800000000000000000000]])
-    print table.draw()
+    print(table.draw())
