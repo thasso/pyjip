@@ -54,7 +54,7 @@ The JIP source code can be found on
 Bugs and feature requests
 =========================
 Please feel free to use the `issue tracker 
-<https://github.com/thasso/pyjip/issued>`_ to file bug reports and feature 
+<https://github.com/thasso/pyjip/issues>`_ to file bug reports and feature 
 requests.
 
 Changelog
