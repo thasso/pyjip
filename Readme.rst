@@ -2,23 +2,23 @@ JIP Pipeline system
 ===================
 The JIP pipeline system is a python library and a set of command
 line utilities that allows you to create batch-process based computational
-pipeline that can be submitted and managed on a compute cluster or on 
+pipeline that can be submitted and managed on a compute cluster or on
 your local machine.
 
 Installation
 ============
-The `JIP documentation <http://pyjip.readthedocs.org/en/latest/>`_ contains 
+The `JIP documentation <http://pyjip.readthedocs.org/en/latest/>`_ contains
 more detailed instructions on installation and, more importantly, configuration
 of the system and your compute infrastructure. Here is the very quick guide::
 
     $> pip install pyjip
 
-    or 
+    or
 
     $> python setup.py install
 
 If you want to install from *pypi* or the git repository. Afterwards, you have
-to create configuration file ``$HOME/.jip/jip.json`` and add the following 
+to create configuration file ``$HOME/.jip/jip.json`` and add the following
 content::
 
     {
@@ -36,7 +36,7 @@ for your compute cluster. JIP ships with the following implementations:
 
     * ``jip.cluster.LSF`` for *Platform LSF* and *Open Lava*
 
-    * ``jip.grids.JIP`` for JIPs' internal scheduler. If you use this, make 
+    * ``jip.grids.JIP`` for JIPs' internal scheduler. If you use this, make
       sure to start the JIP server on the same machine using the ``jip server``
       command. Please note also that you have to install *pyzmq* if you want
       to run the JIP server.
@@ -48,17 +48,24 @@ usage can be found at http://pyjip.readthedocs.org/en/latest/.
 
 Source Code
 ===========
-The JIP source code can be found on 
+The JIP source code can be found on
 `GitHub <https://github.com/thasso/pyjip>`_.
 
 Bugs and feature requests
 =========================
-Please feel free to use the `issue tracker 
-<https://github.com/thasso/pyjip/issues>`_ to file bug reports and feature 
+Please feel free to use the `issue tracker
+<https://github.com/thasso/pyjip/issues>`_ to file bug reports and feature
 requests.
 
 Changelog
 =========
+0.6:
+    * Add MySQL support [`Issue #53 <https://github.com/thasso/pyjip/issues/53>`_]
+    * Hidden options are not resolved when called explicitly [`Issue #51 <https://github.com/thasso/pyjip/issues/51>`_]
+    * Add option to select memory unit for SGE [`Issue #46 <https://github.com/thasso/pyjip/pull/46>`_]
+    * If a non-existing option is referenced in a script template, an AttributeError is raised [`Issue #43 <https://github.com/thasso/pyjip/issues/43>`_]
+    * Wrong unit for memory when submitting to SGE [`Issue #40 <https://github.com/thasso/pyjip/issues/40>`_]
+
 0.5:
     * Enable rendering of log file location using pipeline and tools options [`Issue #39 <https://github.com/thasso/pyjip/issues/39>`_]
     * Options embedded in command scripts are not made absolute [`Issue #38 <https://github.com/thasso/pyjip/issues/38>`_]
