@@ -593,8 +593,7 @@ def init(path=None, in_memory=False, pool=None):
 
     # Constants: DB errors (MySQL numbers)
     DBAPIError_UNKNOWNDATABASE = 1049
-    DBAPIError_UNKNOWNHOST     = 2005
-    
+    DBAPIError_UNKNOWNHOST  = 2005
 
     if in_memory:
         log.debug("Initialize in-memory DB")
@@ -617,15 +616,15 @@ def init(path=None, in_memory=False, pool=None):
     # make sure folders exists
     path_split = path.split("://")
     if len(path_split) != 2:
-        ## dynamically create an sqlite path
+        # dynamically create an sqlite path
         if not path.startswith("/"):
             path = abspath(path)
         path_split = ["sqlite", path]
         path = "sqlite:///%s" % path
 
     # logging cinfiguration
-    #import logging
-    #getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
+    # import logging
+    # getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
     # Pooling configuration
     if pool is None:
@@ -634,6 +633,7 @@ def init(path=None, in_memory=False, pool=None):
 
     # Engine creation
     type, folder = path_split
+    log.debug("Database type %s and folder %s", type, folder)
     create_tables = False
     if type == 'sqlite':
         if not exists(folder) and not exists(dirname(folder)):
@@ -644,12 +644,13 @@ def init(path=None, in_memory=False, pool=None):
         engine = sql_create_engine(path)
     elif type == 'mysql':
         import urlparse as up
-        
+
         # Split connection string
         dburl = up.urlsplit(path)
-        db_conn_string = up.urlunsplit((dburl.scheme, dburl.netloc, '', dburl.query, dburl.fragment))
-        db_database = dburl.path[1:] # Trim the forward slash
-        
+        db_conn_string = up.urlunsplit(
+            (dburl.scheme, dburl.netloc, '', dburl.query, dburl.fragment))
+        db_database = dburl.path[1:]  # Trim the forward slash
+
         # Prepare the connection to the DBMS, no DB selected
         engine = sql_create_engine(db_conn_string, poolclass=pool)
 
@@ -921,7 +922,7 @@ def delete(jobs):
             relation_table.c.job_id == bindparam("_id")
         )
         stmt.append(dep)
-    
+
     # convert the job values
     values = [{"_id": j.id} for j in jobs if j.id is not None]
     if values:
