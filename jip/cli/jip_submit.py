@@ -115,6 +115,9 @@ def main(argv=None):
     jobs = jip.jobs.create_jobs(script, args=script_args, keep=args['--keep'],
                                 profile=profile,
                                 profiler=args['--with-profiler'])
+    for job in jobs:
+        job.pipeline_name = args['--name']
+    
     if len(jobs) == 0:
         return
     if args['--hold']:
