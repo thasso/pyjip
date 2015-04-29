@@ -3,14 +3,15 @@
 Cancel jip jobs
 
 Usage:
-    jip-cancel [-j <id>...] [-J <cid>...] [--clean]
+    jip-cancel [-j <id>...] [-J <cid>...] [--clean] [--force]
     jip-cancel [--help|-h]
 
 Options:
-    --clean                     Remove the logfiles
     -j, --job <id>...           List jobs with specified id
     -J, --cluster-job <cid>...  List jobs with specified cluster id
-    -h --help                   Show this help message
+    -c, --clean                 Remove the logfiles
+    -f, --force                 Force execution, without asking
+    -h, --help                  Show this help message
 """
 import jip.db
 import jip.jobs
@@ -31,7 +32,7 @@ def main():
     # get full pipelines
     jobs = jip.jobs.resolve_jobs(jobs)
 
-    if confirm("Are you sure you want "
+    if args['--force'] or confirm("Are you sure you want "
                "to cancel %d jobs" % len(jobs),
                False):
         print >>sys.stderr, "Cancelling %s jobs" % len(jobs)

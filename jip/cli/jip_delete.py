@@ -3,14 +3,15 @@
 Delete jip jobs
 
 Usage:
-    jip-delete [-j <id>...] [-J <cid>...] [-c]
+    jip-delete [-j <id>...] [-J <cid>...] [-c] [-f]
     jip-delete [--help|-h]
 
 Options:
     -j, --job <id>           List jobs with specified id
     -J, --cluster-job <cid>  List jobs with specified cluster id
     -c, --clean              Remove job logs
-    -h --help                Show this help message
+    -f, --force              Force execution, without asking
+    -h, --help               Show this help message
 """
 
 import jip.db
@@ -32,7 +33,7 @@ def main():
     # get full pipelines
     jobs = jip.jobs.resolve_jobs(jobs)
 
-    if confirm("Are you sure you want "
+    if args['--force'] or confirm("Are you sure you want "
                "to delete %d jobs" % len(jobs),
                False):
         for job in jobs:
