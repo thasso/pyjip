@@ -5,5 +5,3 @@ SQLAlchemy==0.8.2
 Sphinx==1.1.3
 sphinxcontrib-fulltoc==1.0
 argparse
-mysql-python
-pysqlite
