@@ -1150,7 +1150,7 @@ def check_output_files(jobs):
         if not job.tool:
             continue
         for of in job.tool.get_output_files():
-            if of in outputs:
+            if of in outputs and of != '/dev/null':
                 raise jip.tools.ValidationError(
                     job,
                     "Output file duplication: %s\n\n"
@@ -1199,7 +1199,7 @@ def check_queued_jobs(jobs, active_jobs=None):
         if of:
             files[of] = j
     for job, of in __output_files(jobs):
-        if of and of in files:
+        if of and of in files and of != '/dev/null':
             other_job = files[of]
             job.state = other_job.state
             raise jip.tools.ValidationError(
